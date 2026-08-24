@@ -1,4 +1,4 @@
-import { getGoogleStatus, disconnectGoogleAction } from "@/app/actions";
+import { getGoogleStatus, disconnectGoogleAction } from "@/app/(app)/actions";
 
 export const dynamic = "force-dynamic";
 

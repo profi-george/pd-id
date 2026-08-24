@@ -1,75 +1,64 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { updateTask } from "@/app/actions";
+import { createTask } from "@/app/(app)/actions";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
-import { toDateInputValue } from "@/lib/dates";
-import PriorityTag from "@/components/PriorityTag";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const SCALE = [1, 2, 3, 4, 5];
 
-export default async function EditTaskPage({
-  params,
+export default async function NewTaskPage({
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ date?: string; projectId?: string }>;
 }) {
-  const { id } = await params;
-  const { returnTo } = await searchParams;
-  const [task, projects] = await Promise.all([
-    prisma.task.findUnique({ where: { id } }),
-    prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
-  ]);
-
-  if (!task) notFound();
-
+  const user = await requireUser();
+  const params = await searchParams;
+  const dateOption = params.date === "today" || params.date === "tomorrow" ? params.date : "backlog";
+  const projects = await prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } });
   const projectOptions = flattenProjectsForSelect(
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
   );
 
+  const aiHref = "/backlog";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Изменить задачу</h1>
-        <PriorityTag task={task} />
+        <h1 className="text-xl font-semibold">Новая задача (вручную)</h1>
+        <Link href={aiHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">
+          Пусть оценит ИИ →
+        </Link>
       </div>
+      <p className="text-xs text-neutral-500 -mt-2">
+        Обычно проще продиктовать задачу ИИ — он сам оценит критерии ниже. Эта форма для случаев,
+        когда вы точно знаете оценки сами или нет доступа к ИИ.
+      </p>
 
-      {(task.primaryReason || task.riskText) && (
-        <div className="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded px-2 py-1.5 space-y-0.5">
-          {task.primaryReason && <p>Почему: {task.primaryReason}</p>}
-          {task.riskText && <p>Риск отложить: {task.riskText}</p>}
-        </div>
-      )}
-
-      <form
-        action={updateTask.bind(null, id)}
-        className="space-y-4 bg-white border border-neutral-200 rounded-lg p-4"
-      >
-        <input type="hidden" name="returnTo" value={returnTo ?? "/backlog"} />
-
+      <form action={createTask} className="space-y-4 bg-white border border-neutral-200 rounded-lg p-4">
         <div>
           <label className="block text-sm font-medium mb-1">Формулировка задачи</label>
           <textarea
             name="text"
             required
             rows={2}
-            defaultValue={task.text}
             className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            placeholder="Например: отправить черновик договора клиенту на согласование"
           />
           <p className="mt-1 text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded px-2 py-1.5">
-            Памятка: формулируйте конкретно, через результат действия, а не поверхностно. Плохо:
-            «поработать над проектом». Хорошо: «отправить клиенту согласованную смету».
+            Памятка: формулируйте конкретно, через результат действия — что именно будет
+            сделано/готово, а не поверхностно и не процессом. Плохо: «поработать над проектом».
+            Хорошо: «отправить клиенту согласованную смету».
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Ожидаемый результат</label>
+          <label className="block text-sm font-medium mb-1">Ожидаемый результат (необязательно)</label>
           <input
             name="resultText"
-            defaultValue={task.resultText ?? ""}
             className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            placeholder="Что станет возможным/готовым после выполнения"
           />
         </div>
 
@@ -77,7 +66,7 @@ export default async function EditTaskPage({
           <label className="block text-sm font-medium mb-1">Проект</label>
           <select
             name="projectId"
-            defaultValue={task.projectId ?? ""}
+            defaultValue={params.projectId ?? ""}
             className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
           >
             <option value="">Без проекта</option>
@@ -92,31 +81,31 @@ export default async function EditTaskPage({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Ценность результата (1–5)</label>
-            <select name="value" defaultValue={String(task.value)} className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <select name="value" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Цена откладывания (1–5)</label>
-            <select name="costOfDelay" defaultValue={String(task.costOfDelay)} className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <select name="costOfDelay" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Срочность (1–5)</label>
-            <select name="urgency" defaultValue={String(task.urgency)} className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <select name="urgency" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Временная чувствительность (1–5)</label>
-            <select name="timeSensitivity" defaultValue={String(task.timeSensitivity)} className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <select name="timeSensitivity" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Связь с текущей целью (1–5)</label>
-            <select name="goalAlignment" defaultValue={String(task.goalAlignment)} className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <select name="goalAlignment" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
@@ -127,32 +116,44 @@ export default async function EditTaskPage({
               name="effortMinutes"
               step="5"
               min="5"
-              defaultValue={task.effortMinutes}
+              defaultValue="30"
               className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Дедлайн</label>
+            <label className="block text-sm font-medium mb-1">Дедлайн (необязательно)</label>
             <input
               type="date"
               name="deadline"
-              defaultValue={task.deadline ? toDateInputValue(task.deadline) : ""}
               className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
             />
           </div>
           <div className="flex items-end">
             <label className="flex items-center gap-2 text-sm mb-1.5">
-              <input type="checkbox" name="financialConsequence" defaultChecked={task.financialConsequence} />
+              <input type="checkbox" name="financialConsequence" />
               Есть финансовые последствия
             </label>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Куда добавить</label>
+          <select
+            name="dateOption"
+            defaultValue={dateOption}
+            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+          >
+            <option value="backlog">Позже (без даты)</option>
+            <option value="today">На сегодня</option>
+            <option value="tomorrow">На завтра (черновик)</option>
+          </select>
         </div>
 
         <button
           type="submit"
           className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
         >
-          Сохранить изменения
+          Добавить задачу
         </button>
       </form>
     </div>

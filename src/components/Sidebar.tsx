@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { assignTaskToProject, createProject } from "@/app/actions";
+import { assignTaskToProject, createProject } from "@/app/(app)/actions";
 import { buildProjectTree, type ProjectNode } from "@/lib/projectTree";
 
 export default function Sidebar({

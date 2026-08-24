@@ -23,7 +23,7 @@ function getRedirectUri(): string {
   return process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/google/callback";
 }
 
-export function getGoogleAuthUrl(): string {
+export function getGoogleAuthUrl(userId: string): string {
   const clientId = requireEnv("GOOGLE_CLIENT_ID");
   const params = new URLSearchParams({
     client_id: clientId,
@@ -32,11 +32,12 @@ export function getGoogleAuthUrl(): string {
     scope: SCOPE,
     access_type: "offline",
     prompt: "consent", // чтобы гарантированно получить refresh_token даже при повторном подключении
+    state: userId, // какой кабинет подключает календарь — читаем обратно в /api/google/callback
   });
   return `${AUTH_URL}?${params.toString()}`;
 }
 
-export async function exchangeCodeForTokens(code: string): Promise<void> {
+export async function exchangeCodeForTokens(userId: string, code: string): Promise<void> {
   const clientId = requireEnv("GOOGLE_CLIENT_ID");
   const clientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
 
@@ -69,9 +70,9 @@ export async function exchangeCodeForTokens(code: string): Promise<void> {
   const user = userRes.ok ? ((await userRes.json()) as { email?: string }) : {};
 
   await prisma.appSettings.upsert({
-    where: { id: "singleton" },
+    where: { userId },
     create: {
-      id: "singleton",
+      userId,
       googleAccessToken: data.access_token,
       googleRefreshToken: data.refresh_token ?? null,
       googleTokenExpiry: new Date(Date.now() + data.expires_in * 1000),
@@ -88,18 +89,20 @@ export async function exchangeCodeForTokens(code: string): Promise<void> {
   });
 }
 
-export async function getGoogleConnectionStatus(): Promise<{ connected: boolean; email: string | null }> {
-  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+export async function getGoogleConnectionStatus(
+  userId: string
+): Promise<{ connected: boolean; email: string | null }> {
+  const settings = await prisma.appSettings.findUnique({ where: { userId } });
   return {
     connected: Boolean(settings?.googleRefreshToken),
     email: settings?.googleAccountEmail ?? null,
   };
 }
 
-export async function disconnectGoogle(): Promise<void> {
+export async function disconnectGoogle(userId: string): Promise<void> {
   await prisma.appSettings.upsert({
-    where: { id: "singleton" },
-    create: { id: "singleton" },
+    where: { userId },
+    create: { userId },
     update: {
       googleAccessToken: null,
       googleRefreshToken: null,
@@ -109,8 +112,8 @@ export async function disconnectGoogle(): Promise<void> {
   });
 }
 
-async function getValidAccessToken(): Promise<string> {
-  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+async function getValidAccessToken(userId: string): Promise<string> {
+  const settings = await prisma.appSettings.findUnique({ where: { userId } });
   if (!settings?.googleRefreshToken) {
     throw new Error("Google-календарь не подключён. Подключите его в настройках.");
   }
@@ -144,7 +147,7 @@ async function getValidAccessToken(): Promise<string> {
   const data = (await res.json()) as { access_token: string; expires_in: number };
 
   await prisma.appSettings.update({
-    where: { id: "singleton" },
+    where: { userId },
     data: {
       googleAccessToken: data.access_token,
       googleTokenExpiry: new Date(Date.now() + data.expires_in * 1000),
@@ -154,13 +157,16 @@ async function getValidAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-export async function createCalendarEvent(input: {
-  title: string;
-  description?: string;
-  startISO: string; // ISO datetime, локальное время пользователя
-  endISO: string;
-}): Promise<{ eventId: string; eventUrl: string }> {
-  const accessToken = await getValidAccessToken();
+export async function createCalendarEvent(
+  userId: string,
+  input: {
+    title: string;
+    description?: string;
+    startISO: string; // ISO datetime, локальное время пользователя
+    endISO: string;
+  }
+): Promise<{ eventId: string; eventUrl: string }> {
+  const accessToken = await getValidAccessToken(userId);
 
   const res = await fetch(EVENTS_URL, {
     method: "POST",
@@ -185,8 +191,8 @@ export async function createCalendarEvent(input: {
   return { eventId: data.id, eventUrl: data.htmlLink };
 }
 
-export async function deleteCalendarEvent(eventId: string): Promise<void> {
-  const accessToken = await getValidAccessToken();
+export async function deleteCalendarEvent(userId: string, eventId: string): Promise<void> {
+  const accessToken = await getValidAccessToken(userId);
   await fetch(`${EVENTS_URL}/${eventId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${accessToken}` },

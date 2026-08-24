@@ -2,9 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { todayDate, tomorrowDate, formatDateHuman } from "@/lib/dates";
-import { reorderTasks, deleteTask } from "@/app/actions";
+import { reorderTasks, deleteTask } from "@/app/(app)/actions";
 import TaskReorderList from "@/components/TaskReorderList";
 import PriorityTag from "@/components/PriorityTag";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,18 +16,19 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function TodayPage() {
+  const user = await requireUser();
   const date = todayDate();
   const tomorrow = tomorrowDate();
 
   const [day, todayTasksAll, tomorrowTasks] = await Promise.all([
-    prisma.day.findUnique({ where: { date } }),
+    prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
     prisma.task.findMany({
-      where: { date },
+      where: { userId: user.id, date },
       include: { project: true },
       orderBy: { order: "asc" },
     }),
     prisma.task.findMany({
-      where: { date: tomorrow },
+      where: { userId: user.id, date: tomorrow },
       include: { project: true },
       orderBy: { order: "asc" },
     }),

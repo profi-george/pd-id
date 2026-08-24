@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { todayDate, tomorrowDate, parseDateInputValue } from "@/lib/dates";
 import { initialOrderKey } from "@/lib/priority";
+import { requireUser } from "@/lib/auth";
 import {
   chatWithAI,
   type AiTaskEvaluation,
@@ -58,15 +59,17 @@ const DEFAULT_EVALUATION = {
 // ---------- Настройки (текущая цель) ----------
 
 export async function getCurrentGoal(): Promise<string | null> {
-  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+  const user = await requireUser();
+  const settings = await prisma.appSettings.findUnique({ where: { userId: user.id } });
   return settings?.currentGoal ?? null;
 }
 
 export async function setCurrentGoal(formData: FormData) {
+  const user = await requireUser();
   const currentGoal = str(formData, "currentGoal");
   await prisma.appSettings.upsert({
-    where: { id: "singleton" },
-    create: { id: "singleton", currentGoal: currentGoal || null },
+    where: { userId: user.id },
+    create: { userId: user.id, currentGoal: currentGoal || null },
     update: { currentGoal: currentGoal || null },
   });
   revalidatePath("/backlog");
@@ -75,10 +78,13 @@ export async function setCurrentGoal(formData: FormData) {
 // ---------- Проекты ----------
 
 export async function createProject(formData: FormData) {
+  const user = await requireUser();
   const name = str(formData, "name");
   if (!name) return null;
   const parentIdRaw = str(formData, "parentId");
-  const project = await prisma.project.create({ data: { name, parentId: parentIdRaw || null } });
+  const project = await prisma.project.create({
+    data: { name, parentId: parentIdRaw || null, userId: user.id },
+  });
   revalidatePath("/projects");
   revalidatePath("/backlog");
   return { id: project.id, name: project.name, parentId: project.parentId };
@@ -90,16 +96,18 @@ export async function createProjectForm(formData: FormData) {
 }
 
 export async function renameProject(id: string, formData: FormData) {
+  const user = await requireUser();
   const name = str(formData, "name");
   if (!name) return;
-  await prisma.project.update({ where: { id }, data: { name } });
+  await prisma.project.updateMany({ where: { id, userId: user.id }, data: { name } });
   revalidatePath("/projects");
   revalidatePath("/backlog");
   revalidatePath("/today");
 }
 
 export async function deleteProject(id: string) {
-  await prisma.project.delete({ where: { id } });
+  const user = await requireUser();
+  await prisma.project.deleteMany({ where: { id, userId: user.id } });
   revalidatePath("/projects");
   revalidatePath("/backlog");
   revalidatePath("/today");
@@ -123,6 +131,7 @@ function evaluationFromForm(formData: FormData) {
 }
 
 export async function createTask(formData: FormData) {
+  const user = await requireUser();
   const text = str(formData, "text");
   if (!text) return;
 
@@ -152,6 +161,7 @@ export async function createTask(formData: FormData) {
       text,
       resultText: resultText || null,
       projectId,
+      userId: user.id,
       ...evaluation,
       date,
       status,
@@ -166,6 +176,7 @@ export async function createTask(formData: FormData) {
 }
 
 export async function updateTask(id: string, formData: FormData) {
+  const user = await requireUser();
   const text = str(formData, "text");
   if (!text) return;
 
@@ -174,8 +185,8 @@ export async function updateTask(id: string, formData: FormData) {
   const resultText = str(formData, "resultText");
   const evaluation = evaluationFromForm(formData);
 
-  await prisma.task.update({
-    where: { id },
+  await prisma.task.updateMany({
+    where: { id, userId: user.id },
     data: { text, resultText: resultText || null, projectId, ...evaluation },
   });
 
@@ -185,6 +196,7 @@ export async function updateTask(id: string, formData: FormData) {
 }
 
 export async function createTasksBulk(formData: FormData) {
+  const user = await requireUser();
   const raw = String(formData.get("lines") ?? "");
   const lines = raw
     .split("\n")
@@ -211,6 +223,7 @@ export async function createTasksBulk(formData: FormData) {
       data: {
         text,
         projectId,
+        userId: user.id,
         ...DEFAULT_EVALUATION,
         date,
         status,
@@ -231,9 +244,10 @@ export async function chatStep(
   message: string
 ): Promise<{ ok: true; result: ChatResult } | { ok: false; error: string }> {
   try {
+    const user = await requireUser();
     const [currentGoal, projects] = await Promise.all([
       getCurrentGoal(),
-      prisma.project.findMany({ select: { id: true, name: true } }),
+      prisma.project.findMany({ where: { userId: user.id }, select: { id: true, name: true } }),
     ]);
     const result = await chatWithAI(history, message, { currentGoal, today: new Date(), projects });
     return { ok: true, result };
@@ -246,6 +260,7 @@ export async function createTasksWithDetails(
   tasks: (AiTaskEvaluation & { projectId: string | null })[],
   dateOption: "backlog" | "today" | "tomorrow"
 ) {
+  const user = await requireUser();
   if (tasks.length === 0) return;
 
   let date: Date | null = null;
@@ -267,6 +282,7 @@ export async function createTasksWithDetails(
         resultText: t.resultText || null,
         motivationText: t.motivationText || null,
         projectId: t.projectId,
+        userId: user.id,
         value: t.value,
         costOfDelay: t.costOfDelay,
         urgency: t.urgency,
@@ -316,14 +332,16 @@ export async function updateTaskFields(
     deadline: Date | null;
   }>
 ) {
-  await prisma.task.update({ where: { id: taskId }, data: patch });
+  const user = await requireUser();
+  await prisma.task.updateMany({ where: { id: taskId, userId: user.id }, data: patch });
   revalidatePath("/backlog");
   revalidatePath("/today");
 }
 
 export async function setManualPriority(taskId: string, label: string | null) {
+  const user = await requireUser();
   if (label !== null && !isPriorityLabel(label)) return;
-  await prisma.task.update({ where: { id: taskId }, data: { manualPriority: label } });
+  await prisma.task.updateMany({ where: { id: taskId, userId: user.id }, data: { manualPriority: label } });
   revalidatePath("/backlog");
   revalidatePath("/today");
 }
@@ -331,11 +349,13 @@ export async function setManualPriority(taskId: string, label: string | null) {
 // ---------- Google-календарь ----------
 
 export async function getGoogleStatus() {
-  return getGoogleConnectionStatus();
+  const user = await requireUser();
+  return getGoogleConnectionStatus(user.id);
 }
 
 export async function disconnectGoogleAction() {
-  await disconnectGoogle();
+  const user = await requireUser();
+  await disconnectGoogle(user.id);
   revalidatePath("/settings");
 }
 
@@ -344,13 +364,14 @@ export async function addTaskToGoogleCalendar(
   input: { date: string; startTime: string; durationMinutes: number }
 ): Promise<{ ok: true; eventUrl: string } | { ok: false; error: string }> {
   try {
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const user = await requireUser();
+    const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
     if (!task) return { ok: false, error: "Задача не найдена." };
 
     const start = new Date(`${input.date}T${input.startTime}:00`);
     const end = new Date(start.getTime() + input.durationMinutes * 60_000);
 
-    const { eventId, eventUrl } = await createCalendarEvent({
+    const { eventId, eventUrl } = await createCalendarEvent(user.id, {
       title: task.text,
       description: task.resultText ?? undefined,
       startISO: start.toISOString(),
@@ -371,10 +392,11 @@ export async function addTaskToGoogleCalendar(
 }
 
 export async function removeTaskFromGoogleCalendar(taskId: string) {
-  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
   if (!task?.googleEventId) return;
   try {
-    await deleteCalendarEvent(task.googleEventId);
+    await deleteCalendarEvent(user.id, task.googleEventId);
   } catch {
     // событие могло быть уже удалено на стороне Google — не блокируем очистку у себя
   }
@@ -387,13 +409,15 @@ export async function removeTaskFromGoogleCalendar(taskId: string) {
 }
 
 export async function deleteTask(id: string) {
-  await prisma.task.delete({ where: { id } });
+  const user = await requireUser();
+  await prisma.task.deleteMany({ where: { id, userId: user.id } });
   revalidatePath("/backlog");
   revalidatePath("/today");
 }
 
 export async function scheduleTask(id: string, target: "today" | "tomorrow") {
-  const task = await prisma.task.findUnique({ where: { id } });
+  const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id, userId: user.id } });
   if (!task) return;
 
   const date = target === "today" ? todayDate() : tomorrowDate();
@@ -409,8 +433,9 @@ export async function scheduleTask(id: string, target: "today" | "tomorrow") {
 }
 
 export async function assignTaskToProject(taskId: string, projectId: string | null) {
-  await prisma.task.update({
-    where: { id: taskId },
+  const user = await requireUser();
+  await prisma.task.updateMany({
+    where: { id: taskId, userId: user.id },
     data: { projectId },
   });
   revalidatePath("/backlog");
@@ -418,10 +443,11 @@ export async function assignTaskToProject(taskId: string, projectId: string | nu
 }
 
 export async function reorderTasks(orderedIds: string[]) {
+  const user = await requireUser();
   await prisma.$transaction(
     orderedIds.map((id, index) =>
-      prisma.task.update({
-        where: { id },
+      prisma.task.updateMany({
+        where: { id, userId: user.id },
         data: { order: index },
       })
     )
@@ -432,6 +458,7 @@ export async function reorderTasks(orderedIds: string[]) {
 // ---------- Итог дня ----------
 
 export async function submitEveningForm(formData: FormData) {
+  const user = await requireUser();
   const dateISO = str(formData, "date");
   const date = parseDateInputValue(dateISO);
   const tomorrow = new Date(date);
@@ -446,8 +473,9 @@ export async function submitEveningForm(formData: FormData) {
   const worry = num(formData, "worry");
 
   await prisma.day.upsert({
-    where: { date },
+    where: { userId_date: { userId: user.id, date } },
     create: {
+      userId: user.id,
       date,
       whyWorked,
       whyNotWorked,
@@ -469,7 +497,7 @@ export async function submitEveningForm(formData: FormData) {
   });
 
   const plannedTasks = await prisma.task.findMany({
-    where: { date, status: TaskStatus.PLANNED },
+    where: { date, status: TaskStatus.PLANNED, userId: user.id },
   });
 
   for (const task of plannedTasks) {
@@ -493,6 +521,7 @@ export async function submitEveningForm(formData: FormData) {
           resultText: task.resultText,
           motivationText: task.motivationText,
           projectId: task.projectId,
+          userId: user.id,
           value: task.value,
           costOfDelay: task.costOfDelay,
           urgency: task.urgency,

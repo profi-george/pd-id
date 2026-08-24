@@ -2,8 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import PriorityMatrix from "@/components/PriorityMatrix";
 import UnifiedTaskInput from "@/components/UnifiedTaskInput";
-import { getGoogleStatus } from "@/app/actions";
+import { getGoogleStatus } from "@/app/(app)/actions";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +13,16 @@ export default async function BacklogPage({
 }: {
   searchParams: Promise<{ project?: string }>;
 }) {
+  const user = await requireUser();
   const { project: projectFilter } = await searchParams;
 
   const [tasks, projects, googleStatus] = await Promise.all([
     prisma.task.findMany({
-      where: { status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
+      where: { userId: user.id, status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
       include: { project: true },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     getGoogleStatus(),
   ]);
 

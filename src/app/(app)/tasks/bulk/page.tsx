@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { createTasksBulk } from "@/app/actions";
+import { createTasksBulk } from "@/app/(app)/actions";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,10 @@ export default async function BulkNewTasksPage({
 }: {
   searchParams: Promise<{ date?: string; projectId?: string }>;
 }) {
+  const user = await requireUser();
   const params = await searchParams;
   const dateOption = params.date === "today" || params.date === "tomorrow" ? params.date : "backlog";
-  const projects = await prisma.project.findMany({ orderBy: { createdAt: "asc" } });
+  const projects = await prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } });
   const projectOptions = flattenProjectsForSelect(
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
   );

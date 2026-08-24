@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import PriorityMatrix from "@/components/PriorityMatrix";
-import { getGoogleStatus } from "@/app/actions";
+import { getGoogleStatus } from "@/app/(app)/actions";
 import { flattenProjectsForSelect, projectAndDescendantIds } from "@/lib/projectTree";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +13,14 @@ export default async function ProjectDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireUser();
   const { id } = await params;
 
   const [project, allProjects, tasks, googleStatus] = await Promise.all([
-    prisma.project.findUnique({ where: { id } }),
-    prisma.project.findMany(),
+    prisma.project.findFirst({ where: { id, userId: user.id } }),
+    prisma.project.findMany({ where: { userId: user.id } }),
     prisma.task.findMany({
-      where: { status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
+      where: { userId: user.id, status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
       include: { project: true },
     }),
     getGoogleStatus(),

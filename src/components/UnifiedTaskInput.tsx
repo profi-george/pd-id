@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { chatStep, createTasksWithDetails } from "@/app/actions";
+import { chatStep, createTasksWithDetails } from "@/app/(app)/actions";
 import type { ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption, type DateOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";

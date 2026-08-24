@@ -15,7 +15,7 @@ import {
   updateTaskFields,
   addTaskToGoogleCalendar,
   removeTaskFromGoogleCalendar,
-} from "@/app/actions";
+} from "@/app/(app)/actions";
 import TaskDrawer, { type DrawerTask } from "@/components/TaskDrawer";
 
 export type MatrixTask = TaskEvaluation & {
