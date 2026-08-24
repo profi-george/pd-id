@@ -30,7 +30,7 @@ export default function CriterionInfo({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-3.5 h-3.5 inline-flex items-center justify-center rounded-full border border-neutral-300 text-[9px] text-neutral-400 hover:border-ink-500 hover:text-ink-600 leading-none"
+        className="w-3.5 h-3.5 inline-flex items-center justify-center rounded-full border border-neutral-300 text-[9px] text-neutral-400 hover:border-ink-500 hover:text-ink-600 leading-none box-content p-2 -m-2"
       >
         ?
       </button>

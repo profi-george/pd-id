@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import Sidebar from "@/components/Sidebar";
+import AppShell from "@/components/AppShell";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -52,33 +51,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html lang="ru" className={`h-full antialiased ${manrope.variable}`}>
-      <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
-        <header className="border-b border-neutral-200 bg-neutral-50 shrink-0">
-          <nav className="flex items-center gap-6 px-4 py-3">
-            <span className="font-semibold text-neutral-800 tracking-tight">ПД-ИД</span>
-            <Link href="/today" className="text-sm text-neutral-600 hover:text-neutral-900">
-              Сегодня
-            </Link>
-            <Link href="/backlog" className="text-sm text-neutral-600 hover:text-neutral-900">
-              Позже
-            </Link>
-            <Link href="/projects" className="text-sm text-neutral-600 hover:text-neutral-900">
-              Проекты
-            </Link>
-            <Link href="/settings" className="text-sm text-neutral-600 hover:text-neutral-900 ml-auto">
-              Настройки
-            </Link>
-          </nav>
-        </header>
-        <div className="flex flex-1 min-h-0">
-          <Sidebar
-            projects={projectNodes}
-            counts={counts}
-            noProjectCount={noProjectCount}
-            totalCount={tasks.length}
-          />
-          <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 overflow-y-auto">{children}</main>
-        </div>
+      <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900 overflow-x-hidden">
+        <AppShell
+          projects={projectNodes}
+          counts={counts}
+          noProjectCount={noProjectCount}
+          totalCount={tasks.length}
+        >
+          {children}
+        </AppShell>
       </body>
     </html>
   );

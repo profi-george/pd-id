@@ -78,7 +78,7 @@ export default function Sidebar({
     }`;
 
   return (
-    <aside className="w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-3 space-y-4 overflow-y-auto">
+    <aside className="w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-3 space-y-4 overflow-y-auto h-full">
       <nav className="space-y-0.5">
         <Link href="/today" className={rowClass(pathname === "/today", false)}>
           <span>Сегодня</span>
@@ -95,6 +95,14 @@ export default function Sidebar({
           <Link href="/backlog?project=none" className={rowClass(false, dragOverKey === "__none__")}>
             <span>Без проекта</span>
             <span className="text-xs opacity-60">{noProjectCount}</span>
+          </Link>
+        </div>
+        <div className="md:hidden pt-2 mt-2 border-t border-neutral-200 space-y-0.5">
+          <Link href="/projects" className={rowClass(pathname === "/projects", false)}>
+            <span>Проекты</span>
+          </Link>
+          <Link href="/settings" className={rowClass(pathname === "/settings", false)}>
+            <span>Настройки</span>
           </Link>
         </div>
       </nav>
@@ -157,7 +165,7 @@ export default function Sidebar({
                   <Link
                     key={sub.id}
                     href={`/projects/${sub.id}`}
-                    onDragOver={(e) => { e.preventDefault(); setDragOverKey(sub.id); }}
+                                       onDragOver={(e) => { e.preventDefault(); setDragOverKey(sub.id); }}
                     onDragLeave={() => setDragOverKey((k) => (k === sub.id ? null : k))}
                     onDrop={handleDrop(sub.id)}
                     className={rowClass(pathname === `/projects/${sub.id}`, dragOverKey === sub.id)}
