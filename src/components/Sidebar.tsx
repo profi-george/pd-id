@@ -221,9 +221,6 @@ export default function Sidebar({
           <Link href="/history" className={rowClass(pathname === "/history", false)}>
             <span>История</span>
           </Link>
-          <Link href="/settings" className={rowClass(pathname === "/settings", false)}>
-            <span>Настройки</span>
-          </Link>
         </div>
       </nav>
 

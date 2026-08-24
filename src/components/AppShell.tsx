@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import AccountMenu from "@/components/AccountMenu";
 import type { ProjectNode } from "@/lib/projectTree";
-import { logoutAction } from "@/app/login/actions";
 
 export default function AppShell({
   projects,
@@ -55,9 +55,7 @@ export default function AppShell({
           <Link href="/history" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
             История
           </Link>
-          <Link href="/settings" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900 ml-auto">
-            Настройки
-          </Link>
+          <AccountMenu cabinetName={cabinetName} />
         </nav>
       </header>
       <div className="flex flex-1 min-h-0">
@@ -72,26 +70,12 @@ export default function AppShell({
             mobileOpen ? "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw]" : "hidden"
           } md:static md:block md:z-auto md:w-auto md:max-w-none`}
         >
-          <div className="h-full flex flex-col">
-            <div className="px-3 py-2 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between shrink-0">
-              <span className="text-xs text-neutral-500 truncate" title={cabinetName}>
-                {cabinetName}
-              </span>
-              <form action={logoutAction}>
-                <button type="submit" className="text-xs text-neutral-400 hover:text-neutral-700 shrink-0">
-                  Выйти
-                </button>
-              </form>
-            </div>
-            <div className="flex-1 min-h-0">
-              <Sidebar
-                projects={projects}
-                counts={counts}
-                noProjectCount={noProjectCount}
-                totalCount={totalCount}
-              />
-            </div>
-          </div>
+          <Sidebar
+            projects={projects}
+            counts={counts}
+            noProjectCount={noProjectCount}
+            totalCount={totalCount}
+          />
         </div>
         <main className="flex-1 min-w-0 max-w-4xl mx-auto w-full px-4 py-6 overflow-y-auto">{children}</main>
       </div>
