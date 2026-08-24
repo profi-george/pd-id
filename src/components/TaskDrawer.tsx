@@ -235,7 +235,7 @@ export default function TaskDrawer({
               <span className="text-neutral-500">Дедлайн</span>
               <input
                 type="date"
-                value={task.deadline ? task.deadline.toString().slice(0, 10) : ""}
+                value={task.deadline ? toDateInput(task.deadline) : ""}
                 onChange={(e) => onChangeField({ deadline: e.target.value ? new Date(e.target.value) : null })}
                 className="border border-neutral-300 rounded px-1 py-0.5"
               />
