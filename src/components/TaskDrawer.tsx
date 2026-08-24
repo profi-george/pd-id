@@ -44,12 +44,6 @@ const CRITERION_FIELDS: { key: CriterionKey; aiKey: keyof DrawerTask; reasonKey:
   { key: "timeSensitivity", aiKey: "aiTimeSensitivity", reasonKey: "aiReasoningTimeSensitivity" },
 ];
 
-function confidenceLabel(c: number): string {
-  if (c >= 0.75) return "высокая";
-  if (c >= 0.4) return "средняя";
-  return "низкая";
-}
-
 export default function TaskDrawer({
   task,
   projectOptions,
@@ -62,6 +56,7 @@ export default function TaskDrawer({
   onDelete,
   onScheduleToday,
   onScheduleTomorrow,
+  onScheduleDate,
   onAddToCalendar,
   onRemoveFromCalendar,
 }: {
@@ -76,9 +71,11 @@ export default function TaskDrawer({
   onDelete: () => void;
   onScheduleToday?: () => void;
   onScheduleTomorrow?: () => void;
+  onScheduleDate?: (dateISO: string) => void;
   onAddToCalendar?: (date: string, startTime: string, durationMinutes: number) => Promise<{ ok: boolean; error?: string }>;
   onRemoveFromCalendar?: () => void;
 }) {
+  const [scheduleDate, setScheduleDate] = useState("");
   const [calDate, setCalDate] = useState("");
   const [calTime, setCalTime] = useState("09:00");
   const [calSaving, setCalSaving] = useState(false);
@@ -256,30 +253,49 @@ export default function TaskDrawer({
           </div>
 
           <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-100 flex items-center gap-1">
-            Уверенность AI: {confidenceLabel(task.confidence)}
+            Уверенность AI: {Math.round(task.confidence * 100)}%
             {task.confidence < 0.75 && task.confidenceReason && (
               <CriterionInfo title="Уверенность AI" definition={task.confidenceReason} />
             )}
           </p>
         </div>
 
-        {(onScheduleToday || onScheduleTomorrow) && (
-          <div className="flex gap-2">
-            {onScheduleToday && (
-              <button
-                onClick={onScheduleToday}
-                className="text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 flex-1"
-              >
-                На сегодня
-              </button>
-            )}
-            {onScheduleTomorrow && (
-              <button
-                onClick={onScheduleTomorrow}
-                className="text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 flex-1"
-              >
-                На завтра
-              </button>
+        {(onScheduleToday || onScheduleTomorrow || onScheduleDate) && (
+          <div className="space-y-1.5">
+            <div className="flex gap-2">
+              {onScheduleToday && (
+                <button
+                  onClick={onScheduleToday}
+                  className="text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 flex-1"
+                >
+                  На сегодня
+                </button>
+              )}
+              {onScheduleTomorrow && (
+                <button
+                  onClick={onScheduleTomorrow}
+                  className="text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 flex-1"
+                >
+                  На завтра
+                </button>
+              )}
+            </div>
+            {onScheduleDate && (
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="flex-1 border border-neutral-300 rounded px-2 py-1.5 text-xs"
+                />
+                <button
+                  onClick={() => scheduleDate && onScheduleDate(scheduleDate)}
+                  disabled={!scheduleDate}
+                  className="text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
+                >
+                  На дату
+                </button>
+              </div>
             )}
           </div>
         )}

@@ -47,6 +47,9 @@ function TaskCard({
           {PRIORITY_LABEL_TEXT[label]}
         </span>
         <span className="text-neutral-500">{formatEffort(task.effortMinutes)}</span>
+        {task.scheduledDate && (
+          <span className="text-ink-600">📅 {task.scheduledDate}</span>
+        )}
         <select
           value={task.projectId ?? ""}
           onChange={(e) => onChange({ projectId: e.target.value || null })}
@@ -131,6 +134,15 @@ function TaskCard({
                 type="date"
                 value={task.deadline ?? ""}
                 onChange={(e) => onChange({ deadline: e.target.value || null })}
+                className="border border-neutral-300 rounded px-1 py-0.5"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-1">
+              Запланировать на
+              <input
+                type="date"
+                value={task.scheduledDate ?? ""}
+                onChange={(e) => onChange({ scheduledDate: e.target.value || null })}
                 className="border border-neutral-300 rounded px-1 py-0.5"
               />
             </label>

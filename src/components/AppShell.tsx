@@ -52,8 +52,8 @@ export default function AppShell({
           <Link href="/backlog" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
             Задачи
           </Link>
-          <Link href="/projects" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
-            Проекты
+          <Link href="/history" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
+            История
           </Link>
           <Link href="/settings" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900 ml-auto">
             Настройки

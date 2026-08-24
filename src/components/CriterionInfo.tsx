@@ -30,9 +30,12 @@ export default function CriterionInfo({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-3.5 h-3.5 inline-flex items-center justify-center rounded-full border border-neutral-300 text-[9px] text-neutral-400 hover:border-ink-500 hover:text-ink-600 leading-none box-content p-2 -m-2"
+        className="group inline-flex items-center justify-center p-1.5 -m-1.5 align-middle"
+        aria-label={`Подробнее: ${title}`}
       >
-        ?
+        <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full border border-neutral-300 text-[9px] leading-none text-neutral-400 group-hover:border-ink-500 group-hover:text-ink-600">
+          ?
+        </span>
       </button>
       {open && (
         <div className="absolute z-50 left-0 top-5 w-72 max-w-[85vw] bg-white border border-neutral-200 rounded-lg shadow-lg p-3 text-xs space-y-2">

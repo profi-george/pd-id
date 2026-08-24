@@ -3,8 +3,120 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { assignTaskToProject, createProject } from "@/app/(app)/actions";
+import { assignTaskToProject, createProject, renameProject, deleteProject } from "@/app/(app)/actions";
 import { buildProjectTree, type ProjectNode } from "@/lib/projectTree";
+
+function ProjectRow({
+  id,
+  name,
+  count,
+  active,
+  sub,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  dragOver,
+  onRenamed,
+  onDeleted,
+}: {
+  id: string;
+  name: string;
+  count: number;
+  active: boolean;
+  sub?: boolean;
+  dragOver: boolean;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  onRenamed: (name: string) => void;
+  onDeleted: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [value, setValue] = useState(name);
+  const [, startTransition] = useTransition();
+
+  async function save() {
+    const trimmed = value.trim();
+    setEditing(false);
+    if (!trimmed || trimmed === name) {
+      setValue(name);
+      return;
+    }
+    onRenamed(trimmed);
+    const fd = new FormData();
+    fd.set("name", trimmed);
+    startTransition(() => { renameProject(id, fd); });
+  }
+
+  function remove() {
+    setConfirmingDelete(false);
+    onDeleted();
+    startTransition(() => { deleteProject(id); });
+  }
+
+  if (confirmingDelete) {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1.5 text-xs bg-red-50 rounded">
+        <span className="flex-1 truncate text-red-700">Удалить «{name}»?</span>
+        <button type="button" onClick={remove} className="text-red-700 font-medium hover:underline">Да</button>
+        <button type="button" onClick={() => setConfirmingDelete(false)} className="text-neutral-500 hover:underline">Отмена</button>
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div className="px-1.5 py-0.5">
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") { setValue(name); setEditing(false); }
+          }}
+          className="w-full border border-neutral-300 rounded px-1.5 py-1 text-sm"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`group flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
+        dragOver ? "bg-neutral-200" : active ? "bg-neutral-800 text-white" : "text-neutral-700 hover:bg-neutral-100"
+      }`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <Link href={`/projects/${id}`} className="flex-1 min-w-0 flex items-center justify-between">
+        <span className="truncate">{sub ? `— ${name}` : name}</span>
+        <span className="text-xs opacity-60 ml-1 shrink-0">{count}</span>
+      </Link>
+      <span className="hidden group-hover:flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className={`text-xs ${active ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-neutral-700"}`}
+          title="Переименовать"
+        >
+          ✎
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirmingDelete(true)}
+          className={`text-xs ${active ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-red-600"}`}
+          title="Удалить"
+        >
+          ✕
+        </button>
+      </span>
+    </div>
+  );
+}
 
 export default function Sidebar({
   projects: initialProjects,
@@ -68,6 +180,14 @@ export default function Sidebar({
     if (created) setProjects((prev) => [...prev, created]);
   }
 
+  function renameLocal(id: string, newName: string) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, name: newName } : p)));
+  }
+
+  function deleteLocal(id: string) {
+    setProjects((prev) => prev.filter((p) => p.id !== id && p.parentId !== id));
+  }
+
   const rowClass = (active: boolean, dragOver: boolean) =>
     `flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm cursor-pointer ${
       dragOver
@@ -98,8 +218,8 @@ export default function Sidebar({
           </Link>
         </div>
         <div className="md:hidden pt-2 mt-2 border-t border-neutral-200 space-y-0.5">
-          <Link href="/projects" className={rowClass(pathname === "/projects", false)}>
-            <span>Проекты</span>
+          <Link href="/history" className={rowClass(pathname === "/history", false)}>
+            <span>История</span>
           </Link>
           <Link href="/settings" className={rowClass(pathname === "/settings", false)}>
             <span>Настройки</span>
@@ -137,66 +257,75 @@ export default function Sidebar({
           {tree.map((top) => {
             const isCollapsed = collapsed.has(top.id);
             return (
-            <div key={top.id}>
-              <div className={rowClass(pathname === `/projects/${top.id}`, dragOverKey === top.id)}
-                onDragOver={(e) => { e.preventDefault(); setDragOverKey(top.id); }}
-                onDragLeave={() => setDragOverKey((k) => (k === top.id ? null : k))}
-                onDrop={handleDrop(top.id)}
-              >
-                {top.children.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleCollapsed(top.id)}
-                    className="shrink-0 w-3 text-xs opacity-60 hover:opacity-100"
-                  >
-                    {isCollapsed ? "▸" : "▾"}
-                  </button>
-                ) : (
-                  <span className="shrink-0 w-3" />
-                )}
-                <Link href={`/projects/${top.id}`} className="flex-1 flex items-center justify-between min-w-0">
-                  <span className="truncate">{top.name}</span>
-                  <span className="text-xs opacity-60 ml-1">{counts[top.id] ?? 0}</span>
-                </Link>
-              </div>
-              {!isCollapsed && (
-              <div className="ml-3">
-                {top.children.map((sub) => (
-                  <Link
-                    key={sub.id}
-                    href={`/projects/${sub.id}`}
-                                       onDragOver={(e) => { e.preventDefault(); setDragOverKey(sub.id); }}
-                    onDragLeave={() => setDragOverKey((k) => (k === sub.id ? null : k))}
-                    onDrop={handleDrop(sub.id)}
-                    className={rowClass(pathname === `/projects/${sub.id}`, dragOverKey === sub.id)}
-                  >
-                    <span className="truncate text-neutral-600">— {sub.name}</span>
-                    <span className="text-xs opacity-60">{counts[sub.id] ?? 0}</span>
-                  </Link>
-                ))}
-                {addingSubTo === top.id ? (
-                  <div className="flex gap-1 px-2 py-1">
-                    <input
-                      autoFocus
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && submitNewProject(top.id)}
-                      placeholder="Подпроект"
-                      className="flex-1 border border-neutral-300 rounded px-2 py-1 text-xs"
+              <div key={top.id}>
+                <div className="flex items-center gap-1">
+                  {top.children.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleCollapsed(top.id)}
+                      className="shrink-0 w-3 text-xs opacity-60 hover:opacity-100"
+                    >
+                      {isCollapsed ? "▸" : "▾"}
+                    </button>
+                  ) : (
+                    <span className="shrink-0 w-3" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <ProjectRow
+                      id={top.id}
+                      name={top.name}
+                      count={counts[top.id] ?? 0}
+                      active={pathname === `/projects/${top.id}`}
+                      dragOver={dragOverKey === top.id}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverKey(top.id); }}
+                      onDragLeave={() => setDragOverKey((k) => (k === top.id ? null : k))}
+                      onDrop={handleDrop(top.id)}
+                      onRenamed={(n) => renameLocal(top.id, n)}
+                      onDeleted={() => deleteLocal(top.id)}
                     />
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => { setAddingSubTo(top.id); setName(""); }}
-                    className="text-xs text-neutral-400 hover:text-neutral-700 px-2"
-                  >
-                    + подпроект
-                  </button>
+                </div>
+                {!isCollapsed && (
+                  <div className="ml-3">
+                    {top.children.map((sub) => (
+                      <ProjectRow
+                        key={sub.id}
+                        id={sub.id}
+                        name={sub.name}
+                        count={counts[sub.id] ?? 0}
+                        active={pathname === `/projects/${sub.id}`}
+                        sub
+                        dragOver={dragOverKey === sub.id}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverKey(sub.id); }}
+                        onDragLeave={() => setDragOverKey((k) => (k === sub.id ? null : k))}
+                        onDrop={handleDrop(sub.id)}
+                        onRenamed={(n) => renameLocal(sub.id, n)}
+                        onDeleted={() => deleteLocal(sub.id)}
+                      />
+                    ))}
+                    {addingSubTo === top.id ? (
+                      <div className="flex gap-1 px-2 py-1">
+                        <input
+                          autoFocus
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && submitNewProject(top.id)}
+                          placeholder="Подпроект"
+                          className="flex-1 border border-neutral-300 rounded px-2 py-1 text-xs"
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setAddingSubTo(top.id); setName(""); }}
+                        className="text-xs text-neutral-400 hover:text-neutral-700 px-2"
+                      >
+                        + подпроект
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-              )}
-            </div>
             );
           })}
         </div>

@@ -11,6 +11,7 @@ import {
 import {
   deleteTask,
   scheduleTask,
+  scheduleTaskToDate,
   unscheduleTask,
   setManualPriority,
   reorderPriorityTask,
@@ -295,6 +296,12 @@ export default function PriorityMatrix({
     startTransition(() => { scheduleTask(id, target); });
   }
 
+  function handleScheduleDate(id: string, dateISO: string) {
+    setItems((prev) => prev.filter((t) => t.id !== id));
+    setOpenId(null);
+    startTransition(() => { scheduleTaskToDate(id, dateISO); });
+  }
+
   function handleUnschedule(id: string) {
     if (planView) {
       setItems((prev) => prev.filter((t) => t.id !== id));
@@ -418,6 +425,7 @@ export default function PriorityMatrix({
         onDelete={() => openId && handleDeleteRequest(openId)}
         onScheduleToday={() => openId && handleSchedule(openId, "today")}
         onScheduleTomorrow={() => openId && handleSchedule(openId, "tomorrow")}
+        onScheduleDate={(dateISO) => openId && handleScheduleDate(openId, dateISO)}
         onAddToCalendar={async (date, startTime, durationMinutes) => {
           if (!openId) return { ok: false, error: "Нет открытой задачи." };
           const res = await addTaskToGoogleCalendar(openId, { date, startTime, durationMinutes });

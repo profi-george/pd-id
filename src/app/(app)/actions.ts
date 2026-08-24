@@ -266,19 +266,23 @@ export async function createTasksWithDetails(
   const user = await requireUser();
   if (tasks.length === 0) return;
 
-  let date: Date | null = null;
-  let status: TaskStatus = TaskStatus.BACKLOG;
+  let defaultDate: Date | null = null;
+  let defaultStatus: TaskStatus = TaskStatus.BACKLOG;
   if (dateOption === "today") {
-    date = todayDate();
-    status = TaskStatus.PLANNED;
+    defaultDate = todayDate();
+    defaultStatus = TaskStatus.PLANNED;
   } else if (dateOption === "tomorrow") {
-    date = tomorrowDate();
-    status = TaskStatus.PLANNED;
+    defaultDate = tomorrowDate();
+    defaultStatus = TaskStatus.PLANNED;
   }
 
   for (const t of tasks) {
     if (!t.text.trim()) continue;
     const deadline = t.deadline ? new Date(`${t.deadline}T00:00:00.000Z`) : null;
+    // Если AI (или пользователь в проверке перед сохранением) указал конкретный день —
+    // он важнее общего выбора "Куда добавить" для всей пачки.
+    const date = t.scheduledDate ? new Date(`${t.scheduledDate}T00:00:00.000Z`) : defaultDate;
+    const status = t.scheduledDate ? TaskStatus.PLANNED : defaultStatus;
     await prisma.task.create({
       data: {
         text: t.text.trim(),
@@ -447,6 +451,23 @@ export async function scheduleTask(id: string, target: "today" | "tomorrow") {
   if (!task) return;
 
   const date = target === "today" ? todayDate() : tomorrowDate();
+  const order = initialOrderKey(task);
+
+  await prisma.task.update({
+    where: { id },
+    data: { date, status: TaskStatus.PLANNED, order },
+  });
+
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
+export async function scheduleTaskToDate(id: string, dateISO: string) {
+  const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id, userId: user.id } });
+  if (!task) return;
+
+  const date = parseDateInputValue(dateISO);
   const order = initialOrderKey(task);
 
   await prisma.task.update({

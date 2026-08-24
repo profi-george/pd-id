@@ -15,7 +15,8 @@ export type AiTaskEvaluation = {
   alternativeQuality: number; // 0..1, есть ли равноценная альтернатива
   confidence: number; // 0..1, уверенность оценки
   confidenceReason: string; // короткое объяснение, чего не хватило для высокой уверенности
-  deadline: string | null; // ISO-дата (YYYY-MM-DD) или null
+  deadline: string | null; // ISO-дата (YYYY-MM-DD) или null — жёсткий срок
+  scheduledDate: string | null; // ISO-дата (YYYY-MM-DD) или null — на какой день пользователь ХОЧЕТ поставить задачу в план (не срок, а намерение)
   financialConsequence: boolean;
   primaryReason: string; // короткое объяснение приоритета — главная причина
   riskText: string; // риск отложить
@@ -56,6 +57,7 @@ const EVALUATION_SCHEMA_OBJ = {
     confidence: { type: "NUMBER" },
     confidenceReason: { type: "STRING" },
     deadline: { type: "STRING", nullable: true },
+    scheduledDate: { type: "STRING", nullable: true },
     financialConsequence: { type: "BOOLEAN" },
     primaryReason: { type: "STRING" },
     riskText: { type: "STRING" },
@@ -67,7 +69,7 @@ const EVALUATION_SCHEMA_OBJ = {
   required: [
     "text", "resultText", "motivationText", "suggestedProjectId", "value", "costOfDelay",
     "timeSensitivity", "goalAlignment", "effortMinutes", "alternativeQuality",
-    "confidence", "confidenceReason", "deadline", "financialConsequence", "primaryReason", "riskText",
+    "confidence", "confidenceReason", "deadline", "scheduledDate", "financialConsequence", "primaryReason", "riskText",
     "reasoningValue", "reasoningCostOfDelay", "reasoningTimeSensitivity", "reasoningEffort",
   ],
 };
@@ -86,7 +88,8 @@ const CRITERIA_GUIDE = `Критерии, которые нужно оценит
 - alternativeQuality (0-1): есть ли равноценный способ получить тот же результат иначе. 0 — альтернативы нет, 1 — есть почти равноценная замена.
 - confidence (0-1): твоя уверенность в оценке. Низкая (<0.5), если не хватает ключевой информации (особенно срок или объём задачи). Не выдумывай отсутствующие данные — если их нет, снижай confidence вместо того, чтобы гадать.
 - confidenceReason: если confidence не высокая (<0.75) — одна короткая фраза, чего именно не хватило (например "Не указан точный дедлайн."). Если уверенность высокая — пустая строка.
-- deadline: жёсткий срок в формате YYYY-MM-DD, если явно назван или однозначно следует из текста (например «до пятницы», «сегодня до 18:00» → дата сегодня). Иначе null.
+- deadline: жёсткий срок в формате YYYY-MM-DD, если явно назван или однозначно следует из текста (например «до пятницы», «сегодня до 18:00» → дата сегодня). Это когда задачу НУЖНО закончить. Иначе null.
+- scheduledDate: дата в формате YYYY-MM-DD, если пользователь явно сказал, на КАКОЙ ДЕНЬ поставить задачу в план — «добавь на завтра», «запланируй на пятницу», «на понедельник», «5 сентября». Это не срок, а желаемый день выполнения — переведи относительные слова («завтра», «в пятницу») в конкретную дату, используя сегодняшнюю дату из контекста ниже. Если пользователь не называл конкретный день — null (тогда пользователь сам решит, куда положить задачу).
 - financialConsequence: true, если невыполнение напрямую задерживает или теряет деньги.
 - primaryReason: одна короткая человеческая фраза — главная причина такого приоритета в целом (это покажется пользователю как объяснение рекомендации).
 - riskText: одна короткая фраза — что теряется при откладывании.
@@ -132,6 +135,11 @@ function normalizeEvaluation(raw: unknown, validProjectIds: Set<string>): AiTask
     deadline = t.deadline.slice(0, 10);
   }
 
+  let scheduledDate: string | null = null;
+  if (typeof t.scheduledDate === "string" && /^\d{4}-\d{2}-\d{2}/.test(t.scheduledDate)) {
+    scheduledDate = t.scheduledDate.slice(0, 10);
+  }
+
   const suggestedProjectId =
     typeof t.suggestedProjectId === "string" && validProjectIds.has(t.suggestedProjectId)
       ? t.suggestedProjectId
@@ -151,6 +159,7 @@ function normalizeEvaluation(raw: unknown, validProjectIds: Set<string>): AiTask
     confidence: clampNum(t.confidence, 0, 1, 0.5),
     confidenceReason: String(t.confidenceReason ?? "").trim(),
     deadline,
+    scheduledDate,
     financialConsequence: Boolean(t.financialConsequence),
     primaryReason: String(t.primaryReason ?? "").trim(),
     riskText: String(t.riskText ?? "").trim(),
