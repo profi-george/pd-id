@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   computePriority,
   formatEffort,
@@ -82,10 +82,37 @@ export default function TaskDrawer({
   const [calError, setCalError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [prevTaskId, setPrevTaskId] = useState<string | null>(task?.id ?? null);
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if ((task?.id ?? null) !== prevTaskId) {
     setPrevTaskId(task?.id ?? null);
     setConfirmingDelete(false);
+  }
+
+  useEffect(() => {
+    return () => { if (savedTimer.current) clearTimeout(savedTimer.current); };
+  }, []);
+
+  function flashSaved() {
+    setSaved(true);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), 1500);
+  }
+
+  function handleChangeField(patch: Partial<TaskEvaluation>) {
+    onChangeField(patch);
+    flashSaved();
+  }
+
+  function handleManualPriority(l: PriorityLabel | null) {
+    onManualPriority(l);
+    flashSaved();
+  }
+
+  function handleChangeProject(projectId: string | null) {
+    onChangeProject(projectId);
+    flashSaved();
   }
 
   if (!task) return null;
@@ -121,11 +148,18 @@ export default function TaskDrawer({
           </button>
         </div>
 
+        <p
+          className={`text-[11px] text-emerald-600 h-4 transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}
+          aria-live="polite"
+        >
+          ✓ Сохранено
+        </p>
+
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Проект</label>
           <select
             value={task.projectId ?? ""}
-            onChange={(e) => onChangeProject(e.target.value || null)}
+            onChange={(e) => handleChangeProject(e.target.value || null)}
             className="w-full border border-neutral-300 rounded px-2 py-1.5 text-sm"
           >
             <option value="">Без проекта</option>
@@ -142,7 +176,7 @@ export default function TaskDrawer({
               <button
                 key={l}
                 type="button"
-                onClick={() => onManualPriority(l === aiLabel && !isManual ? null : l)}
+                onClick={() => handleManualPriority(l === aiLabel && !isManual ? null : l)}
                 className={`text-xs px-2 py-1 rounded border ${
                   label === l
                     ? "bg-neutral-800 text-white border-neutral-800"
@@ -157,7 +191,7 @@ export default function TaskDrawer({
           {isManual && (
             <p className="text-xs text-neutral-500 mt-1">
               Изменено вручную (AI предлагал «{PRIORITY_LABEL_TEXT[aiLabel]}»).{" "}
-              <button type="button" onClick={() => onManualPriority(null)} className="underline">
+              <button type="button" onClick={() => handleManualPriority(null)} className="underline">
                 Вернуть оценку AI
               </button>
             </p>
@@ -200,7 +234,7 @@ export default function TaskDrawer({
                     </span>
                     <select
                       value={current}
-                      onChange={(e) => onChangeField({ [key]: Number(e.target.value) } as Partial<TaskEvaluation>)}
+                      onChange={(e) => handleChangeField({ [key]: Number(e.target.value) } as Partial<TaskEvaluation>)}
                       className="border border-neutral-300 rounded px-1 py-0.5"
                     >
                       {SCALE.map((n) => <option key={n} value={n}>{n}/5</option>)}
@@ -230,7 +264,7 @@ export default function TaskDrawer({
                   min={5}
                   step={5}
                   value={task.effortMinutes}
-                  onChange={(e) => onChangeField({ effortMinutes: Number(e.target.value) })}
+                  onChange={(e) => handleChangeField({ effortMinutes: Number(e.target.value) })}
                   className="w-20 border border-neutral-300 rounded px-1 py-0.5 text-right"
                 />
               </div>
@@ -246,7 +280,7 @@ export default function TaskDrawer({
               <input
                 type="date"
                 value={task.deadline ? toDateInput(task.deadline) : ""}
-                onChange={(e) => onChangeField({ deadline: e.target.value ? new Date(e.target.value) : null })}
+                onChange={(e) => handleChangeField({ deadline: e.target.value ? new Date(e.target.value) : null })}
                 className="border border-neutral-300 rounded px-1 py-0.5"
               />
             </div>

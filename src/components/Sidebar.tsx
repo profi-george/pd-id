@@ -203,26 +203,28 @@ export default function Sidebar({
         <Link href="/today" className={rowClass(pathname === "/today", false)}>
           <span>План дня</span>
         </Link>
+        <Link href="/today/summary" className={rowClass(pathname === "/today/summary", false)}>
+          <span>Итог дня</span>
+        </Link>
         <Link href="/backlog" className={rowClass(pathname === "/backlog", dragOverKey === "__all__")}>
-          <span>Задачи</span>
+          <span>Все задачи</span>
           <span className="text-xs opacity-60">{totalCount}</span>
         </Link>
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOverKey("__none__"); }}
-          onDragLeave={() => setDragOverKey((k) => (k === "__none__" ? null : k))}
-          onDrop={handleDrop(null)}
-        >
-          <Link href="/backlog?project=none" className={rowClass(false, dragOverKey === "__none__")}>
-            <span>Без проекта</span>
-            <span className="text-xs opacity-60">{noProjectCount}</span>
-          </Link>
-        </div>
-        <div className="md:hidden pt-2 mt-2 border-t border-neutral-200 space-y-0.5">
-          <Link href="/history" className={rowClass(pathname === "/history", false)}>
-            <span>История</span>
-          </Link>
-        </div>
+        <Link href="/history" className={rowClass(pathname === "/history", false)}>
+          <span>История</span>
+        </Link>
       </nav>
+
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOverKey("__none__"); }}
+        onDragLeave={() => setDragOverKey((k) => (k === "__none__" ? null : k))}
+        onDrop={handleDrop(null)}
+      >
+        <Link href="/backlog?project=none" className={rowClass(false, dragOverKey === "__none__")}>
+          <span>Без проекта</span>
+          <span className="text-xs opacity-60">{noProjectCount}</span>
+        </Link>
+      </div>
 
       <div>
         <div className="flex items-center justify-between px-2">

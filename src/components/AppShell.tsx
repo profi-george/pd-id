@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AccountMenu from "@/components/AccountMenu";
@@ -46,15 +45,6 @@ export default function AppShell({
             </svg>
           </button>
           <span className="font-semibold text-neutral-800 tracking-tight">ПД-ИД</span>
-          <Link href="/today" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
-            План дня
-          </Link>
-          <Link href="/backlog" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
-            Задачи
-          </Link>
-          <Link href="/history" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
-            История
-          </Link>
           <AccountMenu cabinetName={cabinetName} />
         </nav>
       </header>

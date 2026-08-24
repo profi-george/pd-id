@@ -445,6 +445,18 @@ export async function deleteTask(id: string) {
   revalidatePath("/today");
 }
 
+// Быстрая отметка "выполнено" прямо из общего списка — без оценки 0-10, её
+// пользователь при желании проставит вечером в Итоге дня для запланированных задач.
+export async function completeTask(id: string) {
+  const user = await requireUser();
+  await prisma.task.updateMany({
+    where: { id, userId: user.id },
+    data: { status: TaskStatus.DONE },
+  });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
 export async function scheduleTask(id: string, target: "today" | "tomorrow") {
   const user = await requireUser();
   const task = await prisma.task.findFirst({ where: { id, userId: user.id } });

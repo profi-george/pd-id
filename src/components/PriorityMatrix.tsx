@@ -10,6 +10,7 @@ import {
 } from "@/lib/priorityEngine";
 import {
   deleteTask,
+  completeTask,
   scheduleTask,
   scheduleTaskToDate,
   unscheduleTask,
@@ -67,10 +68,12 @@ function QuickMenu({
   scheduled,
   onDelete,
   onUnschedule,
+  onComplete,
 }: {
   scheduled: boolean;
   onDelete: () => void;
   onUnschedule: () => void;
+  onComplete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -85,35 +88,46 @@ function QuickMenu({
   }, [open]);
 
   return (
-    <span ref={ref} className="relative shrink-0">
+    <span className="flex items-center shrink-0">
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
-        aria-label="Действия"
+        onClick={(e) => { e.stopPropagation(); onComplete(); }}
+        className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50"
+        aria-label="Выполнено"
+        title="Отметить выполненной"
       >
-        ⋯
+        ✓
       </button>
-      {open && (
-        <div className="absolute right-0 top-8 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
-          {scheduled && (
+      <span ref={ref} className="relative">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+          className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
+          aria-label="Действия"
+        >
+          ⋯
+        </button>
+        {open && (
+          <div className="absolute right-0 top-8 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+            {scheduled && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setOpen(false); onUnschedule(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+              >
+                Убрать из плана
+              </button>
+            )}
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setOpen(false); onUnschedule(); }}
-              className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
+              className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-red-600"
             >
-              Убрать из плана
+              Удалить
             </button>
-          )}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
-            className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-red-600"
-          >
-            Удалить
-          </button>
-        </div>
-      )}
+          </div>
+        )}
+      </span>
     </span>
   );
 }
@@ -125,6 +139,7 @@ function TaskRow({
   onDropBefore,
   onDelete,
   onUnschedule,
+  onComplete,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
@@ -132,6 +147,7 @@ function TaskRow({
   onDropBefore: (draggedId: string, before: boolean) => void;
   onDelete: () => void;
   onUnschedule: () => void;
+  onComplete: () => void;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
 
@@ -172,7 +188,7 @@ function TaskRow({
         )}
       </button>
       <div className="pt-1.5 pr-1.5">
-        <QuickMenu scheduled={Boolean(task.date)} onDelete={onDelete} onUnschedule={onUnschedule} />
+        <QuickMenu scheduled={Boolean(task.date)} onDelete={onDelete} onUnschedule={onUnschedule} onComplete={onComplete} />
       </div>
     </div>
   );
@@ -312,6 +328,12 @@ export default function PriorityMatrix({
     startTransition(() => { unscheduleTask(id); });
   }
 
+  function handleComplete(id: string) {
+    setItems((prev) => prev.filter((t) => t.id !== id));
+    setOpenId(null);
+    startTransition(() => { completeTask(id); });
+  }
+
   const openTask = items.find((t) => t.id === openId) ?? null;
   const drawerTask: DrawerTask | null = openTask ? { ...openTask } : null;
 
@@ -349,6 +371,7 @@ export default function PriorityMatrix({
                 onDropBefore={(draggedId, before) => moveTask(label, t.id, before, draggedId)}
                 onDelete={() => handleDeleteRequest(t.id)}
                 onUnschedule={() => handleUnschedule(t.id)}
+                onComplete={() => handleComplete(t.id)}
               />
             ))}
           </div>
@@ -381,6 +404,7 @@ export default function PriorityMatrix({
                 onDropBefore={(draggedId, before) => moveTask("LATER", t.id, before, draggedId)}
                 onDelete={() => handleDeleteRequest(t.id)}
                 onUnschedule={() => handleUnschedule(t.id)}
+                onComplete={() => handleComplete(t.id)}
               />
             ))}
           </div>

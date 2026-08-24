@@ -61,6 +61,11 @@ export default async function TodayPage({
         <div>
           <h1 className="text-xl font-semibold">План дня</h1>
           <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
+          {planned.length > 0 && (
+            <p className="text-xs text-neutral-400 mt-0.5">
+              {planned.length} задач · ≈{formatEffort(totalMinutes)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1 text-sm shrink-0">
           <Link
