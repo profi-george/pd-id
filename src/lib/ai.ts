@@ -7,14 +7,14 @@ export type AiTaskEvaluation = {
   resultText: string; // ожидаемый результат
   motivationText: string; // мотивация (контекст, не влияет на score)
   suggestedProjectId: string | null; // предположение ИИ, к какому проекту относится
-  value: number; // ценность результата, 1-5
+  value: number; // Impact — ценность результата, 1-5
   costOfDelay: number; // цена откладывания, 1-5
-  urgency: number; // срочность, 1-5
   timeSensitivity: number; // временная чувствительность, 1-5
-  goalAlignment: number; // связь с текущей целью, 1-5
+  goalAlignment: number; // связь с текущей целью, 1-5 (внутренний модификатор, не показывается пользователю)
   effortMinutes: number; // затраты в минутах
   alternativeQuality: number; // 0..1, есть ли равноценная альтернатива
   confidence: number; // 0..1, уверенность оценки
+  confidenceReason: string; // короткое объяснение, чего не хватило для высокой уверенности
   deadline: string | null; // ISO-дата (YYYY-MM-DD) или null
   financialConsequence: boolean;
   primaryReason: string; // короткое объяснение приоритета — главная причина
@@ -22,7 +22,6 @@ export type AiTaskEvaluation = {
   // Объяснение по каждому критерию отдельно — почему именно такая оценка у ЭТОЙ задачи.
   reasoningValue: string;
   reasoningCostOfDelay: string;
-  reasoningUrgency: string;
   reasoningTimeSensitivity: string;
   reasoningEffort: string;
 };
@@ -50,27 +49,26 @@ const EVALUATION_SCHEMA_OBJ = {
     suggestedProjectId: { type: "STRING", nullable: true },
     value: { type: "INTEGER" },
     costOfDelay: { type: "INTEGER" },
-    urgency: { type: "INTEGER" },
     timeSensitivity: { type: "INTEGER" },
     goalAlignment: { type: "INTEGER" },
     effortMinutes: { type: "INTEGER" },
     alternativeQuality: { type: "NUMBER" },
     confidence: { type: "NUMBER" },
+    confidenceReason: { type: "STRING" },
     deadline: { type: "STRING", nullable: true },
     financialConsequence: { type: "BOOLEAN" },
     primaryReason: { type: "STRING" },
     riskText: { type: "STRING" },
     reasoningValue: { type: "STRING" },
     reasoningCostOfDelay: { type: "STRING" },
-    reasoningUrgency: { type: "STRING" },
     reasoningTimeSensitivity: { type: "STRING" },
     reasoningEffort: { type: "STRING" },
   },
   required: [
-    "text", "resultText", "motivationText", "suggestedProjectId", "value", "costOfDelay", "urgency",
+    "text", "resultText", "motivationText", "suggestedProjectId", "value", "costOfDelay",
     "timeSensitivity", "goalAlignment", "effortMinutes", "alternativeQuality",
-    "confidence", "deadline", "financialConsequence", "primaryReason", "riskText",
-    "reasoningValue", "reasoningCostOfDelay", "reasoningUrgency", "reasoningTimeSensitivity", "reasoningEffort",
+    "confidence", "confidenceReason", "deadline", "financialConsequence", "primaryReason", "riskText",
+    "reasoningValue", "reasoningCostOfDelay", "reasoningTimeSensitivity", "reasoningEffort",
   ],
 };
 
@@ -80,20 +78,20 @@ const CRITERIA_GUIDE = `Критерии, которые нужно оценит
 - resultText: что станет возможным/готовым после выполнения.
 - motivationText: зачем это нужно пользователю (эмоциональный контекст) — на оценки НЕ влияет, только для объяснения.
 - suggestedProjectId: id проекта из списка ниже, к которому явно или по смыслу относится задача. Если явной связи нет — null. Не выдумывай id, которых нет в списке.
-- value (1-5): ценность результата. 1 — почти ничего не меняет, 5 — критически важный результат.
-- costOfDelay (1-5): что случится, если НЕ сделать сейчас. 1 — почти ничего, 5 — критическая потеря результата/денег/возможности. Это НЕ то же самое, что срочность: например «выучить новый метод» может быть несрочно, но если не сделать до интервью — cost_of_delay высокий.
-- urgency (1-5): насколько по времени поджимает конкретно сейчас (дедлайн, обязательность).
-- timeSensitivity (1-5): как быстро падает ценность задачи при откладывании (вакансия «протухает» быстро — высокая; документация подождёт — низкая).
+- value (1-5): Impact — ценность результата. 1 — почти ничего не меняет, 5 — критически важный результат.
+- costOfDelay (1-5): Cost of Delay — что случится, если НЕ сделать сейчас. 1 — почти ничего, 5 — критическая потеря результата/денег/возможности. Учитывай в этом числе и то, насколько срочно/обязательно это по времени (отдельного критерия срочности нет — чтобы не считать один и тот же риск дважды).
+- timeSensitivity (1-5): Time Sensitivity — как быстро падает ценность задачи при откладывании (вакансия «протухает» быстро — высокая; документация подождёт — низкая).
 - goalAlignment (1-5): насколько задача связана с текущей главной целью пользователя (см. контекст ниже). Если цель не задана или связи не видно — 3.
-- effortMinutes: сколько минут потребует задача. Если пользователь сам назвал время — используй его. Если нет — оцени по смыслу.
+- effortMinutes: Effort — сколько минут потребует задача. Это НЕ ценность и не должно само по себе снижать приоритет — только вспомогательный фактор при сравнении близких по важности задач. Если пользователь сам назвал время — используй его. Если нет — оцени по смыслу.
 - alternativeQuality (0-1): есть ли равноценный способ получить тот же результат иначе. 0 — альтернативы нет, 1 — есть почти равноценная замена.
-- confidence (0-1): твоя уверенность в оценке. Низкая (<0.5), если не хватает ключевой информации (особенно срок или объём задачи).
+- confidence (0-1): твоя уверенность в оценке. Низкая (<0.5), если не хватает ключевой информации (особенно срок или объём задачи). Не выдумывай отсутствующие данные — если их нет, снижай confidence вместо того, чтобы гадать.
+- confidenceReason: если confidence не высокая (<0.75) — одна короткая фраза, чего именно не хватило (например "Не указан точный дедлайн."). Если уверенность высокая — пустая строка.
 - deadline: жёсткий срок в формате YYYY-MM-DD, если явно назван или однозначно следует из текста (например «до пятницы», «сегодня до 18:00» → дата сегодня). Иначе null.
 - financialConsequence: true, если невыполнение напрямую задерживает или теряет деньги.
-- primaryReason: одна короткая фраза — главная причина такого приоритета в целом.
+- primaryReason: одна короткая человеческая фраза — главная причина такого приоритета в целом (это покажется пользователю как объяснение рекомендации).
 - riskText: одна короткая фраза — что теряется при откладывании.
-- reasoningValue / reasoningCostOfDelay / reasoningUrgency / reasoningTimeSensitivity / reasoningEffort:
-  для КАЖДОГО из этих пяти критериев — отдельная короткая фраза (не более одного предложения),
+- reasoningValue / reasoningCostOfDelay / reasoningTimeSensitivity / reasoningEffort:
+  для КАЖДОГО из этих четырёх критериев — отдельная короткая фраза (не более одного предложения),
   объясняющая именно ЭТУ оценку у ЭТОЙ конкретной задачи. Не общее определение критерия
   (его пользователь и так увидит), а именно "почему у этой задачи такая цифра". Не выдумывай
   ложную точность ("потеряет 17% ценности") — если данных не хватает, пиши это как предположение
@@ -101,8 +99,7 @@ const CRITERIA_GUIDE = `Критерии, которые нужно оценит
 
 Явные словесные подсказки пользователя всегда приоритетнее твоей догадки по контексту:
 "очень важно/критично" → value=5; "неважно" → value=1
-"нельзя пропустить/пропущу возможность" → costOfDelay=5; "подождёт" → costOfDelay=1
-"срочно/горит/прямо сейчас" → urgency=5; "не горит" → urgency=1
+"нельзя пропустить/пропущу возможность/срочно/горит" → costOfDelay=5; "подождёт/не горит" → costOfDelay=1
 явно названное время ("минут 15", "часа два") → используй как effortMinutes`;
 
 function contextBlock(context?: AiContext) {
@@ -147,19 +144,18 @@ function normalizeEvaluation(raw: unknown, validProjectIds: Set<string>): AiTask
     suggestedProjectId,
     value: clampNum(t.value, 1, 5, 3),
     costOfDelay: clampNum(t.costOfDelay, 1, 5, 3),
-    urgency: clampNum(t.urgency, 1, 5, 3),
     timeSensitivity: clampNum(t.timeSensitivity, 1, 5, 3),
     goalAlignment: clampNum(t.goalAlignment, 1, 5, 3),
     effortMinutes: Math.round(clampNum(t.effortMinutes, 5, 60 * 24 * 14, 30)),
     alternativeQuality: clampNum(t.alternativeQuality, 0, 1, 0),
     confidence: clampNum(t.confidence, 0, 1, 0.5),
+    confidenceReason: String(t.confidenceReason ?? "").trim(),
     deadline,
     financialConsequence: Boolean(t.financialConsequence),
     primaryReason: String(t.primaryReason ?? "").trim(),
     riskText: String(t.riskText ?? "").trim(),
     reasoningValue: String(t.reasoningValue ?? "").trim(),
     reasoningCostOfDelay: String(t.reasoningCostOfDelay ?? "").trim(),
-    reasoningUrgency: String(t.reasoningUrgency ?? "").trim(),
     reasoningTimeSensitivity: String(t.reasoningTimeSensitivity ?? "").trim(),
     reasoningEffort: String(t.reasoningEffort ?? "").trim(),
   };

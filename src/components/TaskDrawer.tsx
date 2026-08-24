@@ -28,6 +28,7 @@ export type DrawerTask = TaskEvaluation & {
   aiReasoningUrgency?: string | null;
   aiReasoningTimeSensitivity?: string | null;
   aiReasoningEffort?: string | null;
+  confidenceReason?: string | null;
 };
 
 function toDateInput(d: Date): string {
@@ -40,9 +41,14 @@ const SCALE = [1, 2, 3, 4, 5];
 const CRITERION_FIELDS: { key: CriterionKey; aiKey: keyof DrawerTask; reasonKey: keyof DrawerTask }[] = [
   { key: "value", aiKey: "aiValue", reasonKey: "aiReasoningValue" },
   { key: "costOfDelay", aiKey: "aiCostOfDelay", reasonKey: "aiReasoningCostOfDelay" },
-  { key: "urgency", aiKey: "aiUrgency", reasonKey: "aiReasoningUrgency" },
   { key: "timeSensitivity", aiKey: "aiTimeSensitivity", reasonKey: "aiReasoningTimeSensitivity" },
 ];
+
+function confidenceLabel(c: number): string {
+  if (c >= 0.75) return "высокая";
+  if (c >= 0.4) return "средняя";
+  return "низкая";
+}
 
 export default function TaskDrawer({
   task,
@@ -77,6 +83,13 @@ export default function TaskDrawer({
   const [calTime, setCalTime] = useState("09:00");
   const [calSaving, setCalSaving] = useState(false);
   const [calError, setCalError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [prevTaskId, setPrevTaskId] = useState<string | null>(task?.id ?? null);
+
+  if ((task?.id ?? null) !== prevTaskId) {
+    setPrevTaskId(task?.id ?? null);
+    setConfirmingDelete(false);
+  }
 
   if (!task) return null;
   const { label, aiLabel, isManual } = computePriority(task);
@@ -242,8 +255,11 @@ export default function TaskDrawer({
             </div>
           </div>
 
-          <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-100">
-            Уверенность AI · {Math.round(task.confidence * 100)}%
+          <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-100 flex items-center gap-1">
+            Уверенность AI: {confidenceLabel(task.confidence)}
+            {task.confidence < 0.75 && task.confidenceReason && (
+              <CriterionInfo title="Уверенность AI" definition={task.confidenceReason} />
+            )}
           </p>
         </div>
 
@@ -317,12 +333,30 @@ export default function TaskDrawer({
           </div>
         )}
 
-        <button
-          onClick={onDelete}
-          className="text-xs text-neutral-400 hover:text-red-600 hover:underline"
-        >
-          Удалить задачу
-        </button>
+        {confirmingDelete ? (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-neutral-600">Удалить задачу?</span>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={onDelete}
+              className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+            >
+              Удалить
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmingDelete(true)}
+            className="text-xs text-neutral-400 hover:text-red-600 hover:underline"
+          >
+            🗑 Удалить задачу
+          </button>
+        )}
       </div>
     </>
   );

@@ -116,11 +116,14 @@ export async function deleteProject(id: string) {
 // ---------- Задачи (ручное создание/редактирование, продвинутый режим) ----------
 
 function evaluationFromForm(formData: FormData) {
+  const timeSensitivity = num(formData, "timeSensitivity");
   return {
     value: num(formData, "value"),
     costOfDelay: num(formData, "costOfDelay"),
-    urgency: num(formData, "urgency"),
-    timeSensitivity: num(formData, "timeSensitivity"),
+    // Срочность отдельным полем больше не собираем (не дублируем cost of delay/дедлайн) —
+    // используем timeSensitivity как безопасное значение для NOT NULL-колонки в базе.
+    urgency: timeSensitivity,
+    timeSensitivity,
     goalAlignment: num(formData, "goalAlignment"),
     effortMinutes: num(formData, "effortMinutes"),
     alternativeQuality: 0,
@@ -285,12 +288,15 @@ export async function createTasksWithDetails(
         userId: user.id,
         value: t.value,
         costOfDelay: t.costOfDelay,
-        urgency: t.urgency,
+        // Срочность отдельно AI больше не оценивает (дублировала cost of delay/дедлайн) —
+        // безопасное значение для NOT NULL-колонки в базе.
+        urgency: t.timeSensitivity,
         timeSensitivity: t.timeSensitivity,
         goalAlignment: t.goalAlignment,
         effortMinutes: t.effortMinutes,
         alternativeQuality: t.alternativeQuality,
         confidence: t.confidence,
+        confidenceReason: t.confidenceReason || null,
         deadline,
         financialConsequence: t.financialConsequence,
         primaryReason: t.primaryReason || null,
@@ -299,17 +305,15 @@ export async function createTasksWithDetails(
         // если пользователь поправит значение в панели задачи.
         aiValue: t.value,
         aiCostOfDelay: t.costOfDelay,
-        aiUrgency: t.urgency,
         aiTimeSensitivity: t.timeSensitivity,
         aiEffortMinutes: t.effortMinutes,
         aiReasoningValue: t.reasoningValue || null,
         aiReasoningCostOfDelay: t.reasoningCostOfDelay || null,
-        aiReasoningUrgency: t.reasoningUrgency || null,
         aiReasoningTimeSensitivity: t.reasoningTimeSensitivity || null,
         aiReasoningEffort: t.reasoningEffort || null,
         date,
         status,
-        order: status === TaskStatus.PLANNED ? initialOrderKey({ ...t, deadline }) : 0,
+        order: status === TaskStatus.PLANNED ? initialOrderKey({ ...t, urgency: t.timeSensitivity, deadline }) : 0,
       },
     });
   }
@@ -341,7 +345,29 @@ export async function updateTaskFields(
 export async function setManualPriority(taskId: string, label: string | null) {
   const user = await requireUser();
   if (label !== null && !isPriorityLabel(label)) return;
-  await prisma.task.updateMany({ where: { id: taskId, userId: user.id }, data: { manualPriority: label } });
+  // Явная смена группы кнопкой — отдельное действие от drag&drop, старая ручная
+  // позиция внутри прежней группы тут больше не имеет смысла.
+  await prisma.task.updateMany({
+    where: { id: taskId, userId: user.id },
+    data: { manualPriority: label, manualRank: null },
+  });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
+// Drag&drop внутри группы приоритета и между группами: group — итоговая (возможно та же)
+// группа задачи, orderedIds — id всех задач ЭТОЙ группы в новом визуальном порядке (включая
+// перетаскиваемую). Ручное решение пользователя главнее AI и не должно затираться при
+// следующем ИИ-анализе — поэтому фиксируем и группу, и позицию.
+export async function reorderPriorityTask(taskId: string, group: string, orderedIds: string[]) {
+  const user = await requireUser();
+  if (!isPriorityLabel(group)) return;
+  await prisma.$transaction([
+    prisma.task.updateMany({ where: { id: taskId, userId: user.id }, data: { manualPriority: group } }),
+    ...orderedIds.map((id, index) =>
+      prisma.task.updateMany({ where: { id, userId: user.id }, data: { manualRank: index } })
+    ),
+  ]);
   revalidatePath("/backlog");
   revalidatePath("/today");
 }

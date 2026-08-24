@@ -22,7 +22,11 @@ function TaskCard({
   onRemove: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { score, label } = computePriority({ ...task, deadline: task.deadline ? new Date(task.deadline) : null });
+  const { label } = computePriority({
+    ...task,
+    urgency: task.timeSensitivity,
+    deadline: task.deadline ? new Date(task.deadline) : null,
+  });
 
   return (
     <li className="bg-white border border-neutral-200 rounded-lg p-3 space-y-2">
@@ -40,7 +44,7 @@ function TaskCard({
 
       <div className="flex items-center gap-2 text-xs flex-wrap">
         <span className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 font-medium">
-          {PRIORITY_LABEL_TEXT[label]} · {score.toFixed(1)}
+          {PRIORITY_LABEL_TEXT[label]}
         </span>
         <span className="text-neutral-500">{formatEffort(task.effortMinutes)}</span>
         <select
@@ -71,7 +75,7 @@ function TaskCard({
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs pt-1">
             <label className="flex items-center justify-between gap-1">
-              Ценность результата
+              Impact (Влияние)
               <select
                 value={task.value}
                 onChange={(e) => onChange({ value: Number(e.target.value) })}
@@ -81,7 +85,7 @@ function TaskCard({
               </select>
             </label>
             <label className="flex items-center justify-between gap-1">
-              Цена откладывания
+              Cost of Delay
               <select
                 value={task.costOfDelay}
                 onChange={(e) => onChange({ costOfDelay: Number(e.target.value) })}
@@ -91,17 +95,7 @@ function TaskCard({
               </select>
             </label>
             <label className="flex items-center justify-between gap-1">
-              Срочность
-              <select
-                value={task.urgency}
-                onChange={(e) => onChange({ urgency: Number(e.target.value) })}
-                className="border border-neutral-300 rounded px-1 py-0.5"
-              >
-                {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-1">
-              Временная чувствительность
+              Time Sensitivity
               <select
                 value={task.timeSensitivity}
                 onChange={(e) => onChange({ timeSensitivity: Number(e.target.value) })}

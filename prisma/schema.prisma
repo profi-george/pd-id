@@ -89,6 +89,8 @@ model Task {
   aiReasoningEffort          String?
 
   manualPriority String? // P0 | P1 | P2 | P3 | LATER — если задано, перекрывает расчёт AI
+  manualRank     Int?    // ручной порядок внутри группы приоритета (drag&drop); null = сортировать по score AI
+  confidenceReason String? // короткое объяснение AI, почему уверенность не высокая
 
   googleEventId  String? // id события в Google Calendar, если задача туда добавлена
   googleEventUrl String? // прямая ссылка на событие

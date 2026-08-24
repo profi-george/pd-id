@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   computePriority,
   formatEffort,
@@ -12,6 +12,7 @@ import {
   deleteTask,
   scheduleTask,
   setManualPriority,
+  reorderPriorityTask,
   updateTaskFields,
   addTaskToGoogleCalendar,
   removeTaskFromGoogleCalendar,
@@ -23,6 +24,8 @@ export type MatrixTask = TaskEvaluation & {
   text: string;
   projectId: string | null;
   projectName: string | null;
+  manualRank?: number | null;
+  confidenceReason?: string | null;
   googleEventId?: string | null;
   googleEventUrl?: string | null;
   aiValue?: number | null;
@@ -59,44 +62,54 @@ const LATER_PREVIEW = 3;
 
 function TaskRow({
   task,
-  rank,
   color,
   onOpen,
+  onDropBefore,
 }: {
   task: MatrixTask;
-  rank: number;
   color: PriorityLabel;
   onOpen: () => void;
+  onDropBefore: (draggedId: string, before: boolean) => void;
 }) {
+  const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
+
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <div
       draggable
       onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
-      className={`w-full text-left pl-2.5 pr-3 py-2.5 border-l-2 ${BORDER_CLASS[color]} hover:bg-neutral-50 flex gap-2 cursor-pointer`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        const rect = e.currentTarget.getBoundingClientRect();
+        setDragOver(e.clientY < rect.top + rect.height / 2 ? "top" : "bottom");
+      }}
+      onDragLeave={() => setDragOver(null)}
+      onDrop={(e) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData("text/plain");
+        const before = dragOver !== "bottom";
+        setDragOver(null);
+        if (draggedId) onDropBefore(draggedId, before);
+      }}
+      className={`relative border-l-2 ${BORDER_CLASS[color]} ${
+        dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
+      }`}
     >
-      <span className="text-xs text-neutral-300 tabular-nums shrink-0 pt-0.5">{rank}</span>
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <p className="text-sm text-neutral-800 truncate">{task.text}</p>
-        <div className="flex items-center gap-2 text-xs text-neutral-500">
-          <span>{formatEffort(task.effortMinutes)}</span>
-          {task.projectName && (
-            <span className="text-neutral-600 truncate max-w-[160px]" title={task.projectName}>
-              · {task.projectName}
-            </span>
-          )}
-          {task.confidence < 0.6 && (
-            <span className="text-amber-600 shrink-0">· AI не уверен</span>
-          )}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full text-left px-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1"
+      >
+        <p className="text-[15px] font-medium text-neutral-900 leading-snug">{task.text}</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
+          {task.projectName && <span>{task.projectName}</span>}
+          <span className={task.projectName ? "text-neutral-400" : ""}>≈ {formatEffort(task.effortMinutes)}</span>
+          {task.confidence < 0.6 && <span className="text-amber-600">· AI не уверен</span>}
         </div>
         {task.primaryReason && (
-          <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 mt-0.5 truncate">
-            {task.primaryReason}
-          </p>
+          <p className="text-xs text-neutral-400 leading-snug">{task.primaryReason}</p>
         )}
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -113,7 +126,12 @@ export default function PriorityMatrix({
   const [prevTasks, setPrevTasks] = useState(tasks);
   const [openId, setOpenId] = useState<string | null>(null);
   const [laterExpanded, setLaterExpanded] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ task: MatrixTask; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [, startTransition] = useTransition();
+  const pendingDeleteRef = useRef(pendingDelete);
+  useEffect(() => {
+    pendingDeleteRef.current = pendingDelete;
+  }, [pendingDelete]);
 
   // Server-компонент передаёт свежие данные при каждой навигации/revalidate —
   // синхронизируем локальную копию, иначе после мягкого перехода видно старое.
@@ -122,20 +140,85 @@ export default function PriorityMatrix({
     setItems(tasks);
   }
 
+  useEffect(() => {
+    return () => {
+      // Если ушли со страницы с "висящим" удалением — не теряем его молча.
+      if (pendingDeleteRef.current) {
+        clearTimeout(pendingDeleteRef.current.timer);
+        deleteTask(pendingDeleteRef.current.task.id);
+      }
+    };
+  }, []);
+
   const groups: Record<PriorityLabel, MatrixTask[]> = { P0: [], P1: [], P2: [], P3: [], LATER: [] };
   for (const t of items) groups[computePriority(t).label].push(t);
   for (const label of [...COLUMN_ORDER, "LATER" as const]) {
-    groups[label].sort((a, b) => computePriority(b).score - computePriority(a).score);
+    groups[label].sort((a, b) => {
+      const ra = a.manualRank ?? Infinity;
+      const rb = b.manualRank ?? Infinity;
+      if (ra !== rb) return ra - rb;
+      return computePriority(b).score - computePriority(a).score;
+    });
   }
 
   function patch(id: string, p: Partial<MatrixTask>) {
     setItems((prev) => prev.map((t) => (t.id === id ? { ...t, ...p } : t)));
   }
 
-  function handleDelete(id: string) {
+  // Перетаскивание внутри группы и между группами. referenceId — задача, рядом с которой
+  // бросили (null = в конец группы/на пустую группу), before — вставить до/после неё.
+  function moveTask(targetGroup: PriorityLabel, referenceId: string | null, before: boolean, draggedId: string) {
+    if (draggedId === referenceId) return;
+    const currentTargetOrder = groups[targetGroup].filter((t) => t.id !== draggedId).map((t) => t.id);
+    let insertIdx = currentTargetOrder.length;
+    if (referenceId) {
+      const refIdx = currentTargetOrder.indexOf(referenceId);
+      if (refIdx !== -1) insertIdx = before ? refIdx : refIdx + 1;
+    }
+    const newOrder = [...currentTargetOrder];
+    newOrder.splice(insertIdx, 0, draggedId);
+
+    setItems((prev) =>
+      prev.map((t) => {
+        const idx = newOrder.indexOf(t.id);
+        if (idx === -1) return t;
+        return t.id === draggedId
+          ? { ...t, manualPriority: targetGroup, manualRank: idx }
+          : { ...t, manualRank: idx };
+      })
+    );
+    startTransition(() => {
+      reorderPriorityTask(draggedId, targetGroup, newOrder);
+    });
+  }
+
+  function flushPendingDelete() {
+    const pending = pendingDeleteRef.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    startTransition(() => { deleteTask(pending.task.id); });
+    setPendingDelete(null);
+  }
+
+  function handleDeleteRequest(id: string) {
+    const task = items.find((t) => t.id === id);
+    if (!task) return;
+    flushPendingDelete();
     setItems((prev) => prev.filter((t) => t.id !== id));
     setOpenId(null);
-    startTransition(() => { deleteTask(id); });
+    const timer = setTimeout(() => {
+      startTransition(() => { deleteTask(id); });
+      setPendingDelete(null);
+    }, 6000);
+    setPendingDelete({ task, timer });
+  }
+
+  function undoDelete() {
+    const pending = pendingDeleteRef.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    setItems((prev) => [...prev, pending.task]);
+    setPendingDelete(null);
   }
 
   function handleSchedule(id: string, target: "today" | "tomorrow") {
@@ -154,18 +237,32 @@ export default function PriorityMatrix({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {COLUMN_ORDER.filter((label) => groups[label].length > 0).map((label) => (
         <div key={label}>
-          <div className="flex items-center gap-1.5 px-1 mb-1">
+          <div className="flex items-center gap-1.5 px-1 mb-1.5">
             <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
             <p className="text-xs font-semibold text-neutral-600">
-              {PRIORITY_LABEL_TEXT[label]}
+              {PRIORITY_LABEL_TEXT[label]} · {groups[label].length}
             </p>
           </div>
-          <div className="divide-y divide-neutral-100 bg-white border border-neutral-200 rounded-lg overflow-hidden">
-            {groups[label].map((t, i) => (
-              <TaskRow key={t.id} task={t} rank={i + 1} color={label} onOpen={() => setOpenId(t.id)} />
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const draggedId = e.dataTransfer.getData("text/plain");
+              if (draggedId) moveTask(label, null, false, draggedId);
+            }}
+            className="divide-y divide-neutral-100 bg-white border border-neutral-200 rounded-xl overflow-hidden"
+          >
+            {groups[label].map((t) => (
+              <TaskRow
+                key={t.id}
+                task={t}
+                color={label}
+                onOpen={() => setOpenId(t.id)}
+                onDropBefore={(draggedId, before) => moveTask(label, t.id, before, draggedId)}
+              />
             ))}
           </div>
         </div>
@@ -173,15 +270,29 @@ export default function PriorityMatrix({
 
       {groups.LATER.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 px-1 mb-1">
+          <div className="flex items-center gap-1.5 px-1 mb-1.5">
             <span className={`w-2 h-2 rounded-full ${DOT_CLASS.LATER}`} />
             <p className="text-xs font-semibold text-neutral-500">
               {PRIORITY_LABEL_TEXT.LATER} · {groups.LATER.length}
             </p>
           </div>
-          <div className="divide-y divide-neutral-100 bg-neutral-50 border border-neutral-200 rounded-lg overflow-hidden">
-            {laterVisible.map((t, i) => (
-              <TaskRow key={t.id} task={t} rank={i + 1} color="LATER" onOpen={() => setOpenId(t.id)} />
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const draggedId = e.dataTransfer.getData("text/plain");
+              if (draggedId) moveTask("LATER", null, false, draggedId);
+            }}
+            className="divide-y divide-neutral-100 bg-neutral-50 border border-neutral-200 rounded-xl overflow-hidden"
+          >
+            {laterVisible.map((t) => (
+              <TaskRow
+                key={t.id}
+                task={t}
+                color="LATER"
+                onOpen={() => setOpenId(t.id)}
+                onDropBefore={(draggedId, before) => moveTask("LATER", t.id, before, draggedId)}
+              />
             ))}
           </div>
           {groups.LATER.length > LATER_PREVIEW && (
@@ -219,10 +330,10 @@ export default function PriorityMatrix({
         }}
         onManualPriority={(label) => {
           if (!openId) return;
-          patch(openId, { manualPriority: label });
+          patch(openId, { manualPriority: label, manualRank: null });
           startTransition(() => { setManualPriority(openId, label); });
         }}
-        onDelete={() => openId && handleDelete(openId)}
+        onDelete={() => openId && handleDeleteRequest(openId)}
         onScheduleToday={() => openId && handleSchedule(openId, "today")}
         onScheduleTomorrow={() => openId && handleSchedule(openId, "tomorrow")}
         onAddToCalendar={async (date, startTime, durationMinutes) => {
@@ -240,6 +351,19 @@ export default function PriorityMatrix({
           startTransition(() => { removeTaskFromGoogleCalendar(openId); });
         }}
       />
+
+      {pendingDelete && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg">
+          <span>Задача удалена</span>
+          <button
+            type="button"
+            onClick={undoDelete}
+            className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 font-medium"
+          >
+            Отменить
+          </button>
+        </div>
+      )}
     </div>
   );
 }

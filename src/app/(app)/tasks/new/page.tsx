@@ -80,25 +80,19 @@ export default async function NewTaskPage({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Ценность результата (1–5)</label>
+            <label className="block text-sm font-medium mb-1">Impact / Влияние (1–5)</label>
             <select name="value" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Цена откладывания (1–5)</label>
+            <label className="block text-sm font-medium mb-1">Cost of Delay / Цена откладывания (1–5)</label>
             <select name="costOfDelay" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Срочность (1–5)</label>
-            <select name="urgency" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
-              {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Временная чувствительность (1–5)</label>
+            <label className="block text-sm font-medium mb-1">Time Sensitivity (1–5)</label>
             <select name="timeSensitivity" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
