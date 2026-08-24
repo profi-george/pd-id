@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum TaskStatus {
+  BACKLOG // в бэклоге
+  PLANNED // запланирована
+  DONE // выполнена
+  NOT_DONE // не выполнена
+  MOVED // перенесена (заменена копией на другой день)
+}
+
+model Project {
+  id       String  @id @default(cuid())
+  name     String
+  parentId String?
+  parent   Project? @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children Project[] @relation("ProjectHierarchy")
+
+  createdAt DateTime @default(now())
+  tasks     Task[]
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  text      String // краткое название действия
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId String?
+
+  urgency Int // срочность 1-5
+
+  resultText     String? // ожидаемый результат
+  motivationText String? // мотивация — контекст, на score не влияет
+
+  value              Int     @default(3) // ценность результата 1-5
+  costOfDelay        Int     @default(3) // цена откладывания 1-5
+  timeSensitivity    Int     @default(3) // временная чувствительность 1-5
+  goalAlignment      Int     @default(3) // связь с текущей целью 1-5
+  effortMinutes      Int     @default(30) // затраты в минутах
+  alternativeQuality Float   @default(0) // 0..1, есть ли равноценная альтернатива
+  confidence         Float   @default(0.6) // 0..1, уверенность оценки
+
+  deadline             DateTime? // жёсткий срок (не путать с датой плана)
+  financialConsequence Boolean   @default(false)
+
+  primaryReason String? // главная причина такого приоритета (человеческим языком)
+  riskText      String? // риск отложить
+
+  // Исходные оценки AI "как есть" — сохраняются на момент создания, чтобы можно было
+  // сравнить с текущим значением (после ручной правки) и показать "Изменено вручную".
+  aiValue           Int?
+  aiCostOfDelay     Int?
+  aiUrgency         Int?
+  aiTimeSensitivity Int?
+  aiEffortMinutes   Int?
+
+  // Объяснение AI по каждому критерию — для tooltip "почему именно такая оценка".
+  aiReasoningValue           String?
+  aiReasoningCostOfDelay     String?
+  aiReasoningUrgency         String?
+  aiReasoningTimeSensitivity String?
+  aiReasoningEffort          String?
+
+  manualPriority String? // P0 | P1 | P2 | P3 | LATER — если задано, перекрывает расчёт AI
+
+  googleEventId  String? // id события в Google Calendar, если задача туда добавлена
+  googleEventUrl String? // прямая ссылка на событие
+
+  date   DateTime? // дата, на которую запланирована; null = бэклог
+  status TaskStatus @default(BACKLOG)
+  order  Int        @default(0) // ручной порядок внутри дня
+
+  score Int? // оценка выполнения 0-10, заполняется вечером
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AppSettings {
+  id          String  @id @default("singleton")
+  currentGoal String? // текущая главная цель — контекст для оценки goalAlignment
+
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  googleAccountEmail String? // для отображения "подключено как ..."
+}
+
+model Day {
+  id    String   @id @default(cuid())
+  date  DateTime @unique
+
+  whyWorked    String? // почему получилось
+  whyNotWorked String? // почему не получилось
+
+  difficulty   Int? // трудность дня 1-10
+  mood         Int? // настроение 1-10
+  efficiency   Int? // эффективность 1-10
+  worry        Int? // переживания 1-10
+
+  conclusion String? // вывод на завтра
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

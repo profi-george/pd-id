@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/*
+  Направление: тёплая бумага + графитовые чернила. Личный ежедневник, не корпоративный
+  дашборд — поэтому нейтральная шкала сдвинута в тёплый (hue 75), а не в холодный slate.
+  Один акцент — чернильно-синий (hue 250), используется только на фокусе и мелких
+  интерактивных подсказках, чтобы не спорить с маркерами приоритета (те остаются
+  семантическими: красный/янтарный/синий/серый).
+*/
+@theme {
+  --font-sans: var(--font-manrope), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --color-neutral-50: oklch(0.985 0.004 75);
+  --color-neutral-100: oklch(0.97 0.006 75);
+  --color-neutral-200: oklch(0.93 0.008 75);
+  --color-neutral-300: oklch(0.87 0.01 75);
+  --color-neutral-400: oklch(0.7 0.012 75);
+  --color-neutral-500: oklch(0.55 0.012 75);
+  --color-neutral-600: oklch(0.45 0.012 75);
+  --color-neutral-700: oklch(0.35 0.012 75);
+  --color-neutral-800: oklch(0.25 0.01 75);
+  --color-neutral-900: oklch(0.16 0.008 75);
+  --color-neutral-950: oklch(0.1 0.006 75);
+
+  --color-ink-50: oklch(0.95 0.02 250);
+  --color-ink-500: oklch(0.42 0.09 250);
+  --color-ink-600: oklch(0.36 0.09 250);
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Единый фокус-стиль — чернильный акцент, чтобы клавиатурная навигация была заметна
+   на всех интерактивных элементах, не только там, где это прописано вручную. */
+:focus-visible {
+  outline: 2px solid var(--color-ink-500);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
