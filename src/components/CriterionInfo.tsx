@@ -35,7 +35,7 @@ export default function CriterionInfo({
         ?
       </button>
       {open && (
-        <div className="absolute z-50 right-0 top-5 w-72 bg-white border border-neutral-200 rounded-lg shadow-lg p-3 text-xs space-y-2">
+        <div className="absolute z-50 left-0 top-5 w-72 max-w-[85vw] bg-white border border-neutral-200 rounded-lg shadow-lg p-3 text-xs space-y-2">
           <p className="font-medium text-neutral-800">{title}</p>
           <p className="text-neutral-600">{definition}</p>
 
