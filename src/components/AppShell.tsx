@@ -47,10 +47,10 @@ export default function AppShell({
           </button>
           <span className="font-semibold text-neutral-800 tracking-tight">ПД-ИД</span>
           <Link href="/today" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
-            Сегодня
+            План дня
           </Link>
           <Link href="/backlog" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
-            Позже
+            Задачи
           </Link>
           <Link href="/projects" className="hidden md:inline text-sm text-neutral-600 hover:text-neutral-900">
             Проекты

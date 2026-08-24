@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, formatDateHuman, toDateInputValue } from "@/lib/dates";
+import { todayDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { submitEveningForm } from "@/app/(app)/actions";
 import PriorityTag from "@/components/PriorityTag";
 import { requireUser } from "@/lib/auth";
@@ -9,9 +9,14 @@ export const dynamic = "force-dynamic";
 
 const SCALE_10 = Array.from({ length: 11 }, (_, i) => i);
 
-export default async function EveningSummaryPage() {
+export default async function EveningSummaryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   const user = await requireUser();
-  const date = todayDate();
+  const { date: dateParam } = await searchParams;
+  const date = dateParam ? parseDateInputValue(dateParam) : todayDate();
   const tasks = await prisma.task.findMany({
     where: { userId: user.id, date, status: TaskStatus.PLANNED },
     include: { project: true },

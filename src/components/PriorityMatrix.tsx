@@ -11,6 +11,7 @@ import {
 import {
   deleteTask,
   scheduleTask,
+  unscheduleTask,
   setManualPriority,
   reorderPriorityTask,
   updateTaskFields,
@@ -24,6 +25,7 @@ export type MatrixTask = TaskEvaluation & {
   text: string;
   projectId: string | null;
   projectName: string | null;
+  date?: Date | null;
   manualRank?: number | null;
   confidenceReason?: string | null;
   googleEventId?: string | null;
@@ -60,16 +62,75 @@ const BORDER_CLASS: Record<PriorityLabel, string> = {
 
 const LATER_PREVIEW = 3;
 
+function QuickMenu({
+  scheduled,
+  onDelete,
+  onUnschedule,
+}: {
+  scheduled: boolean;
+  onDelete: () => void;
+  onUnschedule: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
+        aria-label="Действия"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+          {scheduled && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); onUnschedule(); }}
+              className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+            >
+              Убрать из плана
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
+            className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-red-600"
+          >
+            Удалить
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
+
 function TaskRow({
   task,
   color,
   onOpen,
   onDropBefore,
+  onDelete,
+  onUnschedule,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
   onOpen: () => void;
   onDropBefore: (draggedId: string, before: boolean) => void;
+  onDelete: () => void;
+  onUnschedule: () => void;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
 
@@ -90,14 +151,14 @@ function TaskRow({
         setDragOver(null);
         if (draggedId) onDropBefore(draggedId, before);
       }}
-      className={`relative border-l-2 ${BORDER_CLASS[color]} ${
+      className={`relative border-l-2 ${BORDER_CLASS[color]} flex items-start ${
         dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
       }`}
     >
       <button
         type="button"
         onClick={onOpen}
-        className="w-full text-left px-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1"
+        className="flex-1 min-w-0 text-left px-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1"
       >
         <p className="text-[15px] font-medium text-neutral-900 leading-snug">{task.text}</p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
@@ -109,6 +170,9 @@ function TaskRow({
           <p className="text-xs text-neutral-400 leading-snug">{task.primaryReason}</p>
         )}
       </button>
+      <div className="pt-1.5 pr-1.5">
+        <QuickMenu scheduled={Boolean(task.date)} onDelete={onDelete} onUnschedule={onUnschedule} />
+      </div>
     </div>
   );
 }
@@ -117,10 +181,14 @@ export default function PriorityMatrix({
   tasks,
   projectOptions,
   googleConnected = false,
+  planView = false,
 }: {
   tasks: MatrixTask[];
   projectOptions: { id: string; label: string }[];
   googleConnected?: boolean;
+  // true на странице "План дня": список — только задачи конкретной даты, поэтому
+  // "убрать из плана" должно сразу убрать карточку из вида, а не просто снять дату.
+  planView?: boolean;
 }) {
   const [items, setItems] = useState(tasks);
   const [prevTasks, setPrevTasks] = useState(tasks);
@@ -227,6 +295,16 @@ export default function PriorityMatrix({
     startTransition(() => { scheduleTask(id, target); });
   }
 
+  function handleUnschedule(id: string) {
+    if (planView) {
+      setItems((prev) => prev.filter((t) => t.id !== id));
+      setOpenId(null);
+    } else {
+      setItems((prev) => prev.map((t) => (t.id === id ? { ...t, date: null } : t)));
+    }
+    startTransition(() => { unscheduleTask(id); });
+  }
+
   const openTask = items.find((t) => t.id === openId) ?? null;
   const drawerTask: DrawerTask | null = openTask ? { ...openTask } : null;
 
@@ -262,6 +340,8 @@ export default function PriorityMatrix({
                 color={label}
                 onOpen={() => setOpenId(t.id)}
                 onDropBefore={(draggedId, before) => moveTask(label, t.id, before, draggedId)}
+                onDelete={() => handleDeleteRequest(t.id)}
+                onUnschedule={() => handleUnschedule(t.id)}
               />
             ))}
           </div>
@@ -292,6 +372,8 @@ export default function PriorityMatrix({
                 color="LATER"
                 onOpen={() => setOpenId(t.id)}
                 onDropBefore={(draggedId, before) => moveTask("LATER", t.id, before, draggedId)}
+                onDelete={() => handleDeleteRequest(t.id)}
+                onUnschedule={() => handleUnschedule(t.id)}
               />
             ))}
           </div>

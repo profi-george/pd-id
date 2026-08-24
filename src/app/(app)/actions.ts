@@ -458,6 +458,16 @@ export async function scheduleTask(id: string, target: "today" | "tomorrow") {
   revalidatePath("/today");
 }
 
+export async function unscheduleTask(id: string) {
+  const user = await requireUser();
+  await prisma.task.updateMany({
+    where: { id, userId: user.id },
+    data: { date: null, status: TaskStatus.BACKLOG, order: 0 },
+  });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
 export async function assignTaskToProject(taskId: string, projectId: string | null) {
   const user = await requireUser();
   await prisma.task.updateMany({
@@ -465,19 +475,6 @@ export async function assignTaskToProject(taskId: string, projectId: string | nu
     data: { projectId },
   });
   revalidatePath("/backlog");
-  revalidatePath("/today");
-}
-
-export async function reorderTasks(orderedIds: string[]) {
-  const user = await requireUser();
-  await prisma.$transaction(
-    orderedIds.map((id, index) =>
-      prisma.task.updateMany({
-        where: { id, userId: user.id },
-        data: { order: index },
-      })
-    )
-  );
   revalidatePath("/today");
 }
 
@@ -581,5 +578,5 @@ export async function submitEveningForm(formData: FormData) {
   }
 
   revalidatePath("/today");
-  redirect("/today");
+  redirect(`/today?date=${dateISO}`);
 }

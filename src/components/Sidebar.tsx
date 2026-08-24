@@ -81,10 +81,10 @@ export default function Sidebar({
     <aside className="w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-3 space-y-4 overflow-y-auto h-full">
       <nav className="space-y-0.5">
         <Link href="/today" className={rowClass(pathname === "/today", false)}>
-          <span>Сегодня</span>
+          <span>План дня</span>
         </Link>
         <Link href="/backlog" className={rowClass(pathname === "/backlog", dragOverKey === "__all__")}>
-          <span>Все задачи</span>
+          <span>Задачи</span>
           <span className="text-xs opacity-60">{totalCount}</span>
         </Link>
         <div
