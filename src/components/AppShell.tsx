@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AccountMenu from "@/components/AccountMenu";
@@ -44,7 +45,9 @@ export default function AppShell({
               <path d="M3 5.5h14M3 10h14M3 14.5h14" />
             </svg>
           </button>
-          <span className="font-semibold text-neutral-800 tracking-tight">ПД-ИД</span>
+          <Link href="/backlog" className="font-semibold text-neutral-800 tracking-tight hover:text-ink-600">
+            ПД-ИД
+          </Link>
           <AccountMenu cabinetName={cabinetName} />
         </nav>
       </header>

@@ -359,10 +359,10 @@ export default function TaskDrawer({
             </div>
           )}
 
-          <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-100 flex items-center gap-1">
+          <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-100">
             Уверенность AI: {Math.round(task.confidence * 100)}%
             {task.confidence < 0.75 && task.confidenceReason && (
-              <CriterionInfo title="Уверенность AI" definition={task.confidenceReason} />
+              <span> — {task.confidenceReason}</span>
             )}
           </p>
         </div>

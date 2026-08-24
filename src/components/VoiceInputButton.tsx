@@ -83,14 +83,18 @@ export default function VoiceInputButton({
     <button
       type="button"
       onClick={toggle}
+      aria-label={listening ? "Остановить диктовку" : "Надиктовать"}
+      title={listening ? "Остановить диктовку" : "Надиктовать"}
       className={
         className ??
-        `text-xs px-2 py-1 rounded border ${
-          listening ? "border-red-400 bg-red-50 text-red-600" : "border-neutral-300 hover:bg-neutral-50"
+        `w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-base border transition-colors ${
+          listening
+            ? "border-red-400 bg-red-50 text-red-600 animate-pulse"
+            : "border-neutral-300 text-neutral-500 hover:border-ink-500 hover:text-ink-600"
         }`
       }
     >
-      {listening ? "⏹ Стоп" : "🎤 Диктовать"}
+      {listening ? "◼" : "🎤"}
     </button>
   );
 }

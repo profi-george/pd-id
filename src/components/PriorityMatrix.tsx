@@ -163,6 +163,7 @@ function TaskRow({
       onDragLeave={() => setDragOver(null)}
       onDrop={(e) => {
         e.preventDefault();
+        e.stopPropagation(); // иначе drop всплывает до контейнера группы и тот перебивает вставку, всегда добавляя в конец
         const draggedId = e.dataTransfer.getData("text/plain");
         const before = dragOver !== "bottom";
         setDragOver(null);
