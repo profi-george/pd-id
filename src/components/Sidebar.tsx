@@ -57,10 +57,22 @@ function ProjectRow({
 
   if (confirmingDelete) {
     return (
-      <div className="flex items-center gap-1 px-2 py-1.5 text-xs bg-red-50 rounded">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs bg-red-50 rounded">
         <span className="flex-1 truncate text-red-700">Удалить «{name}»?</span>
-        <button type="button" onClick={remove} className="text-red-700 font-medium hover:underline">Да</button>
-        <button type="button" onClick={() => setConfirmingDelete(false)} className="text-neutral-500 hover:underline">Отмена</button>
+        <button
+          type="button"
+          onClick={() => setConfirmingDelete(false)}
+          className="px-1.5 py-0.5 rounded border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-600 shrink-0"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          onClick={remove}
+          className="px-1.5 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 shrink-0"
+        >
+          Удалить
+        </button>
       </div>
     );
   }

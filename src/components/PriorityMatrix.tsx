@@ -184,7 +184,9 @@ function TaskRow({
           {task.confidence < 0.6 && <span className="text-amber-600">· AI не уверен</span>}
         </div>
         {task.primaryReason && (
-          <p className="text-xs text-neutral-400 leading-snug">{task.primaryReason}</p>
+          <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 leading-snug">
+            {task.primaryReason}
+          </p>
         )}
       </button>
       <div className="pt-1.5 pr-1.5">

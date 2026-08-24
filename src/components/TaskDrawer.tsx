@@ -237,28 +237,28 @@ export default function TaskDrawer({
           </p>
         )}
 
-        <div className="grid sm:grid-cols-2 gap-4 text-sm">
-          <div className="flex items-center justify-between sm:block">
-            <span className="text-xs text-neutral-500">Время выполнения</span>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="block text-xs text-neutral-500 mb-1">Время выполнения</span>
             <input
               type="number"
               min={5}
               step={5}
               value={task.effortMinutes}
               onChange={(e) => handleChangeField({ effortMinutes: Number(e.target.value) })}
-              className="sm:mt-1 sm:block w-20 border border-neutral-300 rounded px-2 py-1 text-right sm:text-left"
+              className="w-full max-w-[7rem] border border-neutral-300 rounded px-2 py-1"
             />
-            <span className="text-xs text-neutral-400 sm:block sm:mt-0.5">
+            <span className="block text-xs text-neutral-400 mt-1">
               {effortChanged ? `AI: ${formatEffort(effortAi!)}` : effortSource === "введено вами" ? "введено вами" : "оценка AI"}
             </span>
           </div>
-          <div className="flex items-center justify-between sm:block">
-            <span className="text-xs text-neutral-500">Дедлайн</span>
+          <div>
+            <span className="block text-xs text-neutral-500 mb-1">Дедлайн</span>
             <input
               type="date"
               value={task.deadline ? toDateInput(task.deadline) : ""}
               onChange={(e) => handleChangeField({ deadline: e.target.value ? new Date(e.target.value) : null })}
-              className="sm:mt-1 sm:block border border-neutral-300 rounded px-2 py-1"
+              className="w-full max-w-[10rem] border border-neutral-300 rounded px-2 py-1"
             />
           </div>
         </div>

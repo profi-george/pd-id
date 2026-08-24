@@ -127,10 +127,10 @@ export default async function TodayPage({
         </>
       ) : (
         <div className="space-y-3">
-          <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-green-800">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
             Итог дня подведён. Трудность {day.difficulty} · настроение {day.mood} · эффективность{" "}
             {day.efficiency} · переживания {day.worry}
-            {day.conclusion ? <p className="mt-1 text-green-900">Вывод на завтра: {day.conclusion}</p> : null}
+            {day.conclusion ? <p className="mt-1 text-emerald-900">Вывод на завтра: {day.conclusion}</p> : null}
           </div>
           <ul className="space-y-2">
             {finished.map((t) => (

@@ -4,7 +4,7 @@ const LABEL_CLASS: Record<string, string> = {
   P0: "bg-red-100 text-red-700",
   P1: "bg-amber-100 text-amber-700",
   P2: "bg-blue-100 text-blue-700",
-  P3: "bg-emerald-100 text-emerald-700",
+  P3: "bg-neutral-100 text-neutral-600",
   LATER: "bg-neutral-100 text-neutral-500",
 };
 
