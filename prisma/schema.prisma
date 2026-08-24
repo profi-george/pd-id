@@ -100,6 +100,8 @@ model Task {
   order  Int        @default(0) // ручной порядок внутри дня
 
   score Int? // оценка выполнения 0-10, заполняется вечером
+  whySucceeded String? // почему получилось — заполняется в Итоге дня для этой конкретной задачи
+  whyFailed    String? // почему не получилось — заполняется в Итоге дня для этой конкретной задачи
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

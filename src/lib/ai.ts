@@ -273,3 +273,40 @@ ${transcript}
   const question = String((parsed as Record<string, unknown>)?.question ?? "").trim();
   return { done: false, question: question || "Расскажите подробнее об этой задаче?" };
 }
+
+// ---------- Пересчёт объяснения после ручной правки критериев ----------
+// Пользователь двигает ползунки (карандаш в карточке задачи) — сам score/группу
+// всегда считает priorityEngine.ts, а этот вызов только просит AI заново коротко
+// объяснить итоговую рекомендацию человеческим языком под новые цифры.
+
+export async function explainPriorityChange(input: {
+  text: string;
+  priorityLabel: string; // человеческое название группы, уже посчитанное priorityEngine
+  value: number;
+  costOfDelay: number;
+  timeSensitivity: number;
+  effortMinutes: number;
+  deadline: string | null;
+}): Promise<{ primaryReason: string }> {
+  const prompt = `Задача пользователя: "${input.text}"
+
+Пользователь вручную поправил критерии этой задачи. Итоговая рекомендация после пересчёта: "${input.priorityLabel}".
+
+Текущие значения критериев (1-5, уже посчитаны заново с учётом правки пользователя):
+- Impact (ценность результата): ${input.value}
+- Cost of Delay (цена откладывания): ${input.costOfDelay}
+- Time Sensitivity (ценность со временем): ${input.timeSensitivity}
+- Effort (затраты): ${input.effortMinutes} минут
+- Дедлайн: ${input.deadline ?? "не указан"}
+
+Напиши ОДНУ короткую человеческую фразу (не более 20 слов), объясняющую именно эту рекомендацию под текущие цифры — как будто объясняешь другу, а не зачитываешь баллы. Не упоминай числа/баллы напрямую в тексте.`;
+
+  const parsed = await callGemini(prompt, {
+    type: "OBJECT",
+    properties: { primaryReason: { type: "STRING" } },
+    required: ["primaryReason"],
+  });
+
+  const primaryReason = String((parsed as Record<string, unknown>)?.primaryReason ?? "").trim();
+  return { primaryReason: primaryReason || "Пересчитано по новым значениям критериев." };
+}

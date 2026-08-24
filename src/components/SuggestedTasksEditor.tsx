@@ -6,9 +6,8 @@ import { computePriority, formatEffort, PRIORITY_LABEL_TEXT } from "@/lib/priori
 
 const SCALE = [1, 2, 3, 4, 5];
 
-export type ReviewTask = AiTaskEvaluation & { projectId: string | null };
+export type ReviewTask = AiTaskEvaluation & { projectId: string | null; includeInPlan: boolean };
 export type ProjectOption = { id: string; label: string };
-export type DateOption = "backlog" | "today" | "tomorrow";
 
 function TaskCard({
   task,
@@ -42,14 +41,20 @@ function TaskCard({
         </button>
       </div>
 
+      <label className="flex items-center gap-1.5 text-xs text-neutral-700 bg-neutral-50 border border-neutral-200 rounded px-2 py-1 w-fit">
+        <input
+          type="checkbox"
+          checked={task.includeInPlan}
+          onChange={(e) => onChange({ includeInPlan: e.target.checked })}
+        />
+        {task.scheduledDate ? `В план на ${task.scheduledDate}` : "В план на сегодня"}
+      </label>
+
       <div className="flex items-center gap-2 text-xs flex-wrap">
         <span className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 font-medium">
           {PRIORITY_LABEL_TEXT[label]}
         </span>
         <span className="text-neutral-500">{formatEffort(task.effortMinutes)}</span>
-        {task.scheduledDate && (
-          <span className="text-ink-600">📅 {task.scheduledDate}</span>
-        )}
         <select
           value={task.projectId ?? ""}
           onChange={(e) => onChange({ projectId: e.target.value || null })}
@@ -165,16 +170,12 @@ export default function SuggestedTasksEditor({
   tasks,
   onChange,
   projects,
-  dateOption,
-  onDateOptionChange,
   onSave,
   isSaving,
 }: {
   tasks: ReviewTask[];
   onChange: (tasks: ReviewTask[]) => void;
   projects: ProjectOption[];
-  dateOption: DateOption;
-  onDateOptionChange: (v: DateOption) => void;
   onSave: () => void;
   isSaving: boolean;
 }) {
@@ -209,18 +210,9 @@ export default function SuggestedTasksEditor({
       </ul>
 
       <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Куда добавить</label>
-          <select
-            value={dateOption}
-            onChange={(e) => onDateOptionChange(e.target.value as DateOption)}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-          >
-            <option value="backlog">Позже (без даты)</option>
-            <option value="today">На сегодня</option>
-            <option value="tomorrow">На завтра (черновик)</option>
-          </select>
-        </div>
+        <p className="text-xs text-neutral-500">
+          Не отмеченные задачи попадут в «Все задачи» без даты — добавите в план позже, когда решите.
+        </p>
         <button
           type="button"
           onClick={onSave}

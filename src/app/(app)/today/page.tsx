@@ -142,6 +142,9 @@ export default async function TodayPage({
                     <span>{STATUS_LABEL[t.status] ?? t.status}</span>
                     {t.score !== null ? <span>· результат {t.score}/10</span> : null}
                   </div>
+                  {(t.whySucceeded || t.whyFailed) && (
+                    <p className="text-xs text-neutral-400 italic">{t.whySucceeded || t.whyFailed}</p>
+                  )}
                 </div>
               </li>
             ))}

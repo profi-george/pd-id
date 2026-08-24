@@ -38,14 +38,25 @@ export default async function HistoryPage({
   const daysInMonth = new Date(Date.UTC(viewYear, viewMonth + 1, 0)).getUTCDate();
   const leadingBlanks = (monthStart.getUTCDay() + 6) % 7; // Пн = 0
 
-  const [days, taskGroups] = await Promise.all([
+  const [days, taskGroups, scoreGroups] = await Promise.all([
     prisma.day.findMany({ where: { userId: user.id }, orderBy: { date: "desc" } }),
     prisma.task.groupBy({
       by: ["date", "status"],
       where: { userId: user.id, date: { not: null } },
       _count: true,
     }),
+    prisma.task.groupBy({
+      by: ["date"],
+      where: { userId: user.id, date: { not: null }, score: { not: null } },
+      _avg: { score: true },
+    }),
   ]);
+
+  const avgScoreByMs = new Map<number, number>();
+  for (const g of scoreGroups) {
+    if (!g.date || g._avg.score == null) continue;
+    avgScoreByMs.set(g.date.getTime(), g._avg.score);
+  }
 
   const daysByMs = new Map(days.map((d) => [d.date.getTime(), d]));
   const summarizedDates = new Set(days.map((d) => d.date.getTime()));
@@ -133,6 +144,7 @@ export default async function HistoryPage({
             const summarized = summarizedDates.has(ms);
             const counts = countsByMs.get(ms);
             const day = daysByMs.get(ms);
+            const avgScore = avgScoreByMs.get(ms);
             return (
               <li key={ms} className="bg-white border border-neutral-200 rounded-lg px-3 py-2.5">
                 <p className="text-sm font-medium text-neutral-800">
@@ -142,6 +154,7 @@ export default async function HistoryPage({
                 {counts && counts.total > 0 && (
                   <p className="text-xs text-neutral-500 mt-0.5">
                     {counts.total} задач · {counts.done} выполнено
+                    {avgScore != null && <> · средняя оценка {avgScore.toFixed(1)}</>}
                     {day?.efficiency != null && <> · эффективность {day.efficiency}/10</>}
                   </p>
                 )}

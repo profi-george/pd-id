@@ -7,11 +7,12 @@ import { initialOrderKey } from "@/lib/priority";
 import { requireUser } from "@/lib/auth";
 import {
   chatWithAI,
+  explainPriorityChange,
   type AiTaskEvaluation,
   type ChatMessage,
   type ChatResult,
 } from "@/lib/ai";
-import { isPriorityLabel } from "@/lib/priorityEngine";
+import { isPriorityLabel, computePriority, PRIORITY_LABEL_TEXT } from "@/lib/priorityEngine";
 import {
   getGoogleConnectionStatus,
   disconnectGoogle,
@@ -260,29 +261,22 @@ export async function chatStep(
 }
 
 export async function createTasksWithDetails(
-  tasks: (AiTaskEvaluation & { projectId: string | null })[],
-  dateOption: "backlog" | "today" | "tomorrow"
+  tasks: (AiTaskEvaluation & { projectId: string | null; includeInPlan: boolean })[]
 ) {
   const user = await requireUser();
   if (tasks.length === 0) return;
 
-  let defaultDate: Date | null = null;
-  let defaultStatus: TaskStatus = TaskStatus.BACKLOG;
-  if (dateOption === "today") {
-    defaultDate = todayDate();
-    defaultStatus = TaskStatus.PLANNED;
-  } else if (dateOption === "tomorrow") {
-    defaultDate = tomorrowDate();
-    defaultStatus = TaskStatus.PLANNED;
-  }
-
   for (const t of tasks) {
     if (!t.text.trim()) continue;
     const deadline = t.deadline ? new Date(`${t.deadline}T00:00:00.000Z`) : null;
-    // Если AI (или пользователь в проверке перед сохранением) указал конкретный день —
-    // он важнее общего выбора "Куда добавить" для всей пачки.
-    const date = t.scheduledDate ? new Date(`${t.scheduledDate}T00:00:00.000Z`) : defaultDate;
-    const status = t.scheduledDate ? TaskStatus.PLANNED : defaultStatus;
+    // Решение "в план или в бэклог" пользователь принимает по каждой задаче отдельно
+    // (галочка в проверке перед сохранением) — ничего не добавляется в план молча.
+    const date = t.includeInPlan
+      ? t.scheduledDate
+        ? new Date(`${t.scheduledDate}T00:00:00.000Z`)
+        : todayDate()
+      : null;
+    const status = t.includeInPlan ? TaskStatus.PLANNED : TaskStatus.BACKLOG;
     await prisma.task.create({
       data: {
         text: t.text.trim(),
@@ -357,6 +351,45 @@ export async function setManualPriority(taskId: string, label: string | null) {
   });
   revalidatePath("/backlog");
   revalidatePath("/today");
+}
+
+// "Пересчитать" в расширенной настройке критериев (карандаш в карточке задачи):
+// сохраняет новые значения критериев и просит AI заново коротко объяснить итоговую
+// рекомендацию под них. Исходный AI-снимок (aiValue/aiCostOfDelay/...) не трогаем —
+// он остаётся как есть, чтобы всегда было видно, что предложил AI изначально.
+export async function recalculatePriority(
+  taskId: string,
+  patch: { value: number; costOfDelay: number; timeSensitivity: number; effortMinutes: number }
+): Promise<{ ok: true; primaryReason: string } | { ok: false; error: string }> {
+  try {
+    const user = await requireUser();
+    const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
+    if (!task) return { ok: false, error: "Задача не найдена." };
+
+    const updated = { ...task, ...patch, urgency: patch.timeSensitivity };
+    const { label } = computePriority(updated);
+
+    const { primaryReason } = await explainPriorityChange({
+      text: task.text,
+      priorityLabel: PRIORITY_LABEL_TEXT[label],
+      value: patch.value,
+      costOfDelay: patch.costOfDelay,
+      timeSensitivity: patch.timeSensitivity,
+      effortMinutes: patch.effortMinutes,
+      deadline: task.deadline ? task.deadline.toISOString().slice(0, 10) : null,
+    });
+
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { ...patch, urgency: patch.timeSensitivity, primaryReason },
+    });
+
+    revalidatePath("/backlog");
+    revalidatePath("/today");
+    return { ok: true, primaryReason };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось пересчитать приоритет." };
+  }
 }
 
 // Drag&drop внутри группы приоритета и между группами: group — итоговая (возможно та же)
@@ -520,8 +553,6 @@ export async function submitEveningForm(formData: FormData) {
   const tomorrow = new Date(date);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-  const whyWorked = str(formData, "whyWorked");
-  const whyNotWorked = str(formData, "whyNotWorked");
   const conclusion = str(formData, "conclusion");
   const difficulty = num(formData, "difficulty");
   const mood = num(formData, "mood");
@@ -530,26 +561,8 @@ export async function submitEveningForm(formData: FormData) {
 
   await prisma.day.upsert({
     where: { userId_date: { userId: user.id, date } },
-    create: {
-      userId: user.id,
-      date,
-      whyWorked,
-      whyNotWorked,
-      conclusion,
-      difficulty,
-      mood,
-      efficiency,
-      worry,
-    },
-    update: {
-      whyWorked,
-      whyNotWorked,
-      conclusion,
-      difficulty,
-      mood,
-      efficiency,
-      worry,
-    },
+    create: { userId: user.id, date, conclusion, difficulty, mood, efficiency, worry },
+    update: { conclusion, difficulty, mood, efficiency, worry },
   });
 
   const plannedTasks = await prisma.task.findMany({
@@ -560,16 +573,18 @@ export async function submitEveningForm(formData: FormData) {
     const done = formData.get(`done_${task.id}`) === "on";
     const scoreRaw = str(formData, `score_${task.id}`);
     const score = scoreRaw === "" ? null : Math.max(0, Math.min(10, Number(scoreRaw)));
+    const whySucceeded = str(formData, `whySucceeded_${task.id}`) || null;
+    const whyFailed = str(formData, `whyFailed_${task.id}`) || null;
 
     if (done) {
       await prisma.task.update({
         where: { id: task.id },
-        data: { status: TaskStatus.DONE, score },
+        data: { status: TaskStatus.DONE, score, whySucceeded, whyFailed: null },
       });
     } else {
       await prisma.task.update({
         where: { id: task.id },
-        data: { status: TaskStatus.MOVED, score },
+        data: { status: TaskStatus.MOVED, score, whyFailed, whySucceeded: null },
       });
       await prisma.task.create({
         data: {

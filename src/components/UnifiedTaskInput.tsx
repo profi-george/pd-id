@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { chatStep, createTasksWithDetails } from "@/app/(app)/actions";
 import type { ChatMessage } from "@/lib/ai";
-import SuggestedTasksEditor, { type ReviewTask, type ProjectOption, type DateOption } from "@/components/SuggestedTasksEditor";
+import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
 
 export default function UnifiedTaskInput({ projects }: { projects: ProjectOption[] }) {
@@ -14,7 +14,6 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [reviewTasks, setReviewTasks] = useState<ReviewTask[] | null>(null);
-  const [dateOption, setDateOption] = useState<DateOption>("backlog");
   const [isSending, startSending] = useTransition();
   const [isSaving, startSaving] = useTransition();
 
@@ -44,7 +43,13 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
       const result = res.result;
       if (result.done) {
         setPendingQuestion(null);
-        setReviewTasks(result.tasks.map((t) => ({ ...t, projectId: t.suggestedProjectId })));
+        setReviewTasks(
+          result.tasks.map((t) => ({
+            ...t,
+            projectId: t.suggestedProjectId,
+            includeInPlan: Boolean(t.scheduledDate),
+          }))
+        );
       } else {
         setPendingQuestion(result.question);
         setHistory((prev) => [...prev, { role: "assistant", text: result.question }]);
@@ -54,10 +59,11 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
 
   function handleSave() {
     if (!reviewTasks || reviewTasks.length === 0) return;
+    const anyInPlan = reviewTasks.some((t) => t.includeInPlan);
     startSaving(async () => {
-      await createTasksWithDetails(reviewTasks, dateOption);
+      await createTasksWithDetails(reviewTasks);
       reset();
-      router.push(dateOption === "backlog" ? "/backlog" : "/today");
+      router.push(anyInPlan ? "/today" : "/backlog");
     });
   }
 
@@ -106,8 +112,6 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
           tasks={reviewTasks}
           onChange={setReviewTasks}
           projects={projects}
-          dateOption={dateOption}
-          onDateOptionChange={setDateOption}
           onSave={handleSave}
           isSaving={isSaving}
         />
