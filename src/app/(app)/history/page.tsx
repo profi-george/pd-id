@@ -160,9 +160,15 @@ export default async function HistoryPage({
                 )}
                 <div className="flex items-center gap-3 text-xs mt-1">
                   <Link href={`/today?date=${iso}`} className="text-ink-600 underline hover:text-ink-500">
-                    {summarized ? "Открыть день и итог" : "Открыть план дня"}
+                    План дня
                   </Link>
-                  {!summarized && <span className="text-neutral-400">итог не подведён</span>}
+                  {summarized ? (
+                    <Link href={`/today/summary?date=${iso}`} className="text-ink-600 underline hover:text-ink-500">
+                      Итог дня
+                    </Link>
+                  ) : (
+                    <span className="text-neutral-400">итог не подведён</span>
+                  )}
                 </div>
               </li>
             );

@@ -37,11 +37,11 @@ export default async function TodayPage({
     getGoogleStatus(),
   ]);
 
-  // "План дня" — единый редактируемый список ВСЕХ задач этого дня (любого статуса),
-  // а не живой план + отдельный нередактируемый список "что случилось". Статус —
-  // это просто отметка на строке, а не другое место в интерфейсе.
+  // "План дня" показывает только активные (ещё не решённые) задачи этого дня.
+  // Выполненная/не выполненная/перенесённая задача уходит из плана — её место
+  // в Истории, а не здесь отмеченной галочкой: план — это то, что ЕЩЁ предстоит.
   const planned = dayTasks.filter((t) => t.status === TaskStatus.PLANNED);
-  const matrixTasks = dayTasks.map((t) => ({ ...t, projectName: t.project?.name ?? null }));
+  const matrixTasks = planned.map((t) => ({ ...t, projectName: t.project?.name ?? null }));
   const projectOptions = flattenProjectsForSelect(
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
   );
@@ -115,9 +115,8 @@ export default async function TodayPage({
         </p>
       )}
 
-      {/* Один список на весь день — все статусы вместе, каждый со своей пометкой
-          в строке. Не прячем его, даже если итог дня уже подведён: иначе новая
-          задача, добавленная на "закрытый" день, была бы не видна нигде. */}
+      {/* Только активные задачи. Не прячем список, даже если итог дня уже подведён:
+          иначе новая задача, добавленная на "закрытый" день, была бы не видна нигде. */}
       <PriorityMatrix
         tasks={matrixTasks}
         projectOptions={projectOptions}

@@ -14,20 +14,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.task.findMany({
       where: { userId: user.id, status: { in: ACTIVE_STATUSES } },
-      select: { projectId: true },
+      select: { projectId: true, status: true },
     }),
   ]);
 
   const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }));
   const byId = new Map(projectNodes.map((p) => [p.id, p]));
 
+  // Счётчик у проекта в дереве — весь активный объём (и в бэклоге, и уже в плане),
+  // это общая "сколько ещё висит на проекте". А вот "Задачи"/"Без проекта" в шапке —
+  // это именно Бэклог (нераспределённые), поэтому считаются только по BACKLOG-статусу,
+  // чтобы бейдж совпадал с тем, что реально покажет открытая страница.
   const ownCounts: Record<string, number> = {};
   let noProjectCount = 0;
+  let backlogCount = 0;
   for (const t of tasks) {
-    if (!t.projectId) {
-      noProjectCount++;
-      continue;
+    if (t.status === TaskStatus.BACKLOG) {
+      backlogCount++;
+      if (!t.projectId) noProjectCount++;
     }
+    if (!t.projectId) continue;
     ownCounts[t.projectId] = (ownCounts[t.projectId] ?? 0) + 1;
   }
 
@@ -44,7 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       projects={projectNodes}
       counts={counts}
       noProjectCount={noProjectCount}
-      totalCount={tasks.length}
+      totalCount={backlogCount}
       cabinetName={user.name}
     >
       {children}

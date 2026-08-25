@@ -17,8 +17,10 @@ export default async function BacklogPage({
   const { project: projectFilter } = await searchParams;
 
   const [tasks, projects, googleStatus] = await Promise.all([
+    // «Задачи» — это Бэклог: только нераспределённые (без даты) задачи. Как только
+    // задаче назначается дата — это уже «План дня» той даты, не Бэклог.
     prisma.task.findMany({
-      where: { userId: user.id, status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
+      where: { userId: user.id, status: TaskStatus.BACKLOG },
       include: { project: true },
       orderBy: { createdAt: "asc" },
     }),
@@ -47,7 +49,8 @@ export default async function BacklogPage({
             {projectFilter === "none" ? "Без проекта" : "Задачи"}
           </h1>
           <p className="text-sm text-neutral-500">
-            {matrixTasks.length} задач{projectFilter !== "none" ? " · отсортированы по приоритету" : ""}
+            {matrixTasks.length} нераспределённых
+            {projectFilter !== "none" ? " · отсортированы по приоритету" : ""}
           </p>
         </div>
         <Link
@@ -62,6 +65,7 @@ export default async function BacklogPage({
         tasks={matrixTasks}
         projectOptions={projectOptions}
         googleConnected={googleStatus.connected}
+        removeOnSchedule
       />
     </div>
   );

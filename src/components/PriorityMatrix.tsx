@@ -456,6 +456,7 @@ export default function PriorityMatrix({
   projectOptions,
   googleConnected = false,
   planView = false,
+  removeOnSchedule = false,
 }: {
   tasks: MatrixTask[];
   projectOptions: { id: string; label: string }[];
@@ -463,6 +464,9 @@ export default function PriorityMatrix({
   // true на странице "План дня": список — только задачи конкретной даты, поэтому
   // "убрать из плана" должно сразу убрать карточку из вида, а не просто снять дату.
   planView?: boolean;
+  // true на «Задачах» (Бэклог): список — только нераспределённые (без даты), поэтому
+  // назначение ЛЮБОЙ даты уводит задачу из этого списка в «План дня» той даты.
+  removeOnSchedule?: boolean;
 }) {
   const [items, setItems] = useState(tasks);
   const [prevTasks, setPrevTasks] = useState(tasks);
@@ -582,7 +586,7 @@ export default function PriorityMatrix({
   // даты уводит задачу с этой страницы. В общем списке (Все задачи/проект) она
   // остаётся видна — просто со сменившейся датой, которую подтянет ревалидация.
   function handleSchedule(id: string, target: "today" | "tomorrow") {
-    if (planView) {
+    if (planView || removeOnSchedule) {
       setItems((prev) => prev.filter((t) => t.id !== id));
       setOpenId(null);
     }
@@ -590,7 +594,7 @@ export default function PriorityMatrix({
   }
 
   function handleScheduleDate(id: string, dateISO: string) {
-    if (planView) {
+    if (planView || removeOnSchedule) {
       setItems((prev) => prev.filter((t) => t.id !== id));
       setOpenId(null);
     }
