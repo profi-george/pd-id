@@ -9,6 +9,7 @@ import {
   chatWithAI,
   explainPriorityChange,
   answerConfidenceQuestion as aiAnswerConfidenceQuestion,
+  friendlyAiError,
   type AiTaskEvaluation,
   type ChatMessage,
   type ChatResult,
@@ -262,7 +263,7 @@ export async function chatStep(
     const result = await chatWithAI(history, message, { currentGoal, today: new Date(), projects });
     return { ok: true, result };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Неизвестная ошибка при обращении к ИИ." };
+    return { ok: false, error: friendlyAiError(e) };
   }
 }
 
@@ -405,7 +406,7 @@ export async function recalculatePriority(
     revalidatePath("/today");
     return { ok: true, primaryReason, confidence, confidenceReason };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось пересчитать приоритет." };
+    return { ok: false, error: friendlyAiError(e) };
   }
 }
 
@@ -476,7 +477,7 @@ export async function answerConfidenceQuestion(
     revalidatePath("/today");
     return { ok: true, task: { ...evaluation, deadline: deadline ? deadline.toISOString().slice(0, 10) : null } };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось обработать ответ." };
+    return { ok: false, error: friendlyAiError(e) };
   }
 }
 
@@ -668,8 +669,44 @@ async function relocateTask(
       date: newDate,
       status: newStatus,
       order: newDate ? initialOrderKey(task) : 0,
+      movedFromTaskId: task.id,
     },
   });
+}
+
+// Отмена переноса — вернуть задачу туда, где она была, если копия на новом месте
+// ещё "нетронута" (не выполнена, не перенесена дальше). Если копию уже успели
+// продвинуть — молча удалять её нельзя, потеряется реальная работа, поэтому
+// в этом случае просто отказываем.
+export async function undoMoveTask(id: string): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+  const original = await prisma.task.findFirst({
+    where: { id, userId: user.id, status: TaskStatus.MOVED },
+  });
+  if (!original) return { ok: false };
+
+  const duplicate = await prisma.task.findFirst({
+    where: { userId: user.id, movedFromTaskId: original.id },
+  });
+
+  if (duplicate) {
+    const untouched = duplicate.status === TaskStatus.PLANNED || duplicate.status === TaskStatus.BACKLOG;
+    if (!untouched) return { ok: false };
+    if (duplicate.googleEventId) {
+      await deleteCalendarEvent(user.id, duplicate.googleEventId).catch(() => {});
+    }
+    await prisma.task.delete({ where: { id: duplicate.id } });
+  }
+
+  await prisma.task.update({
+    where: { id: original.id },
+    data: { status: TaskStatus.PLANNED, movedToDate: null },
+  });
+
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+  revalidatePath("/today/summary");
+  return { ok: true };
 }
 
 export async function scheduleTask(id: string, target: "today" | "tomorrow") {

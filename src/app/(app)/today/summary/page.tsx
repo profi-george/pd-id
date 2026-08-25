@@ -4,6 +4,8 @@ import { TaskStatus } from "@/generated/prisma/client";
 import { todayDate, addDays, sameDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { submitEveningForm } from "@/app/(app)/actions";
 import EveningTaskRow from "@/components/EveningTaskRow";
+import EveningSummaryCounter from "@/components/EveningSummaryCounter";
+import UndoMoveButton from "@/components/UndoMoveButton";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +100,8 @@ export default async function EveningSummaryPage({
                   <span className="line-through text-neutral-400">{t.text}</span>
                   <span className="text-xs text-neutral-500">
                     {" "}— {t.movedToDate ? `перенесена на ${formatDateHuman(t.movedToDate)}` : "убрана из плана"}
+                    {" · "}
+                    <UndoMoveButton taskId={t.id} />
                   </span>
                 </li>
               ))}
@@ -159,6 +163,8 @@ export default async function EveningSummaryPage({
             className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
           />
         </div>
+
+        <EveningSummaryCounter total={tasks.length} />
 
         <button
           type="submit"

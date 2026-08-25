@@ -170,6 +170,25 @@ export function normalizeEvaluation(raw: unknown, validProjectIds: Set<string>):
   };
 }
 
+// Технический текст ошибки (код ответа, тело от Gemini) полезен при отладке, но не
+// пользователю в момент сбоя — переводим известные случаи в понятную фразу с советом,
+// что делать. Незнакомое — без деталей, но тоже по-человечески, а не как есть.
+export function friendlyAiError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e ?? "");
+  if (/не настроен ключ gemini/i.test(raw)) return raw; // уже понятное сообщение
+  if (/не удалось разобрать ответ/i.test(raw)) return raw; // уже понятное сообщение
+  if (/\(429\)/.test(raw) || /rate.?limit/i.test(raw)) {
+    return "Слишком много запросов подряд — подождите немного и попробуйте снова.";
+  }
+  if (/\(5\d\d\)/.test(raw)) {
+    return "AI сейчас недоступен. Попробуйте через минуту.";
+  }
+  if (/gemini api вернул ошибку/i.test(raw)) {
+    return "Не получилось обработать запрос AI. Попробуйте ещё раз.";
+  }
+  return raw || "Неизвестная ошибка при обращении к AI.";
+}
+
 function requireApiKey(): string {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {

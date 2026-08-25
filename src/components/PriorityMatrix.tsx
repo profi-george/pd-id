@@ -14,6 +14,7 @@ import {
   deleteTask,
   completeTask,
   revertTaskStatus,
+  undoMoveTask,
   scheduleTask,
   scheduleTaskToDate,
   unscheduleTask,
@@ -339,6 +340,7 @@ function TaskRow({
   onUnschedule,
   onComplete,
   onRevert,
+  onUndoMove,
   onManualPriority,
   onAssignProject,
   onScheduleToday,
@@ -354,6 +356,7 @@ function TaskRow({
   onUnschedule: () => void;
   onComplete: () => void;
   onRevert: () => void;
+  onUndoMove: () => Promise<boolean>;
   onManualPriority: (label: PriorityLabel) => void;
   onAssignProject: (projectId: string | null) => void;
   onScheduleToday: () => void;
@@ -361,6 +364,28 @@ function TaskRow({
   onScheduleDate: (dateISO: string) => void;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
+  // Быстрые правки прямо в списке (приоритет/проект/дата) иначе проходят молча —
+  // секундная сетевая заминка выглядела бы точно как сбой. Короткая вспышка "✓"
+  // подтверждает, что тап действительно принят, тем же языком, что уже есть
+  // в карточке задачи ("✓ Сохранено").
+  const [flash, setFlash] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
+  function triggerFlash() {
+    setFlash(true);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(false), 1200);
+  }
+
+  // Отмена переноса — своё состояние: пока ждём ответ сервера, кнопка неактивна;
+  // если копию уже успели изменить, отменить нельзя — показываем это тут же,
+  // рядом с местом, где человек об этом узнаёт, а не в общем алерте.
+  const [undoMoveState, setUndoMoveState] = useState<"idle" | "pending" | "error">("idle");
+  async function handleUndoMoveClick() {
+    setUndoMoveState("pending");
+    const ok = await onUndoMove();
+    setUndoMoveState(ok ? "idle" : "error");
+  }
 
   return (
     <div
@@ -384,7 +409,7 @@ function TaskRow({
         dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
       }`}
     >
-      <PriorityPicker label={color} onPick={onManualPriority} />
+      <PriorityPicker label={color} onPick={(l) => { onManualPriority(l); triggerFlash(); }} />
       <div
         role="button"
         tabIndex={0}
@@ -413,23 +438,38 @@ function TaskRow({
             projectId={task.projectId}
             projectName={task.projectName}
             options={projectOptions}
-            onPick={onAssignProject}
+            onPick={(id) => { onAssignProject(id); triggerFlash(); }}
           />
           <span className={task.projectName ? "text-neutral-400" : ""}>≈ {formatEffort(task.effortMinutes)}</span>
           <DatePicker
             date={task.date}
-            onScheduleToday={onScheduleToday}
-            onScheduleTomorrow={onScheduleTomorrow}
-            onScheduleDate={onScheduleDate}
+            onScheduleToday={() => { onScheduleToday(); triggerFlash(); }}
+            onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
+            onScheduleDate={(d) => { onScheduleDate(d); triggerFlash(); }}
           />
           {task.status === "DONE" && <span className="text-emerald-600">· выполнена</span>}
           {task.status === "NOT_DONE" && <span className="text-neutral-400">· не выполнена</span>}
-          {task.status === "MOVED" && (
+          {task.status === "MOVED" && undoMoveState !== "error" && (
             <span className="text-neutral-400">
               · перенесена{task.movedToDate ? ` → ${formatDateRelative(task.movedToDate)}` : ""}
+              {" "}
+              <button
+                type="button"
+                disabled={undoMoveState === "pending"}
+                onClick={(e) => { e.stopPropagation(); handleUndoMoveClick(); }}
+                className="underline hover:text-neutral-700 disabled:opacity-50"
+              >
+                {undoMoveState === "pending" ? "отменяю…" : "отменить"}
+              </button>
+            </span>
+          )}
+          {task.status === "MOVED" && undoMoveState === "error" && (
+            <span className="text-amber-600">
+              · перенос уже нельзя отменить — копия задачи изменена
             </span>
           )}
           {task.confidence < LOW_CONFIDENCE_THRESHOLD && <span className="text-amber-600">· AI не уверен</span>}
+          {flash && <span className="text-emerald-600">✓ Сохранено</span>}
         </div>
         {task.primaryReason && (
           <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 leading-snug">
@@ -625,6 +665,12 @@ export default function PriorityMatrix({
     startTransition(() => { revertTaskStatus(id); });
   }
 
+  async function handleUndoMove(id: string): Promise<boolean> {
+    const res = await undoMoveTask(id);
+    if (res.ok) patch(id, { status: "PLANNED", movedToDate: null } as Partial<MatrixTask>);
+    return res.ok;
+  }
+
   const openTask = items.find((t) => t.id === openId) ?? null;
   const drawerTask: DrawerTask | null = openTask ? { ...openTask } : null;
 
@@ -664,6 +710,7 @@ export default function PriorityMatrix({
                 onUnschedule={() => handleUnschedule(t.id)}
                 onComplete={() => handleComplete(t.id)}
                 onRevert={() => handleRevert(t.id)}
+                onUndoMove={() => handleUndoMove(t.id)}
                 onManualPriority={(l) => handleManualPriority(t.id, l)}
                 onAssignProject={(id) => handleAssignProject(t.id, id)}
                 projectOptions={projectOptions}
@@ -704,6 +751,7 @@ export default function PriorityMatrix({
                 onUnschedule={() => handleUnschedule(t.id)}
                 onComplete={() => handleComplete(t.id)}
                 onRevert={() => handleRevert(t.id)}
+                onUndoMove={() => handleUndoMove(t.id)}
                 onManualPriority={(l) => handleManualPriority(t.id, l)}
                 onAssignProject={(id) => handleAssignProject(t.id, id)}
                 projectOptions={projectOptions}
