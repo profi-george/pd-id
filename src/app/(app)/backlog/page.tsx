@@ -48,13 +48,13 @@ export default async function BacklogPage({
   const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }));
   const projectOptions = flattenProjectsForSelect(projectNodes);
 
-  const filterToggleHref = (() => {
+  function hrefFor(mode: "all" | "undated") {
     const params = new URLSearchParams();
     if (projectFilter) params.set("project", projectFilter);
-    if (!undatedOnly) params.set("filter", "undated");
+    if (mode === "undated") params.set("filter", "undated");
     const qs = params.toString();
     return `/backlog${qs ? `?${qs}` : ""}`;
-  })();
+  }
 
   return (
     <div className="space-y-6">
@@ -69,12 +69,20 @@ export default async function BacklogPage({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href={filterToggleHref}
-            className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
-          >
-            {undatedOnly ? "Показать все" : "Только нераспределённые"}
-          </Link>
+          <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs">
+            <Link
+              href={hrefFor("all")}
+              className={`px-2.5 py-1 ${undatedOnly ? "text-neutral-500 hover:bg-neutral-50" : "bg-neutral-800 text-white"}`}
+            >
+              Все
+            </Link>
+            <Link
+              href={hrefFor("undated")}
+              className={`px-2.5 py-1 border-l border-neutral-300 ${undatedOnly ? "bg-neutral-800 text-white" : "text-neutral-500 hover:bg-neutral-50"}`}
+            >
+              Нераспределённые
+            </Link>
+          </div>
           <Link
             href="/add"
             className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"

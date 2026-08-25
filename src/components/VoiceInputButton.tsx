@@ -116,7 +116,15 @@ export default function VoiceInputButton({
           }`
         }
       >
-        {status !== "idle" ? "◼" : "🎤"}
+        {status !== "idle" ? (
+          "◼"
+        ) : (
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
+            <path d="M3 8a5 5 0 0 0 10 0" />
+            <path d="M8 13v1.5" />
+          </svg>
+        )}
       </button>
       {status === "listening" && (
         <span className="ml-2 text-xs text-red-600">Слушаю…</span>

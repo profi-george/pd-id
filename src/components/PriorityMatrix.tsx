@@ -10,6 +10,7 @@ import {
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
 import { formatDateRelative } from "@/lib/dates";
+import { tasksWord } from "@/lib/pluralize";
 import {
   deleteTask,
   completeTask,
@@ -346,6 +347,8 @@ function TaskRow({
   onScheduleToday,
   onScheduleTomorrow,
   onScheduleDate,
+  selected,
+  onToggleSelect,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
@@ -362,8 +365,14 @@ function TaskRow({
   onScheduleToday: () => void;
   onScheduleTomorrow: () => void;
   onScheduleDate: (dateISO: string) => void;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
+  // Балл — уже существующее число, по которому идёт сортировка внутри группы
+  // приоритета; просто раньше нигде не показывался. Позволяет на глаз сравнить
+  // две задачи одной группы, а не только открывать карточку по одной.
+  const { scorePercent } = computePriority(task);
   // Быстрые правки прямо в списке (приоритет/проект/дата) иначе проходят молча —
   // секундная сетевая заминка выглядела бы точно как сбой. Короткая вспышка "✓"
   // подтверждает, что тап действительно принят, тем же языком, что уже есть
@@ -409,6 +418,18 @@ function TaskRow({
         dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
       }`}
     >
+      <label
+        className="pt-4 pl-2 pr-0.5 shrink-0 self-start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          className="accent-ink-500"
+          aria-label="Выбрать задачу"
+        />
+      </label>
       <PriorityPicker label={color} onPick={(l) => { onManualPriority(l); triggerFlash(); }} />
       <div
         role="button"
@@ -447,37 +468,56 @@ function TaskRow({
             onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
             onScheduleDate={(d) => { onScheduleDate(d); triggerFlash(); }}
           />
-          {task.status === "DONE" && <span className="text-emerald-600">· выполнена</span>}
-          {task.status === "NOT_DONE" && <span className="text-neutral-400">· не выполнена</span>}
-          {task.status === "MOVED" && undoMoveState !== "error" && (
-            <span className="text-neutral-400">
-              · перенесена{task.movedToDate ? ` → ${formatDateRelative(task.movedToDate)}` : ""}
-              {" "}
-              <button
-                type="button"
-                disabled={undoMoveState === "pending"}
-                onClick={(e) => { e.stopPropagation(); handleUndoMoveClick(); }}
-                className="underline hover:text-neutral-700 disabled:opacity-50"
-              >
-                {undoMoveState === "pending" ? "отменяю…" : "отменить"}
-              </button>
-            </span>
-          )}
-          {task.status === "MOVED" && undoMoveState === "error" && (
-            <span className="text-amber-600">
-              · перенос уже нельзя отменить — копия задачи изменена
-            </span>
-          )}
-          {task.confidence < LOW_CONFIDENCE_THRESHOLD && <span className="text-amber-600">· AI не уверен</span>}
-          {flash && <span className="text-emerald-600">✓ Сохранено</span>}
         </div>
+        {(task.status === "DONE" ||
+          task.status === "NOT_DONE" ||
+          task.status === "MOVED" ||
+          task.confidence < LOW_CONFIDENCE_THRESHOLD ||
+          flash) && (
+          <div className="flex flex-wrap items-center gap-1 text-[11px]">
+            {task.status === "DONE" && (
+              <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">выполнена</span>
+            )}
+            {task.status === "NOT_DONE" && (
+              <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500">не выполнена</span>
+            )}
+            {task.status === "MOVED" && undoMoveState !== "error" && (
+              <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500 inline-flex items-center gap-1">
+                перенесена{task.movedToDate ? ` → ${formatDateRelative(task.movedToDate)}` : ""}
+                <button
+                  type="button"
+                  disabled={undoMoveState === "pending"}
+                  onClick={(e) => { e.stopPropagation(); handleUndoMoveClick(); }}
+                  className="underline hover:text-neutral-700 disabled:opacity-50"
+                >
+                  {undoMoveState === "pending" ? "отменяю…" : "отменить"}
+                </button>
+              </span>
+            )}
+            {task.status === "MOVED" && undoMoveState === "error" && (
+              <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                перенос уже нельзя отменить — копия изменена
+              </span>
+            )}
+            {task.confidence < LOW_CONFIDENCE_THRESHOLD && (
+              <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">AI не уверен</span>
+            )}
+            {flash && <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">✓ Сохранено</span>}
+          </div>
+        )}
         {task.primaryReason && (
           <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 leading-snug">
             {task.primaryReason}
           </p>
         )}
       </div>
-      <div className="pt-1.5 pr-1.5">
+      <div className="pt-1.5 pr-1.5 flex items-center gap-1">
+        <span
+          className="text-[10px] tabular-nums text-neutral-300"
+          title="Приоритетный балл — чем выше, тем важнее задача среди других в этой группе"
+        >
+          {scorePercent}
+        </span>
         <QuickMenu
           status={task.status}
           scheduled={Boolean(task.date)}
@@ -513,6 +553,7 @@ export default function PriorityMatrix({
   const [openId, setOpenId] = useState<string | null>(null);
   const [laterExpanded, setLaterExpanded] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ task: MatrixTask; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [, startTransition] = useTransition();
   const pendingDeleteRef = useRef(pendingDelete);
   useEffect(() => {
@@ -524,6 +565,7 @@ export default function PriorityMatrix({
   if (tasks !== prevTasks) {
     setPrevTasks(tasks);
     setItems(tasks);
+    setSelectedIds(new Set());
   }
 
   useEffect(() => {
@@ -671,6 +713,46 @@ export default function PriorityMatrix({
     return res.ok;
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function bulkComplete() {
+    const ids = Array.from(selectedIds);
+    setItems((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, status: "DONE" } : t)));
+    startTransition(() => { ids.forEach((id) => completeTask(id)); });
+    setSelectedIds(new Set());
+  }
+
+  function bulkSchedule(target: "today" | "tomorrow") {
+    const ids = Array.from(selectedIds);
+    ids.forEach((id) => handleSchedule(id, target));
+    setSelectedIds(new Set());
+  }
+
+  // Массовое удаление — не переиспользуем однократный soft-undo (там всего один
+  // "висящий" слот на всё сразу, при нескольких id подряд каждый следующий вызов
+  // немедленно фиксирует предыдущий) — вместо этого одно явное подтверждение
+  // на всю группу, это и честнее для необратимого массового действия.
+  function bulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Удалить ${ids.length} ${tasksWord(ids.length)}? Это нельзя отменить.`)) return;
+    setItems((prev) => prev.filter((t) => !ids.includes(t.id)));
+    setOpenId(null);
+    startTransition(() => { ids.forEach((id) => deleteTask(id)); });
+    setSelectedIds(new Set());
+  }
+
   const openTask = items.find((t) => t.id === openId) ?? null;
   const drawerTask: DrawerTask | null = openTask ? { ...openTask } : null;
 
@@ -717,6 +799,8 @@ export default function PriorityMatrix({
                 onScheduleToday={() => handleSchedule(t.id, "today")}
                 onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
                 onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
+                selected={selectedIds.has(t.id)}
+                onToggleSelect={() => toggleSelect(t.id)}
               />
             ))}
           </div>
@@ -758,6 +842,8 @@ export default function PriorityMatrix({
                 onScheduleToday={() => handleSchedule(t.id, "today")}
                 onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
                 onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
+                selected={selectedIds.has(t.id)}
+                onToggleSelect={() => toggleSelect(t.id)}
               />
             ))}
           </div>
@@ -818,6 +904,27 @@ export default function PriorityMatrix({
           startTransition(() => { removeTaskFromGoogleCalendar(openId); });
         }}
       />
+
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-1.5 shadow-lg flex-wrap justify-center max-w-[calc(100vw-2rem)]">
+          <span className="pr-1.5">{selectedIds.size} {tasksWord(selectedIds.size)}</span>
+          <button type="button" onClick={bulkComplete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
+            Выполнено
+          </button>
+          <button type="button" onClick={() => bulkSchedule("today")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
+            Сегодня
+          </button>
+          <button type="button" onClick={() => bulkSchedule("tomorrow")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
+            Завтра
+          </button>
+          <button type="button" onClick={bulkDelete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/80">
+            Удалить
+          </button>
+          <button type="button" onClick={clearSelection} className="px-2.5 py-1 rounded-full hover:bg-white/10 text-white/60">
+            Отмена
+          </button>
+        </div>
+      )}
 
       {pendingDelete && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg">

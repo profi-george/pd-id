@@ -94,6 +94,7 @@ export default function TaskDrawer({
   const [confidenceAnswer, setConfidenceAnswer] = useState("");
   const [confidenceLoading, setConfidenceLoading] = useState(false);
   const [confidenceError, setConfidenceError] = useState<string | null>(null);
+  const [draggingKey, setDraggingKey] = useState<CriterionKey | null>(null);
 
   if ((task?.id ?? null) !== prevTaskId) {
     setPrevTaskId(task?.id ?? null);
@@ -371,7 +372,13 @@ export default function TaskDrawer({
                         scale={CRITERIA_INFO[key].scale}
                       />
                     </span>
-                    <span className="tabular-nums">{draft[key]}/5</span>
+                    <span
+                      className={`tabular-nums transition-all ${
+                        draggingKey === key ? "text-sm font-semibold text-ink-600" : ""
+                      }`}
+                    >
+                      {draft[key]}/5
+                    </span>
                   </div>
                   <p className="text-[11px] text-neutral-400">{CRITERIA_INFO[key].definition}</p>
                   <input
@@ -381,6 +388,11 @@ export default function TaskDrawer({
                     step={1}
                     value={draft[key]}
                     onChange={(e) => setDraft({ ...draft, [key]: Number(e.target.value) })}
+                    onMouseDown={() => setDraggingKey(key)}
+                    onTouchStart={() => setDraggingKey(key)}
+                    onMouseUp={() => setDraggingKey(null)}
+                    onTouchEnd={() => setDraggingKey(null)}
+                    onBlur={() => setDraggingKey(null)}
                     className="w-full accent-ink-500"
                   />
                 </div>
@@ -411,8 +423,12 @@ export default function TaskDrawer({
 
           <div className="pt-1 border-t border-neutral-100 space-y-1.5">
             {task.confidence >= LOW_CONFIDENCE_THRESHOLD ? (
-              <p className="text-xs text-neutral-400">
+              <p className="text-xs text-neutral-400 flex items-center gap-1">
                 Уверенность AI: {Math.round(task.confidence * 100)}%
+                <CriterionInfo
+                  title="Уверенность AI"
+                  definition="Насколько AI уверен в оценке этой задачи по всем критериям сразу — не оценка самой задачи, а оценка собственной оценки. Низкая уверенность означает, что в описании задачи не хватило данных, и AI попросит уточнить."
+                />
               </p>
             ) : (
               <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 space-y-1.5">
@@ -508,19 +524,19 @@ export default function TaskDrawer({
           <div className="border border-neutral-200 rounded-lg p-3 space-y-2">
             <p className="text-xs font-medium text-neutral-600">Google-календарь</p>
             {task.googleEventUrl ? (
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <a
                   href={task.googleEventUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sm text-ink-600 underline"
+                  className="text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 text-ink-600 flex-1 text-center"
                 >
                   Открыть событие
                 </a>
                 <button
                   type="button"
                   onClick={onRemoveFromCalendar}
-                  className="text-xs text-red-600 hover:underline shrink-0"
+                  className="text-xs px-2 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 shrink-0"
                 >
                   Убрать из календаря
                 </button>

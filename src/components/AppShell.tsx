@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AccountMenu from "@/components/AccountMenu";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import type { ProjectNode } from "@/lib/projectTree";
 
 export default function AppShell({
@@ -48,7 +49,10 @@ export default function AppShell({
           <Link href="/add" className="font-semibold text-neutral-800 tracking-tight hover:text-ink-600">
             ПД-ИД
           </Link>
-          <AccountMenu cabinetName={cabinetName} />
+          <div className="ml-auto flex items-center gap-2">
+            <KeyboardShortcuts />
+            <AccountMenu cabinetName={cabinetName} />
+          </div>
         </nav>
       </header>
       <div className="flex flex-1 min-h-0">

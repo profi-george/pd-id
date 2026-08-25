@@ -6,6 +6,7 @@ import { submitEveningForm } from "@/app/(app)/actions";
 import EveningTaskRow from "@/components/EveningTaskRow";
 import EveningSummaryCounter from "@/components/EveningSummaryCounter";
 import UndoMoveButton from "@/components/UndoMoveButton";
+import EveningSubmitButton from "@/components/EveningSubmitButton";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -166,12 +167,7 @@ export default async function EveningSummaryPage({
 
         <EveningSummaryCounter total={tasks.length} />
 
-        <button
-          type="submit"
-          className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
-        >
-          {existingDay ? "Сохранить изменения" : "Сохранить итог и перенести незавершённое дальше"}
-        </button>
+        <EveningSubmitButton firstSave={!existingDay} />
       </form>
     </div>
   );
