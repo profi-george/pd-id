@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { createTask } from "@/app/(app)/actions";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
+import { CRITERIA_INFO } from "@/lib/criteriaInfo";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -22,14 +23,20 @@ export default async function NewTaskPage({
   );
 
   const aiHref = "/backlog";
+  const bulkHref = `/tasks/bulk?date=${dateOption}${params.projectId ? `&projectId=${params.projectId}` : ""}`;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Новая задача (вручную)</h1>
-        <Link href={aiHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">
-          Пусть оценит ИИ →
-        </Link>
+        <div className="flex gap-3">
+          <Link href={aiHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">
+            Пусть оценит ИИ →
+          </Link>
+          <Link href={bulkHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">
+            Добавить несколько сразу →
+          </Link>
+        </div>
       </div>
       <p className="text-xs text-neutral-500 -mt-2">
         Обычно проще продиктовать задачу ИИ — он сам оценит критерии ниже. Эта форма для случаев,
@@ -80,19 +87,19 @@ export default async function NewTaskPage({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Impact / Влияние (1–5)</label>
+            <label className="block text-sm font-medium mb-1">{CRITERIA_INFO.value.title} (1–5)</label>
             <select name="value" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Cost of Delay / Цена откладывания (1–5)</label>
+            <label className="block text-sm font-medium mb-1">{CRITERIA_INFO.costOfDelay.title} (1–5)</label>
             <select name="costOfDelay" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Time Sensitivity (1–5)</label>
+            <label className="block text-sm font-medium mb-1">{CRITERIA_INFO.timeSensitivity.title} (1–5)</label>
             <select name="timeSensitivity" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>

@@ -15,17 +15,37 @@ export default async function EveningSummaryPage({
   const user = await requireUser();
   const { date: dateParam } = await searchParams;
   const date = dateParam ? parseDateInputValue(dateParam) : todayDate();
-  const tasks = await prisma.task.findMany({
-    where: { userId: user.id, date, status: TaskStatus.PLANNED },
-    include: { project: true },
-    orderBy: { order: "asc" },
-  });
+
+  // Итог можно подводить/поправлять сколько угодно раз за день и после — не только
+  // один раз вечером. Если итог уже был сохранён, подставляем прежние значения
+  // (а не дефолты), чтобы повторное сохранение не затирало то, что уже было.
+  const [existingDay, tasks, movedTasks] = await Promise.all([
+    prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
+    // Весь план этого дня — что ещё не отмечено (PLANNED), что уже отмечено
+    // галочкой в течение дня (DONE), и что уже помечено невыполненным (NOT_DONE) —
+    // всё это должно быть видно и оцениваемо здесь, а не только то, что осталось
+    // "нетронутым" к вечеру.
+    prisma.task.findMany({
+      where: { userId: user.id, date, status: { in: [TaskStatus.PLANNED, TaskStatus.DONE, TaskStatus.NOT_DONE] } },
+      include: { project: true },
+      orderBy: { order: "asc" },
+    }),
+    // Убраны/перенесены мимо "Итога дня" в течение дня (кнопкой, а не тут) —
+    // показываем как факт, без формы: тут уже нечего заполнять.
+    prisma.task.findMany({
+      where: { userId: user.id, date, status: TaskStatus.MOVED },
+      orderBy: { order: "asc" },
+    }),
+  ]);
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold">Итог дня</h1>
         <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
+        {existingDay && (
+          <p className="text-xs text-ink-600 mt-0.5">Итог уже был подведён — можно поправить и сохранить заново.</p>
+        )}
       </div>
 
       <form action={submitEveningForm} className="space-y-6">
@@ -39,8 +59,24 @@ export default async function EveningSummaryPage({
             ))}
           </div>
         )}
-        {tasks.length === 0 && (
+        {tasks.length === 0 && movedTasks.length === 0 && (
           <p className="text-sm text-neutral-400">На сегодня не было запланированных задач.</p>
+        )}
+
+        {movedTasks.length > 0 && (
+          <div className="space-y-1.5">
+            <h2 className="text-sm font-medium text-neutral-600">Убрано из плана в течение дня</h2>
+            <ul className="space-y-1">
+              {movedTasks.map((t) => (
+                <li key={t.id} className="text-sm">
+                  <span className="line-through text-neutral-400">{t.text}</span>
+                  <span className="text-xs text-neutral-500">
+                    {" "}— {t.movedToDate ? `перенесена на ${formatDateHuman(t.movedToDate)}` : "убрана из плана"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-4 bg-white border border-neutral-200 rounded-lg p-3">
@@ -53,7 +89,11 @@ export default async function EveningSummaryPage({
           ].map(([name, label]) => (
             <div key={name}>
               <label className="block text-sm font-medium mb-1">{label}</label>
-              <select name={name} defaultValue="5" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+              <select
+                name={name}
+                defaultValue={String(existingDay?.[name as "difficulty" | "mood" | "efficiency" | "worry"] ?? 5)}
+                className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+              >
                 {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}
@@ -62,16 +102,43 @@ export default async function EveningSummaryPage({
           ))}
         </div>
 
+        <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
+          <h2 className="text-sm font-medium text-neutral-600">Почему так вышло</h2>
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Что получилось и почему</label>
+            <textarea
+              name="whyWorked"
+              rows={2}
+              defaultValue={existingDay?.whyWorked ?? ""}
+              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Что не получилось и почему</label>
+            <textarea
+              name="whyNotWorked"
+              rows={2}
+              defaultValue={existingDay?.whyNotWorked ?? ""}
+              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            />
+          </div>
+        </div>
+
         <div className="bg-white border border-neutral-200 rounded-lg p-3">
           <label className="block text-sm font-medium mb-1">Вывод на завтра</label>
-          <textarea name="conclusion" rows={2} className="w-full border border-neutral-300 rounded px-2 py-1 text-sm" />
+          <textarea
+            name="conclusion"
+            rows={2}
+            defaultValue={existingDay?.conclusion ?? ""}
+            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+          />
         </div>
 
         <button
           type="submit"
           className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
         >
-          Сохранить итог и сформировать план на завтра
+          {existingDay ? "Сохранить изменения" : "Сохранить итог и сформировать план на завтра"}
         </button>
       </form>
     </div>

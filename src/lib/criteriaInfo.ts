@@ -2,7 +2,7 @@ export type CriterionKey = "value" | "costOfDelay" | "timeSensitivity";
 
 export const CRITERIA_INFO: Record<CriterionKey, { title: string; definition: string; scale: string[] }> = {
   value: {
-    title: "Impact (Влияние)",
+    title: "Ценность результата",
     definition: "Насколько важен результат выполнения задачи.",
     scale: [
       "результат почти ничего не меняет",
@@ -13,7 +13,7 @@ export const CRITERIA_INFO: Record<CriterionKey, { title: string; definition: st
     ],
   },
   costOfDelay: {
-    title: "Cost of Delay (Цена откладывания)",
+    title: "Цена промедления",
     definition: "Что будет потеряно, если отложить задачу.",
     scale: [
       "откладывание почти ничего не меняет",
@@ -24,7 +24,7 @@ export const CRITERIA_INFO: Record<CriterionKey, { title: string; definition: st
     ],
   },
   timeSensitivity: {
-    title: "Time Sensitivity (Временная чувствительность)",
+    title: "Скорость потери ценности",
     definition: "Насколько быстро результат теряет ценность со временем.",
     scale: [
       "результат почти одинаково полезен позже",

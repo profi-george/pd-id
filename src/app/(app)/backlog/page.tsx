@@ -1,7 +1,7 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import PriorityMatrix from "@/components/PriorityMatrix";
-import UnifiedTaskInput from "@/components/UnifiedTaskInput";
 import { getGoogleStatus } from "@/app/(app)/actions";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { requireUser } from "@/lib/auth";
@@ -41,16 +41,22 @@ export default async function BacklogPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">
-          {projectFilter === "none" ? "Без проекта" : "Задачи"}
-        </h1>
-        <p className="text-sm text-neutral-500">
-          {matrixTasks.length} задач{projectFilter !== "none" ? " · отсортированы по приоритету" : ""}
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold">
+            {projectFilter === "none" ? "Без проекта" : "Задачи"}
+          </h1>
+          <p className="text-sm text-neutral-500">
+            {matrixTasks.length} задач{projectFilter !== "none" ? " · отсортированы по приоритету" : ""}
+          </p>
+        </div>
+        <Link
+          href="/add"
+          className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 shrink-0"
+        >
+          + Добавить задачу
+        </Link>
       </div>
-
-      {projectFilter !== "none" && <UnifiedTaskInput projects={projectOptions} />}
 
       <PriorityMatrix
         tasks={matrixTasks}

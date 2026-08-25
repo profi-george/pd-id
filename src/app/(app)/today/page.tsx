@@ -5,7 +5,6 @@ import { todayDate, addDays, sameDate, formatDateHuman, toDateInputValue, parseD
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { formatEffort } from "@/lib/priorityEngine";
 import PriorityMatrix from "@/components/PriorityMatrix";
-import PriorityTag from "@/components/PriorityTag";
 import { requireUser } from "@/lib/auth";
 import { getGoogleStatus } from "@/app/(app)/actions";
 
@@ -13,12 +12,6 @@ export const dynamic = "force-dynamic";
 
 // Дневной лимит для предупреждения о перегрузке плана — ориентир, не жёсткое ограничение.
 const DAILY_CAPACITY_MINUTES = 6 * 60;
-
-const STATUS_LABEL: Record<string, string> = {
-  DONE: "Выполнена",
-  MOVED: "Перенесена на завтра",
-  NOT_DONE: "Не выполнена",
-};
 
 export default async function TodayPage({
   searchParams,
@@ -44,14 +37,16 @@ export default async function TodayPage({
     getGoogleStatus(),
   ]);
 
+  // "План дня" — единый редактируемый список ВСЕХ задач этого дня (любого статуса),
+  // а не живой план + отдельный нередактируемый список "что случилось". Статус —
+  // это просто отметка на строке, а не другое место в интерфейсе.
   const planned = dayTasks.filter((t) => t.status === TaskStatus.PLANNED);
-  const finished = dayTasks.filter((t) => t.status !== TaskStatus.PLANNED);
-
-  const matrixTasks = planned.map((t) => ({ ...t, projectName: t.project?.name ?? null }));
+  const matrixTasks = dayTasks.map((t) => ({ ...t, projectName: t.project?.name ?? null }));
   const projectOptions = flattenProjectsForSelect(
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
   );
 
+  // Перегрузка считается по тому, что ещё реально предстоит сделать — не по всему дню.
   const totalMinutes = planned.reduce((sum, t) => sum + t.effortMinutes, 0);
   const overloaded = totalMinutes > DAILY_CAPACITY_MINUTES;
 
@@ -88,68 +83,55 @@ export default async function TodayPage({
         </div>
       </div>
 
-      {!day ? (
-        <>
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-neutral-600">Что важно сделать сегодня</p>
-            {isToday && (
-              <Link
-                href="/tasks/new?date=today"
-                className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
-              >
-                + Добавить задачу
-              </Link>
-            )}
-          </div>
-
-          {overloaded && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              В плане ≈{formatEffort(totalMinutes)} задач — это больше, чем обычно помещается в день.
-              Возможно, стоит перенести часть на другой день.
-            </p>
-          )}
-
-          <PriorityMatrix
-            tasks={matrixTasks}
-            projectOptions={projectOptions}
-            googleConnected={googleStatus.connected}
-            planView
-          />
-
-          {planned.length > 0 && (
-            <Link
-              href={`/today/summary?date=${toDateInputValue(date)}`}
-              className="inline-block text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
-            >
-              Подвести итог дня
-            </Link>
-          )}
-        </>
-      ) : (
-        <div className="space-y-3">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
-            Итог дня подведён. Трудность {day.difficulty} · настроение {day.mood} · эффективность{" "}
-            {day.efficiency} · переживания {day.worry}
-            {day.conclusion ? <p className="mt-1 text-emerald-900">Вывод на завтра: {day.conclusion}</p> : null}
-          </div>
-          <ul className="space-y-2">
-            {finished.map((t) => (
-              <li key={t.id} className="bg-white border border-neutral-200 rounded-lg px-3 py-2 flex items-center gap-3">
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm">{t.text}</p>
-                  <div className="flex items-center gap-2 text-xs text-neutral-500">
-                    <PriorityTag task={t} />
-                    <span>{STATUS_LABEL[t.status] ?? t.status}</span>
-                    {t.score !== null ? <span>· результат {t.score}/10</span> : null}
-                  </div>
-                  {(t.whySucceeded || t.whyFailed) && (
-                    <p className="text-xs text-neutral-400 italic">{t.whySucceeded || t.whyFailed}</p>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+      {day && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
+          Итог дня подведён. Трудность {day.difficulty} · настроение {day.mood} · эффективность{" "}
+          {day.efficiency} · переживания {day.worry}
+          {day.whyWorked && <p className="mt-1 text-emerald-900">Что получилось: {day.whyWorked}</p>}
+          {day.whyNotWorked && <p className="mt-1 text-emerald-900">Что не получилось: {day.whyNotWorked}</p>}
+          {day.conclusion ? <p className="mt-1 text-emerald-900">Вывод на завтра: {day.conclusion}</p> : null}
+          <Link href={`/today/summary?date=${toDateInputValue(date)}`} className="inline-block mt-1.5 underline hover:text-emerald-900">
+            Изменить итог →
+          </Link>
         </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-neutral-600">
+          {isToday ? "Что важно сделать сегодня" : `План на ${formatDateHuman(date)}`}
+        </p>
+        <Link
+          href="/add"
+          className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+        >
+          + Добавить задачу
+        </Link>
+      </div>
+
+      {overloaded && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          В плане ≈{formatEffort(totalMinutes)} задач — это больше, чем обычно помещается в день.
+          Возможно, стоит перенести часть на другой день.
+        </p>
+      )}
+
+      {/* Один список на весь день — все статусы вместе, каждый со своей пометкой
+          в строке. Не прячем его, даже если итог дня уже подведён: иначе новая
+          задача, добавленная на "закрытый" день, была бы не видна нигде. */}
+      <PriorityMatrix
+        tasks={matrixTasks}
+        projectOptions={projectOptions}
+        googleConnected={googleStatus.connected}
+        planView
+      />
+
+      {dayTasks.length > 0 && !day && (
+        <Link
+          href={`/today/summary?date=${toDateInputValue(date)}`}
+          className="inline-block text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
+        >
+          Подвести итог дня
+        </Link>
       )}
 
       <p className="text-xs text-neutral-400">

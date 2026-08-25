@@ -6,12 +6,13 @@ import {
   formatEffort,
   PRIORITY_LABEL_TEXT,
   PRIORITY_LABEL_HINT,
+  LOW_CONFIDENCE_THRESHOLD,
   type PriorityLabel,
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
 import { CRITERIA_INFO, type CriterionKey } from "@/lib/criteriaInfo";
 import CriterionInfo from "@/components/CriterionInfo";
-import { recalculatePriority } from "@/app/(app)/actions";
+import { recalculatePriority, answerConfidenceQuestion } from "@/app/(app)/actions";
 
 export type DrawerTask = TaskEvaluation & {
   id: string;
@@ -89,6 +90,10 @@ export default function TaskDrawer({
   const [draft, setDraft] = useState<{ value: number; costOfDelay: number; timeSensitivity: number } | null>(null);
   const [recalcLoading, setRecalcLoading] = useState(false);
   const [recalcError, setRecalcError] = useState<string | null>(null);
+  const [answeringConfidence, setAnsweringConfidence] = useState(false);
+  const [confidenceAnswer, setConfidenceAnswer] = useState("");
+  const [confidenceLoading, setConfidenceLoading] = useState(false);
+  const [confidenceError, setConfidenceError] = useState<string | null>(null);
 
   if ((task?.id ?? null) !== prevTaskId) {
     setPrevTaskId(task?.id ?? null);
@@ -97,6 +102,9 @@ export default function TaskDrawer({
     setEditingCriteria(false);
     setDraft(null);
     setRecalcError(null);
+    setAnsweringConfidence(false);
+    setConfidenceAnswer("");
+    setConfidenceError(null);
   }
 
   useEffect(() => {
@@ -141,10 +149,51 @@ export default function TaskDrawer({
       setRecalcError(res.error);
       return;
     }
-    onChangeField({ ...draft, primaryReason: res.primaryReason } as Partial<TaskEvaluation>);
+    onChangeField({
+      ...draft,
+      primaryReason: res.primaryReason,
+      confidence: res.confidence,
+      confidenceReason: res.confidenceReason,
+    } as Partial<TaskEvaluation>);
     flashSaved();
     setEditingCriteria(false);
     setDraft(null);
+  }
+
+  async function handleAnswerConfidence() {
+    if (!task || !confidenceAnswer.trim()) return;
+    setConfidenceLoading(true);
+    setConfidenceError(null);
+    const res = await answerConfidenceQuestion(task.id, confidenceAnswer.trim());
+    setConfidenceLoading(false);
+    if (!res.ok) {
+      setConfidenceError(res.error);
+      return;
+    }
+    const t = res.task;
+    onChangeField({
+      value: t.value,
+      costOfDelay: t.costOfDelay,
+      urgency: t.timeSensitivity,
+      timeSensitivity: t.timeSensitivity,
+      effortMinutes: t.effortMinutes,
+      confidence: t.confidence,
+      confidenceReason: t.confidenceReason || null,
+      deadline: t.deadline ? new Date(`${t.deadline}T00:00:00.000Z`) : null,
+      primaryReason: t.primaryReason,
+      riskText: t.riskText,
+      aiValue: t.value,
+      aiCostOfDelay: t.costOfDelay,
+      aiTimeSensitivity: t.timeSensitivity,
+      aiEffortMinutes: t.effortMinutes,
+      aiReasoningValue: t.reasoningValue || null,
+      aiReasoningCostOfDelay: t.reasoningCostOfDelay || null,
+      aiReasoningTimeSensitivity: t.reasoningTimeSensitivity || null,
+      aiReasoningEffort: t.reasoningEffort || null,
+    } as Partial<TaskEvaluation>);
+    flashSaved();
+    setAnsweringConfidence(false);
+    setConfidenceAnswer("");
   }
 
   if (!task) return null;
@@ -324,6 +373,7 @@ export default function TaskDrawer({
                     </span>
                     <span className="tabular-nums">{draft[key]}/5</span>
                   </div>
+                  <p className="text-[11px] text-neutral-400">{CRITERIA_INFO[key].definition}</p>
                   <input
                     type="range"
                     min={1}
@@ -359,12 +409,59 @@ export default function TaskDrawer({
             </div>
           )}
 
-          <p className="text-xs text-neutral-400 pt-1 border-t border-neutral-100">
-            Уверенность AI: {Math.round(task.confidence * 100)}%
-            {task.confidence < 0.75 && task.confidenceReason && (
-              <span> — {task.confidenceReason}</span>
+          <div className="pt-1 border-t border-neutral-100 space-y-1.5">
+            {task.confidence >= LOW_CONFIDENCE_THRESHOLD ? (
+              <p className="text-xs text-neutral-400">
+                Уверенность AI: {Math.round(task.confidence * 100)}%
+              </p>
+            ) : (
+              <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 space-y-1.5">
+                <p className="text-amber-800 font-medium">Точно оценить нельзя — не хватает данных</p>
+                <p className="text-amber-800">
+                  {task.confidenceReason || "AI не пояснил, чего не хватило. Можно уточнить вручную."}
+                </p>
+                {answeringConfidence ? (
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={confidenceAnswer}
+                      onChange={(e) => setConfidenceAnswer(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleAnswerConfidence(); }}
+                      placeholder="Впишите ответ…"
+                      className="w-full border border-amber-300 rounded px-2 py-1 text-xs bg-white"
+                    />
+                    {confidenceError && <p className="text-red-600">{confidenceError}</p>}
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => { setAnsweringConfidence(false); setConfidenceAnswer(""); setConfidenceError(null); }}
+                        className="px-2 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-600"
+                      >
+                        Отмена
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAnswerConfidence}
+                        disabled={confidenceLoading || !confidenceAnswer.trim()}
+                        className="px-2 py-1 rounded bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-50"
+                      >
+                        {confidenceLoading ? "Анализирую…" : "Ответить"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAnsweringConfidence(true)}
+                    className="text-amber-800 underline hover:text-amber-900"
+                  >
+                    Ответить
+                  </button>
+                )}
+              </div>
             )}
-          </p>
+          </div>
         </div>
 
         {(onScheduleToday || onScheduleTomorrow || onScheduleDate) && (
@@ -425,7 +522,7 @@ export default function TaskDrawer({
                   onClick={onRemoveFromCalendar}
                   className="text-xs text-red-600 hover:underline shrink-0"
                 >
-                  Убрать
+                  Убрать из календаря
                 </button>
               </div>
             ) : (

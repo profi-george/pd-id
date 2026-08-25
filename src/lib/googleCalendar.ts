@@ -2,6 +2,7 @@
 // чтобы не тащить googleapis (тяжёлая зависимость) ради одного эндпоинта "создать событие".
 
 import { prisma } from "@/lib/prisma";
+import { APP_TIMEZONE } from "@/lib/dates";
 
 const SCOPE = "https://www.googleapis.com/auth/calendar.events openid email";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -162,7 +163,11 @@ export async function createCalendarEvent(
   input: {
     title: string;
     description?: string;
-    startISO: string; // ISO datetime, локальное время пользователя
+    // "Наивные" локальные дата-время без смещения (YYYY-MM-DDTHH:mm:ss), БЕЗ "Z" —
+    // время интерпретируется Google по полю timeZone ниже, а не по UTC. Раньше сюда
+    // передавали .toISOString() (UTC), и на Vercel (сервер в UTC, пользователь — нет)
+    // событие создавалось на несколько часов позже выбранного времени.
+    startISO: string;
     endISO: string;
   }
 ): Promise<{ eventId: string; eventUrl: string }> {
@@ -177,8 +182,8 @@ export async function createCalendarEvent(
     body: JSON.stringify({
       summary: input.title,
       description: input.description || undefined,
-      start: { dateTime: input.startISO },
-      end: { dateTime: input.endISO },
+      start: { dateTime: input.startISO, timeZone: APP_TIMEZONE },
+      end: { dateTime: input.endISO, timeZone: APP_TIMEZONE },
     }),
   });
 

@@ -212,14 +212,14 @@ export default function Sidebar({
   return (
     <aside className="w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-3 space-y-4 overflow-y-auto h-full">
       <nav className="space-y-0.5">
+        <Link href="/add" className={rowClass(pathname === "/add", false)}>
+          <span>Добавить AI</span>
+        </Link>
         <Link href="/today" className={rowClass(pathname === "/today", false)}>
           <span>План дня</span>
         </Link>
-        <Link href="/today/summary" className={rowClass(pathname === "/today/summary", false)}>
-          <span>Итог дня</span>
-        </Link>
-        <Link href="/backlog" className={rowClass(pathname === "/backlog", dragOverKey === "__all__")}>
-          <span>Все задачи</span>
+        <Link href="/backlog" className={rowClass(pathname === "/backlog", false)}>
+          <span>Задачи</span>
           <span className="text-xs opacity-60">{totalCount}</span>
         </Link>
         <Link href="/history" className={rowClass(pathname === "/history", false)}>

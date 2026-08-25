@@ -10,10 +10,18 @@ export type EveningTask = TaskEvaluation & {
   id: string;
   text: string;
   projectName: string | null;
+  status?: string;
+  score?: number | null;
+  whySucceeded?: string | null;
+  whyFailed?: string | null;
 };
 
 export default function EveningTaskRow({ task }: { task: EveningTask }) {
-  const [done, setDone] = useState(true);
+  // По умолчанию НЕ отмечена — "выполнено" должно быть осознанным подтверждением,
+  // а не тем, что можно случайно сохранить не заметив. Только уже реально DONE
+  // (например, быстрая ✓ из общего списка раньше днём) стартует отмеченной —
+  // это отражает то, что уже действительно произошло.
+  const [done, setDone] = useState(task.status === "DONE");
 
   return (
     <div className="bg-white border border-neutral-200 rounded-lg px-3 py-2 space-y-2">
@@ -36,7 +44,7 @@ export default function EveningTaskRow({ task }: { task: EveningTask }) {
           Результат
           <select
             name={`score_${task.id}`}
-            defaultValue=""
+            defaultValue={task.score ?? ""}
             className="border border-neutral-300 rounded px-1 py-0.5 text-sm"
           >
             <option value="">—</option>
@@ -49,22 +57,38 @@ export default function EveningTaskRow({ task }: { task: EveningTask }) {
       </div>
       {done ? (
         <label className="block text-xs">
-          <span className="text-neutral-500">Почему получилось? (необязательно)</span>
+          <span className="text-neutral-500">Почему получилось?</span>
           <textarea
             name={`whySucceeded_${task.id}`}
             rows={2}
+            defaultValue={task.whySucceeded ?? ""}
             className="mt-0.5 w-full border border-neutral-300 rounded px-2 py-1 text-sm"
           />
         </label>
       ) : (
-        <label className="block text-xs">
-          <span className="text-neutral-500">Почему не получилось?</span>
-          <textarea
-            name={`whyFailed_${task.id}`}
-            rows={2}
-            className="mt-0.5 w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-          />
-        </label>
+        <div className="space-y-1.5">
+          <label className="block text-xs">
+            <span className="text-neutral-500">Почему не получилось?</span>
+            <textarea
+              name={`whyFailed_${task.id}`}
+              rows={2}
+              defaultValue={task.whyFailed ?? ""}
+              className="mt-0.5 w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-neutral-600">
+            <input
+              type="checkbox"
+              name={`reschedule_${task.id}`}
+              // Задача, уже отмеченная невыполненной раньше — та, где решение "не
+              // переносить" уже было явно принято. Не переспрашиваем заново дефолтом
+              // "да" при каждом повторном сохранении итога, иначе рискуем случайно
+              // продублировать задачу на завтра.
+              defaultChecked={task.status !== "NOT_DONE"}
+            />
+            Перенести на завтра
+          </label>
+        </div>
       )}
     </div>
   );

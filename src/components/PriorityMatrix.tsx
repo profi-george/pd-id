@@ -5,16 +5,20 @@ import {
   computePriority,
   formatEffort,
   PRIORITY_LABEL_TEXT,
+  LOW_CONFIDENCE_THRESHOLD,
   type PriorityLabel,
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
+import { formatDateRelative } from "@/lib/dates";
 import {
   deleteTask,
   completeTask,
+  revertTaskStatus,
   scheduleTask,
   scheduleTaskToDate,
   unscheduleTask,
   setManualPriority,
+  assignTaskToProject,
   reorderPriorityTask,
   updateTaskFields,
   addTaskToGoogleCalendar,
@@ -25,9 +29,11 @@ import TaskDrawer, { type DrawerTask } from "@/components/TaskDrawer";
 export type MatrixTask = TaskEvaluation & {
   id: string;
   text: string;
+  status?: string;
   projectId: string | null;
   projectName: string | null;
   date?: Date | null;
+  movedToDate?: Date | null;
   manualRank?: number | null;
   confidenceReason?: string | null;
   googleEventId?: string | null;
@@ -65,15 +71,19 @@ const BORDER_CLASS: Record<PriorityLabel, string> = {
 const LATER_PREVIEW = 3;
 
 function QuickMenu({
+  status,
   scheduled,
   onDelete,
   onUnschedule,
   onComplete,
+  onRevert,
 }: {
+  status?: string;
   scheduled: boolean;
   onDelete: () => void;
   onUnschedule: () => void;
   onComplete: () => void;
+  onRevert: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -87,17 +97,29 @@ function QuickMenu({
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
+  // Отметить/снять отметку — переключатель только между PLANNED и DONE. Для
+  // "не выполнена"/"перенесена" тут кнопки нет намеренно: снятие статуса там
+  // задевает вторую запись (дубликат на другом дне) или данные "Итога дня",
+  // это отдельное, более осторожное действие, не однокликовое.
+  const canToggle = status === "PLANNED" || status === "DONE" || status === undefined;
+
   return (
     <span className="flex items-center shrink-0">
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onComplete(); }}
-        className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50"
-        aria-label="Выполнено"
-        title="Отметить выполненной"
-      >
-        ✓
-      </button>
+      {canToggle && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); if (status === "DONE") onRevert(); else onComplete(); }}
+          className={`w-7 h-7 flex items-center justify-center rounded ${
+            status === "DONE"
+              ? "text-emerald-600 hover:bg-emerald-50"
+              : "text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50"
+          }`}
+          aria-label={status === "DONE" ? "Вернуть в план" : "Выполнено"}
+          title={status === "DONE" ? "Вернуть в план" : "Отметить выполненной"}
+        >
+          ✓
+        </button>
+      )}
       <span ref={ref} className="relative">
         <button
           type="button"
@@ -132,22 +154,211 @@ function QuickMenu({
   );
 }
 
+const PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3", "LATER"];
+
+// Смена приоритета одним тапом прямо в списке — не открывая карточку задачи.
+function PriorityPicker({ label, onPick }: { label: PriorityLabel; onPick: (l: PriorityLabel) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative shrink-0 pl-2 pt-3">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-neutral-100"
+        aria-label={`Приоритет: ${PRIORITY_LABEL_TEXT[label]}. Изменить`}
+        title={`Приоритет: ${PRIORITY_LABEL_TEXT[label]}`}
+      >
+        <span className={`w-2.5 h-2.5 rounded-full ${DOT_CLASS[label]}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-7 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+          {PRIORITY_OPTIONS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); onPick(l); }}
+              className={`w-full flex items-center gap-2 text-left px-3 py-1.5 hover:bg-neutral-50 ${
+                l === label ? "font-medium text-neutral-900" : "text-neutral-700"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${DOT_CLASS[l]}`} />
+              {PRIORITY_LABEL_TEXT[l]}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// Смена проекта одним тапом прямо в списке — не открывая карточку задачи.
+function ProjectPicker({
+  projectId,
+  projectName,
+  options,
+  onPick,
+}: {
+  projectId: string | null;
+  projectName: string | null;
+  options: { id: string; label: string }[];
+  onPick: (projectId: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className={`hover:underline hover:text-neutral-700 -my-1 py-1 ${projectName ? "" : "text-neutral-400"}`}
+      >
+        {projectName ?? "+ проект"}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-6 z-20 w-48 max-h-64 overflow-y-auto bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onPick(null); }}
+            className={`w-full text-left px-3 py-1.5 hover:bg-neutral-50 ${!projectId ? "font-medium text-neutral-900" : "text-neutral-700"}`}
+          >
+            Без проекта
+          </button>
+          {options.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); onPick(p.id); }}
+              className={`w-full text-left px-3 py-1.5 hover:bg-neutral-50 truncate ${
+                p.id === projectId ? "font-medium text-neutral-900" : "text-neutral-700"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// Смена даты одним тапом прямо в списке — не открывая карточку задачи.
+function DatePicker({
+  date,
+  onScheduleToday,
+  onScheduleTomorrow,
+  onScheduleDate,
+}: {
+  date: Date | null | undefined;
+  onScheduleToday: () => void;
+  onScheduleTomorrow: () => void;
+  onScheduleDate: (dateISO: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className={`hover:underline hover:text-neutral-700 -my-1 py-1 ${date ? "text-ink-600" : "text-neutral-400"}`}
+      >
+        {date ? `· на ${formatDateRelative(date)}` : "+ дата"}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-6 z-20 w-48 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 text-sm space-y-1.5">
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); onScheduleToday(); }}
+              className="flex-1 text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+            >
+              Сегодня
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); onScheduleTomorrow(); }}
+              className="flex-1 text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+            >
+              Завтра
+            </button>
+          </div>
+          <input
+            type="date"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              if (!e.target.value) return;
+              setOpen(false);
+              onScheduleDate(e.target.value);
+            }}
+            className="w-full border border-neutral-300 rounded px-2 py-1 text-xs"
+          />
+        </div>
+      )}
+    </span>
+  );
+}
+
 function TaskRow({
   task,
   color,
+  projectOptions,
   onOpen,
   onDropBefore,
   onDelete,
   onUnschedule,
   onComplete,
+  onRevert,
+  onManualPriority,
+  onAssignProject,
+  onScheduleToday,
+  onScheduleTomorrow,
+  onScheduleDate,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
+  projectOptions: { id: string; label: string }[];
   onOpen: () => void;
   onDropBefore: (draggedId: string, before: boolean) => void;
   onDelete: () => void;
   onUnschedule: () => void;
   onComplete: () => void;
+  onRevert: () => void;
+  onManualPriority: (label: PriorityLabel) => void;
+  onAssignProject: (projectId: string | null) => void;
+  onScheduleToday: () => void;
+  onScheduleTomorrow: () => void;
+  onScheduleDate: (dateISO: string) => void;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
 
@@ -173,25 +384,68 @@ function TaskRow({
         dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
       }`}
     >
-      <button
-        type="button"
+      <PriorityPicker label={color} onPick={onManualPriority} />
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onOpen}
-        className="flex-1 min-w-0 text-left px-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpen();
+          }
+        }}
+        className="flex-1 min-w-0 text-left pr-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1"
       >
-        <p className="text-[15px] font-medium text-neutral-900 leading-snug">{task.text}</p>
+        <p
+          className={`text-[15px] font-medium leading-snug ${
+            task.status === "MOVED"
+              ? "line-through text-neutral-400"
+              : task.status === "NOT_DONE"
+              ? "text-neutral-500"
+              : "text-neutral-900"
+          }`}
+        >
+          {task.text}
+        </p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
-          {task.projectName && <span>{task.projectName}</span>}
+          <ProjectPicker
+            projectId={task.projectId}
+            projectName={task.projectName}
+            options={projectOptions}
+            onPick={onAssignProject}
+          />
           <span className={task.projectName ? "text-neutral-400" : ""}>≈ {formatEffort(task.effortMinutes)}</span>
-          {task.confidence < 0.6 && <span className="text-amber-600">· AI не уверен</span>}
+          <DatePicker
+            date={task.date}
+            onScheduleToday={onScheduleToday}
+            onScheduleTomorrow={onScheduleTomorrow}
+            onScheduleDate={onScheduleDate}
+          />
+          {task.status === "DONE" && <span className="text-emerald-600">· выполнена</span>}
+          {task.status === "NOT_DONE" && <span className="text-neutral-400">· не выполнена</span>}
+          {task.status === "MOVED" && (
+            <span className="text-neutral-400">
+              · перенесена{task.movedToDate ? ` → ${formatDateRelative(task.movedToDate)}` : ""}
+            </span>
+          )}
+          {task.confidence < LOW_CONFIDENCE_THRESHOLD && <span className="text-amber-600">· AI не уверен</span>}
         </div>
         {task.primaryReason && (
           <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 leading-snug">
             {task.primaryReason}
           </p>
         )}
-      </button>
+      </div>
       <div className="pt-1.5 pr-1.5">
-        <QuickMenu scheduled={Boolean(task.date)} onDelete={onDelete} onUnschedule={onUnschedule} onComplete={onComplete} />
+        <QuickMenu
+          status={task.status}
+          scheduled={Boolean(task.date)}
+          onDelete={onDelete}
+          onUnschedule={onUnschedule}
+          onComplete={onComplete}
+          onRevert={onRevert}
+        />
       </div>
     </div>
   );
@@ -253,6 +507,21 @@ export default function PriorityMatrix({
     setItems((prev) => prev.map((t) => (t.id === id ? { ...t, ...p } : t)));
   }
 
+  // Смена приоритета прямо в списке (не через карточку задачи) — тот же ручной override,
+  // что и в TaskDrawer, только без похода в карточку.
+  function handleManualPriority(id: string, label: PriorityLabel) {
+    patch(id, { manualPriority: label, manualRank: null });
+    startTransition(() => { setManualPriority(id, label); });
+  }
+
+  // Смена проекта прямо в списке (не через карточку задачи).
+  function handleAssignProject(id: string, projectId: string | null) {
+    const label = projectOptions.find((p) => p.id === projectId)?.label ?? null;
+    const projectName = label ? label.replace(/^(— )+/, "") : null;
+    patch(id, { projectId, projectName });
+    startTransition(() => { assignTaskToProject(id, projectId); });
+  }
+
   // Перетаскивание внутри группы и между группами. referenceId — задача, рядом с которой
   // бросили (null = в конец группы/на пустую группу), before — вставить до/после неё.
   function moveTask(targetGroup: PriorityLabel, referenceId: string | null, before: boolean, draggedId: string) {
@@ -309,15 +578,22 @@ export default function PriorityMatrix({
     setPendingDelete(null);
   }
 
+  // В planView (План дня — все показанные задачи по определению одной даты) смена
+  // даты уводит задачу с этой страницы. В общем списке (Все задачи/проект) она
+  // остаётся видна — просто со сменившейся датой, которую подтянет ревалидация.
   function handleSchedule(id: string, target: "today" | "tomorrow") {
-    setItems((prev) => prev.filter((t) => t.id !== id));
-    setOpenId(null);
+    if (planView) {
+      setItems((prev) => prev.filter((t) => t.id !== id));
+      setOpenId(null);
+    }
     startTransition(() => { scheduleTask(id, target); });
   }
 
   function handleScheduleDate(id: string, dateISO: string) {
-    setItems((prev) => prev.filter((t) => t.id !== id));
-    setOpenId(null);
+    if (planView) {
+      setItems((prev) => prev.filter((t) => t.id !== id));
+      setOpenId(null);
+    }
     startTransition(() => { scheduleTaskToDate(id, dateISO); });
   }
 
@@ -332,9 +608,17 @@ export default function PriorityMatrix({
   }
 
   function handleComplete(id: string) {
-    setItems((prev) => prev.filter((t) => t.id !== id));
+    // Не убираем из списка — задача остаётся видна в своей группе приоритета,
+    // просто отмеченной. "План дня" — единый список на весь день, а не только
+    // то, что ещё не сделано.
+    patch(id, { status: "DONE" } as Partial<MatrixTask>);
     setOpenId(null);
     startTransition(() => { completeTask(id); });
+  }
+
+  function handleRevert(id: string) {
+    patch(id, { status: "PLANNED" } as Partial<MatrixTask>);
+    startTransition(() => { revertTaskStatus(id); });
   }
 
   const openTask = items.find((t) => t.id === openId) ?? null;
@@ -375,6 +659,13 @@ export default function PriorityMatrix({
                 onDelete={() => handleDeleteRequest(t.id)}
                 onUnschedule={() => handleUnschedule(t.id)}
                 onComplete={() => handleComplete(t.id)}
+                onRevert={() => handleRevert(t.id)}
+                onManualPriority={(l) => handleManualPriority(t.id, l)}
+                onAssignProject={(id) => handleAssignProject(t.id, id)}
+                projectOptions={projectOptions}
+                onScheduleToday={() => handleSchedule(t.id, "today")}
+                onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
+                onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
               />
             ))}
           </div>
@@ -408,6 +699,13 @@ export default function PriorityMatrix({
                 onDelete={() => handleDeleteRequest(t.id)}
                 onUnschedule={() => handleUnschedule(t.id)}
                 onComplete={() => handleComplete(t.id)}
+                onRevert={() => handleRevert(t.id)}
+                onManualPriority={(l) => handleManualPriority(t.id, l)}
+                onAssignProject={(id) => handleAssignProject(t.id, id)}
+                projectOptions={projectOptions}
+                onScheduleToday={() => handleSchedule(t.id, "today")}
+                onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
+                onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
               />
             ))}
           </div>

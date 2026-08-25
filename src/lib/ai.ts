@@ -124,7 +124,7 @@ function clampNum(n: unknown, min: number, max: number, fallback: number) {
   return Math.min(max, Math.max(min, v));
 }
 
-function normalizeEvaluation(raw: unknown, validProjectIds: Set<string>): AiTaskEvaluation | null {
+export function normalizeEvaluation(raw: unknown, validProjectIds: Set<string>): AiTaskEvaluation | null {
   if (typeof raw !== "object" || raw === null) return null;
   const t = raw as Record<string, unknown>;
   const text = String(t.text ?? "").trim();
@@ -309,4 +309,49 @@ export async function explainPriorityChange(input: {
 
   const primaryReason = String((parsed as Record<string, unknown>)?.primaryReason ?? "").trim();
   return { primaryReason: primaryReason || "Пересчитано по новым значениям критериев." };
+}
+
+// ---------- Ответ на уточняющий вопрос из карточки задачи ----------
+// Когда confidence низкий, confidenceReason показывается пользователю как вопрос,
+// на который можно ответить прямо в карточке. Этот вызов заново прогоняет ПОЛНУЮ
+// оценку (не только текст объяснения, как explainPriorityChange) — новый факт может
+// сдвинуть любой критерий, не только тот, которого не хватало.
+
+export async function answerConfidenceQuestion(
+  input: {
+    text: string;
+    resultText: string | null;
+    motivationText: string | null;
+    value: number;
+    costOfDelay: number;
+    timeSensitivity: number;
+    effortMinutes: number;
+    deadline: string | null;
+    confidenceReason: string;
+    answer: string;
+  },
+  context?: AiContext
+): Promise<AiTaskEvaluation | null> {
+  const prompt = `Ты уже оценивал(а) эту задачу пользователя и указал(а), что не хватает данных для уверенной оценки.
+
+Задача: "${input.text}"
+${input.resultText ? `Ожидаемый результат: ${input.resultText}` : ""}
+${input.motivationText ? `Контекст/мотивация: ${input.motivationText}` : ""}
+
+Текущие значения критериев (1-5): Impact=${input.value}, Cost of Delay=${input.costOfDelay}, Time Sensitivity=${input.timeSensitivity}, Effort=${input.effortMinutes} мин, Дедлайн=${input.deadline ?? "не указан"}.
+
+Чего не хватало: "${input.confidenceReason}"
+
+Пользователь ответил: "${input.answer}"
+
+${contextBlock(context)}
+
+${CRITERIA_GUIDE}
+
+Заново оцени задачу ПОЛНОСТЬЮ с учётом нового ответа — новый факт может изменить не только тот критерий, о котором спрашивалось, а любой из них. Если ответ действительно закрывает то, чего не хватало, — подними confidence. Если ответ снова расплывчатый — confidence может остаться низким, а confidenceReason должен объяснить, чего всё ещё не хватает.
+
+Отвечай СТРОГО JSON-объектом по схеме оценки задачи.`;
+
+  const parsed = await callGemini(prompt, EVALUATION_SCHEMA_OBJ);
+  return normalizeEvaluation(parsed, new Set());
 }

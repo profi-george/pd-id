@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import type { AiTaskEvaluation } from "@/lib/ai";
-import { computePriority, formatEffort, PRIORITY_LABEL_TEXT } from "@/lib/priorityEngine";
+import { computePriority, formatEffort, PRIORITY_LABEL_TEXT, LOW_CONFIDENCE_THRESHOLD } from "@/lib/priorityEngine";
+import { CRITERIA_INFO } from "@/lib/criteriaInfo";
+import { formatDateRelative, parseDateInputValue } from "@/lib/dates";
 
 const SCALE = [1, 2, 3, 4, 5];
 
@@ -47,7 +49,9 @@ function TaskCard({
           checked={task.includeInPlan}
           onChange={(e) => onChange({ includeInPlan: e.target.checked })}
         />
-        {task.scheduledDate ? `В план на ${task.scheduledDate}` : "В план на сегодня"}
+        {task.scheduledDate
+          ? `В план на ${formatDateRelative(parseDateInputValue(task.scheduledDate))}`
+          : "В план на сегодня"}
       </label>
 
       <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -76,6 +80,13 @@ function TaskCard({
         <p className="text-xs text-neutral-500">Почему: {task.primaryReason}</p>
       )}
 
+      {task.confidence < LOW_CONFIDENCE_THRESHOLD && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+          AI не хватило данных: {task.confidenceReason || "не пояснил, чего именно."} Можно поправить
+          значения ниже («Почему? / настроить»).
+        </p>
+      )}
+
       {expanded && (
         <div className="space-y-2 pt-1 border-t border-neutral-100">
           {task.primaryReason && <p className="text-xs text-neutral-600">Почему: {task.primaryReason}</p>}
@@ -83,7 +94,7 @@ function TaskCard({
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs pt-1">
             <label className="flex items-center justify-between gap-1">
-              Impact (Влияние)
+              {CRITERIA_INFO.value.title}
               <select
                 value={task.value}
                 onChange={(e) => onChange({ value: Number(e.target.value) })}
@@ -93,7 +104,7 @@ function TaskCard({
               </select>
             </label>
             <label className="flex items-center justify-between gap-1">
-              Cost of Delay
+              {CRITERIA_INFO.costOfDelay.title}
               <select
                 value={task.costOfDelay}
                 onChange={(e) => onChange({ costOfDelay: Number(e.target.value) })}
@@ -103,7 +114,7 @@ function TaskCard({
               </select>
             </label>
             <label className="flex items-center justify-between gap-1">
-              Time Sensitivity
+              {CRITERIA_INFO.timeSensitivity.title}
               <select
                 value={task.timeSensitivity}
                 onChange={(e) => onChange({ timeSensitivity: Number(e.target.value) })}

@@ -2,12 +2,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, tomorrowDate, parseDateInputValue } from "@/lib/dates";
+import { todayDate, tomorrowDate, parseDateInputValue, toDateInputValue, sameDate } from "@/lib/dates";
 import { initialOrderKey } from "@/lib/priority";
 import { requireUser } from "@/lib/auth";
 import {
   chatWithAI,
   explainPriorityChange,
+  answerConfidenceQuestion as aiAnswerConfidenceQuestion,
   type AiTaskEvaluation,
   type ChatMessage,
   type ChatResult,
@@ -128,7 +129,12 @@ function evaluationFromForm(formData: FormData) {
     goalAlignment: num(formData, "goalAlignment"),
     effortMinutes: num(formData, "effortMinutes"),
     alternativeQuality: 0,
-    confidence: 1, // введено вручную — считаем полностью уверенным
+    // Введено вручную — но форма не отличает "осознанно поставила 3" от "просто не
+    // тронула дефолт", поэтому 1.0 (стопроцентно) было бы неправдой: такая задача
+    // выглядела бы увереннее, чем честно проанализированная AI. 0.9 — выше порога
+    // низкой уверенности (не всплывает "AI не хватает данных" на ручной задаче,
+    // это не про AI), но не ложный максимум.
+    confidence: 0.9,
     deadline: dateOrNull(formData, "deadline"),
     financialConsequence: bool(formData, "financialConsequence"),
   };
@@ -360,7 +366,10 @@ export async function setManualPriority(taskId: string, label: string | null) {
 export async function recalculatePriority(
   taskId: string,
   patch: { value: number; costOfDelay: number; timeSensitivity: number; effortMinutes: number }
-): Promise<{ ok: true; primaryReason: string } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; primaryReason: string; confidence: number; confidenceReason: string | null }
+  | { ok: false; error: string }
+> {
   try {
     const user = await requireUser();
     const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
@@ -379,16 +388,94 @@ export async function recalculatePriority(
       deadline: task.deadline ? task.deadline.toISOString().slice(0, 10) : null,
     });
 
+    // Она сама только что подтвердила эти цифры вручную — старая "уверенность AI"
+    // (и старая причина низкой уверенности) с прошлого разбора больше не в тему:
+    // это уже не AI-оценка, а её собственная, и висящее "AI не хватило данных"
+    // выглядело бы как чушь рядом с только что вручную выставленными значениями.
+    const confidence = 0.9;
+    const confidenceReason: string | null = null;
+
     await prisma.task.update({
       where: { id: taskId },
-      data: { ...patch, urgency: patch.timeSensitivity, primaryReason },
+      data: { ...patch, urgency: patch.timeSensitivity, primaryReason, confidence, confidenceReason },
     });
 
     revalidatePath("/backlog");
     revalidatePath("/today");
-    return { ok: true, primaryReason };
+    return { ok: true, primaryReason, confidence, confidenceReason };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось пересчитать приоритет." };
+  }
+}
+
+// Ответ на уточняющий вопрос AI (низкий confidence) прямо из карточки задачи:
+// пользователь вписывает недостающий факт, AI заново оценивает задачу целиком —
+// новый факт может сдвинуть любой критерий, не только тот, из-за которого была
+// низкая уверенность. aiValue/aiCostOfDelay/... тоже обновляются — это новая
+// исходная оценка AI, а не ручная правка пользователя.
+export async function answerConfidenceQuestion(
+  taskId: string,
+  answer: string
+): Promise<{ ok: true; task: AiTaskEvaluation } | { ok: false; error: string }> {
+  try {
+    const user = await requireUser();
+    const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
+    if (!task) return { ok: false, error: "Задача не найдена." };
+    if (!answer.trim()) return { ok: false, error: "Введите ответ." };
+
+    const [currentGoal, projects] = await Promise.all([
+      getCurrentGoal(),
+      prisma.project.findMany({ where: { userId: user.id }, select: { id: true, name: true } }),
+    ]);
+
+    const evaluation = await aiAnswerConfidenceQuestion(
+      {
+        text: task.text,
+        resultText: task.resultText,
+        motivationText: task.motivationText,
+        value: task.value,
+        costOfDelay: task.costOfDelay,
+        timeSensitivity: task.timeSensitivity,
+        effortMinutes: task.effortMinutes,
+        deadline: task.deadline ? task.deadline.toISOString().slice(0, 10) : null,
+        confidenceReason: task.confidenceReason ?? "",
+        answer,
+      },
+      { currentGoal, today: new Date(), projects }
+    );
+    if (!evaluation) return { ok: false, error: "Не удалось разобрать ответ AI. Попробуйте ещё раз." };
+
+    const deadline = evaluation.deadline ? new Date(`${evaluation.deadline}T00:00:00.000Z`) : task.deadline;
+
+    await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        value: evaluation.value,
+        costOfDelay: evaluation.costOfDelay,
+        urgency: evaluation.timeSensitivity,
+        timeSensitivity: evaluation.timeSensitivity,
+        effortMinutes: evaluation.effortMinutes,
+        confidence: evaluation.confidence,
+        confidenceReason: evaluation.confidenceReason || null,
+        deadline,
+        primaryReason: evaluation.primaryReason || null,
+        riskText: evaluation.riskText || null,
+        aiValue: evaluation.value,
+        aiCostOfDelay: evaluation.costOfDelay,
+        aiTimeSensitivity: evaluation.timeSensitivity,
+        aiEffortMinutes: evaluation.effortMinutes,
+        aiReasoningValue: evaluation.reasoningValue || null,
+        aiReasoningCostOfDelay: evaluation.reasoningCostOfDelay || null,
+        aiReasoningTimeSensitivity: evaluation.reasoningTimeSensitivity || null,
+        aiReasoningEffort: evaluation.reasoningEffort || null,
+      },
+    });
+
+    revalidatePath("/backlog");
+    revalidatePath("/today");
+    return { ok: true, task: { ...evaluation, deadline: deadline ? deadline.toISOString().slice(0, 10) : null } };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось обработать ответ." };
   }
 }
 
@@ -431,14 +518,17 @@ export async function addTaskToGoogleCalendar(
     const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
     if (!task) return { ok: false, error: "Задача не найдена." };
 
-    const start = new Date(`${input.date}T${input.startTime}:00`);
+    // "Z" здесь только чтобы посчитать конец интервала арифметикой эпохи — сама эта
+    // дата никуда не отправляется. Реальное время, которое уйдёт в Google, — это
+    // "наивные" локальные строки ниже + timeZone внутри createCalendarEvent, а не UTC.
+    const start = new Date(`${input.date}T${input.startTime}:00Z`);
     const end = new Date(start.getTime() + input.durationMinutes * 60_000);
 
     const { eventId, eventUrl } = await createCalendarEvent(user.id, {
       title: task.text,
       description: task.resultText ?? undefined,
-      startISO: start.toISOString(),
-      endISO: end.toISOString(),
+      startISO: `${input.date}T${input.startTime}:00`,
+      endISO: end.toISOString().slice(0, 19),
     });
 
     await prisma.task.update({
@@ -482,12 +572,103 @@ export async function deleteTask(id: string) {
 // пользователь при желании проставит вечером в Итоге дня для запланированных задач.
 export async function completeTask(id: string) {
   const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id, userId: user.id }, select: { date: true } });
+  if (!task) return;
   await prisma.task.updateMany({
     where: { id, userId: user.id },
-    data: { status: TaskStatus.DONE },
+    // Без даты задача не попала бы ни в "Итог дня", ни в статистику "Истории" —
+    // у неё никогда не было дня, к которому её можно привязать. Раз выполнена
+    // именно сейчас — привязываем к сегодня, а не оставляем "невидимой".
+    data: { status: TaskStatus.DONE, date: task.date ?? todayDate() },
   });
   revalidatePath("/backlog");
   revalidatePath("/today");
+}
+
+// Отмена "выполнено" прямо из списка (тот же ✓, повторный тап) — задача снова
+// становится активной в плане. Сбрасываем оценку/рефлексию — они относились
+// к прежнему "выполнено", отмеченному по ошибке или которое передумали.
+export async function revertTaskStatus(id: string) {
+  const user = await requireUser();
+  await prisma.task.updateMany({
+    where: { id, userId: user.id },
+    data: { status: TaskStatus.PLANNED, score: null, whySucceeded: null, whyFailed: null },
+  });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
+// Если задачу двигают/убирают из плана мимо "Итога дня" (кнопки "На завтра"/"На дату"/
+// "Убрать из плана"), а она была активно запланирована на КОНКРЕТНЫЙ день — не просто
+// переезжаем на новую дату молча. Старая запись остаётся на исходном дне со статусом
+// MOVED и movedToDate — "Итог дня" того дня сможет показать "перенесена → сюда", а не
+// тихо потерять задачу. Сама задача продолжается новой записью на новом месте.
+// Если задача просто лежала в бэклоге (без даты) — переносить в истории нечего,
+// двигаем в той же записи.
+async function relocateTask(
+  userId: string,
+  task: NonNullable<Awaited<ReturnType<typeof prisma.task.findFirst>>>,
+  newDate: Date | null,
+  newStatus: TaskStatus
+) {
+  const wasOnAPlan = task.status === TaskStatus.PLANNED && task.date !== null;
+  const unchanged = task.date && newDate && sameDate(task.date, newDate);
+
+  if (!wasOnAPlan || unchanged) {
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { date: newDate, status: newStatus, order: newDate ? initialOrderKey(task) : 0 },
+    });
+    return;
+  }
+
+  if (task.googleEventId) {
+    // Старое событие относилось к дню, который задача теперь покидает — не оставляем
+    // висеть напоминание о том, чего на этом месте больше нет.
+    await deleteCalendarEvent(userId, task.googleEventId).catch(() => {});
+  }
+
+  await prisma.task.update({
+    where: { id: task.id },
+    data: { status: TaskStatus.MOVED, movedToDate: newDate, googleEventId: null, googleEventUrl: null },
+  });
+
+  await prisma.task.create({
+    data: {
+      text: task.text,
+      resultText: task.resultText,
+      motivationText: task.motivationText,
+      projectId: task.projectId,
+      userId,
+      value: task.value,
+      costOfDelay: task.costOfDelay,
+      urgency: task.urgency,
+      timeSensitivity: task.timeSensitivity,
+      goalAlignment: task.goalAlignment,
+      effortMinutes: task.effortMinutes,
+      alternativeQuality: task.alternativeQuality,
+      confidence: task.confidence,
+      confidenceReason: task.confidenceReason,
+      deadline: task.deadline,
+      financialConsequence: task.financialConsequence,
+      primaryReason: task.primaryReason,
+      riskText: task.riskText,
+      aiValue: task.aiValue,
+      aiCostOfDelay: task.aiCostOfDelay,
+      aiUrgency: task.aiUrgency,
+      aiTimeSensitivity: task.aiTimeSensitivity,
+      aiEffortMinutes: task.aiEffortMinutes,
+      aiReasoningValue: task.aiReasoningValue,
+      aiReasoningCostOfDelay: task.aiReasoningCostOfDelay,
+      aiReasoningUrgency: task.aiReasoningUrgency,
+      aiReasoningTimeSensitivity: task.aiReasoningTimeSensitivity,
+      aiReasoningEffort: task.aiReasoningEffort,
+      manualPriority: task.manualPriority,
+      date: newDate,
+      status: newStatus,
+      order: newDate ? initialOrderKey(task) : 0,
+    },
+  });
 }
 
 export async function scheduleTask(id: string, target: "today" | "tomorrow") {
@@ -496,12 +677,7 @@ export async function scheduleTask(id: string, target: "today" | "tomorrow") {
   if (!task) return;
 
   const date = target === "today" ? todayDate() : tomorrowDate();
-  const order = initialOrderKey(task);
-
-  await prisma.task.update({
-    where: { id },
-    data: { date, status: TaskStatus.PLANNED, order },
-  });
+  await relocateTask(user.id, task, date, TaskStatus.PLANNED);
 
   revalidatePath("/backlog");
   revalidatePath("/today");
@@ -513,12 +689,7 @@ export async function scheduleTaskToDate(id: string, dateISO: string) {
   if (!task) return;
 
   const date = parseDateInputValue(dateISO);
-  const order = initialOrderKey(task);
-
-  await prisma.task.update({
-    where: { id },
-    data: { date, status: TaskStatus.PLANNED, order },
-  });
+  await relocateTask(user.id, task, date, TaskStatus.PLANNED);
 
   revalidatePath("/backlog");
   revalidatePath("/today");
@@ -526,10 +697,11 @@ export async function scheduleTaskToDate(id: string, dateISO: string) {
 
 export async function unscheduleTask(id: string) {
   const user = await requireUser();
-  await prisma.task.updateMany({
-    where: { id, userId: user.id },
-    data: { date: null, status: TaskStatus.BACKLOG, order: 0 },
-  });
+  const task = await prisma.task.findFirst({ where: { id, userId: user.id } });
+  if (!task) return;
+
+  await relocateTask(user.id, task, null, TaskStatus.BACKLOG);
+
   revalidatePath("/backlog");
   revalidatePath("/today");
 }
@@ -558,15 +730,19 @@ export async function submitEveningForm(formData: FormData) {
   const mood = num(formData, "mood");
   const efficiency = num(formData, "efficiency");
   const worry = num(formData, "worry");
+  const whyWorked = str(formData, "whyWorked") || null;
+  const whyNotWorked = str(formData, "whyNotWorked") || null;
 
   await prisma.day.upsert({
     where: { userId_date: { userId: user.id, date } },
-    create: { userId: user.id, date, conclusion, difficulty, mood, efficiency, worry },
-    update: { conclusion, difficulty, mood, efficiency, worry },
+    create: { userId: user.id, date, conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked },
+    update: { conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked },
   });
 
+  // PLANNED (ещё не отмечены) + DONE (отмечены галочкой в течение дня раньше) —
+  // форма показывает оба набора, значит и сохранять должна оба.
   const plannedTasks = await prisma.task.findMany({
-    where: { date, status: TaskStatus.PLANNED, userId: user.id },
+    where: { date, status: { in: [TaskStatus.PLANNED, TaskStatus.DONE, TaskStatus.NOT_DONE] }, userId: user.id },
   });
 
   for (const task of plannedTasks) {
@@ -582,10 +758,28 @@ export async function submitEveningForm(formData: FormData) {
         data: { status: TaskStatus.DONE, score, whySucceeded, whyFailed: null },
       });
     } else {
+      const reschedule = formData.get(`reschedule_${task.id}`) === "on";
+
+      if (task.googleEventId) {
+        // Задача не сделана в этот день — событие в календаре больше не отражает
+        // реальность (перенесена или просто не случилась). Не оставляем висеть
+        // напоминание о том, чего уже не будет.
+        await deleteCalendarEvent(user.id, task.googleEventId).catch(() => {});
+      }
+
       await prisma.task.update({
         where: { id: task.id },
-        data: { status: TaskStatus.MOVED, score, whyFailed, whySucceeded: null },
+        data: {
+          status: reschedule ? TaskStatus.MOVED : TaskStatus.NOT_DONE,
+          score,
+          whyFailed,
+          whySucceeded: null,
+          googleEventId: null,
+          googleEventUrl: null,
+        },
       });
+      if (!reschedule) continue;
+
       await prisma.task.create({
         data: {
           text: task.text,
@@ -626,5 +820,7 @@ export async function submitEveningForm(formData: FormData) {
   }
 
   revalidatePath("/today");
-  redirect(`/today?date=${dateISO}`);
+  // На завтра, а не обратно на только что закрытый день — это и есть следующий шаг
+  // после "Итог дня": посмотреть, что перенеслось, и продолжить планировать.
+  redirect(`/today?date=${toDateInputValue(tomorrow)}`);
 }
