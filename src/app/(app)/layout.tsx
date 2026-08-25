@@ -21,19 +21,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }));
   const byId = new Map(projectNodes.map((p) => [p.id, p]));
 
-  // Счётчик у проекта в дереве — весь активный объём (и в бэклоге, и уже в плане),
-  // это общая "сколько ещё висит на проекте". А вот "Задачи"/"Без проекта" в шапке —
-  // это именно Бэклог (нераспределённые), поэтому считаются только по BACKLOG-статусу,
-  // чтобы бейдж совпадал с тем, что реально покажет открытая страница.
+  // "Задачи" по умолчанию показывает весь активный объём (бэклог + то, что уже
+  // стоит в каком-то дне) — счётчики в шапке считают то же самое, чтобы бейдж
+  // совпадал с тем, что откроется по клику.
   const ownCounts: Record<string, number> = {};
   let noProjectCount = 0;
-  let backlogCount = 0;
   for (const t of tasks) {
-    if (t.status === TaskStatus.BACKLOG) {
-      backlogCount++;
-      if (!t.projectId) noProjectCount++;
+    if (!t.projectId) {
+      noProjectCount++;
+      continue;
     }
-    if (!t.projectId) continue;
     ownCounts[t.projectId] = (ownCounts[t.projectId] ?? 0) + 1;
   }
 
@@ -50,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       projects={projectNodes}
       counts={counts}
       noProjectCount={noProjectCount}
-      totalCount={backlogCount}
+      totalCount={tasks.length}
       cabinetName={user.name}
     >
       {children}

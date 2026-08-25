@@ -1,15 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AiTaskEvaluation } from "@/lib/ai";
-import { computePriority, formatEffort, PRIORITY_LABEL_TEXT, LOW_CONFIDENCE_THRESHOLD } from "@/lib/priorityEngine";
+import {
+  computePriority,
+  formatEffort,
+  PRIORITY_LABEL_TEXT,
+  LOW_CONFIDENCE_THRESHOLD,
+  type PriorityLabel,
+} from "@/lib/priorityEngine";
 import { CRITERIA_INFO } from "@/lib/criteriaInfo";
 import { formatDateRelative, parseDateInputValue } from "@/lib/dates";
 
 const SCALE = [1, 2, 3, 4, 5];
+const PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3", "LATER"];
+const DOT_CLASS: Record<PriorityLabel, string> = {
+  P0: "bg-red-500",
+  P1: "bg-amber-500",
+  P2: "bg-blue-400",
+  P3: "bg-neutral-400",
+  LATER: "bg-neutral-300",
+};
 
-export type ReviewTask = AiTaskEvaluation & { projectId: string | null; includeInPlan: boolean };
+export type ReviewTask = AiTaskEvaluation & {
+  projectId: string | null;
+  includeInPlan: boolean;
+  manualPriority?: PriorityLabel | null;
+};
 export type ProjectOption = { id: string; label: string };
+
+// Смена приоритета одним тапом прямо на карточке проверки — без захода в критерии.
+function PriorityPicker({ label, onPick }: { label: PriorityLabel; onPick: (l: PriorityLabel) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 font-medium hover:bg-neutral-200"
+      >
+        <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
+        {PRIORITY_LABEL_TEXT[label]}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-7 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+          {PRIORITY_OPTIONS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => { setOpen(false); onPick(l); }}
+              className={`w-full flex items-center gap-2 text-left px-3 py-1.5 hover:bg-neutral-50 ${
+                l === label ? "font-medium text-neutral-900" : "text-neutral-700"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${DOT_CLASS[l]}`} />
+              {PRIORITY_LABEL_TEXT[l]}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
 
 function TaskCard({
   task,
@@ -27,6 +90,7 @@ function TaskCard({
     ...task,
     urgency: task.timeSensitivity,
     deadline: task.deadline ? new Date(task.deadline) : null,
+    manualPriority: task.manualPriority ?? null,
   });
 
   return (
@@ -55,9 +119,10 @@ function TaskCard({
       </label>
 
       <div className="flex items-center gap-2 text-xs flex-wrap">
-        <span className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 font-medium">
-          {PRIORITY_LABEL_TEXT[label]}
-        </span>
+        <PriorityPicker
+          label={label}
+          onPick={(l) => onChange({ manualPriority: l })}
+        />
         <span className="text-neutral-500">{formatEffort(task.effortMinutes)}</span>
         <select
           value={task.projectId ?? ""}
@@ -222,7 +287,7 @@ export default function SuggestedTasksEditor({
 
       <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
         <p className="text-xs text-neutral-500">
-          Не отмеченные задачи попадут в «Все задачи» без даты — добавите в план позже, когда решите.
+          Не отмеченные задачи попадут в «Задачи» без даты — добавите в план позже, когда решите.
         </p>
         <button
           type="button"

@@ -4,6 +4,7 @@ import { TaskStatus } from "@/generated/prisma/client";
 import { todayDate, addDays, sameDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { formatEffort } from "@/lib/priorityEngine";
+import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
 import { requireUser } from "@/lib/auth";
 import { getGoogleStatus } from "@/app/(app)/actions";
@@ -37,11 +38,13 @@ export default async function TodayPage({
     getGoogleStatus(),
   ]);
 
-  // "План дня" показывает только активные (ещё не решённые) задачи этого дня.
-  // Выполненная/не выполненная/перенесённая задача уходит из плана — её место
-  // в Истории, а не здесь отмеченной галочкой: план — это то, что ЕЩЁ предстоит.
+  // "План дня" на сегодня/будущее показывает только активные задачи — то, что ЕЩЁ
+  // предстоит. Но для прошедшего дня "активных" уже почти никогда нет (всё решено) —
+  // там план без исхода был бы пустым и бесполезным, поэтому там показываем всё,
+  // что было в этот день, с пометкой статуса на каждой строке.
+  const isPast = date.getTime() < today.getTime();
   const planned = dayTasks.filter((t) => t.status === TaskStatus.PLANNED);
-  const matrixTasks = planned.map((t) => ({ ...t, projectName: t.project?.name ?? null }));
+  const matrixTasks = (isPast ? dayTasks : planned).map((t) => ({ ...t, projectName: t.project?.name ?? null }));
   const projectOptions = flattenProjectsForSelect(
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
   );
@@ -58,7 +61,7 @@ export default async function TodayPage({
           <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
           {planned.length > 0 && (
             <p className="text-xs text-neutral-400 mt-0.5">
-              {planned.length} задач · ≈{formatEffort(totalMinutes)}
+              {planned.length} {tasksWord(planned.length)} · ≈{formatEffort(totalMinutes)}
             </p>
           )}
         </div>
@@ -110,7 +113,7 @@ export default async function TodayPage({
 
       {overloaded && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          В плане ≈{formatEffort(totalMinutes)} задач — это больше, чем обычно помещается в день.
+          В плане ≈{formatEffort(totalMinutes)} — это больше, чем обычно помещается в день.
           Возможно, стоит перенести часть на другой день.
         </p>
       )}

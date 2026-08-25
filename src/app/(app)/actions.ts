@@ -267,7 +267,7 @@ export async function chatStep(
 }
 
 export async function createTasksWithDetails(
-  tasks: (AiTaskEvaluation & { projectId: string | null; includeInPlan: boolean })[]
+  tasks: (AiTaskEvaluation & { projectId: string | null; includeInPlan: boolean; manualPriority?: string | null })[]
 ) {
   const user = await requireUser();
   if (tasks.length === 0) return;
@@ -315,6 +315,7 @@ export async function createTasksWithDetails(
         aiReasoningCostOfDelay: t.reasoningCostOfDelay || null,
         aiReasoningTimeSensitivity: t.reasoningTimeSensitivity || null,
         aiReasoningEffort: t.reasoningEffort || null,
+        manualPriority: t.manualPriority || null,
         date,
         status,
         order: status === TaskStatus.PLANNED ? initialOrderKey({ ...t, urgency: t.timeSensitivity, deadline }) : 0,

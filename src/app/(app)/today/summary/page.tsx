@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
+import { todayDate, addDays, sameDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { submitEveningForm } from "@/app/(app)/actions";
 import EveningTaskRow from "@/components/EveningTaskRow";
 import { requireUser } from "@/lib/auth";
@@ -14,7 +15,11 @@ export default async function EveningSummaryPage({
 }) {
   const user = await requireUser();
   const { date: dateParam } = await searchParams;
-  const date = dateParam ? parseDateInputValue(dateParam) : todayDate();
+  const today = todayDate();
+  const date = dateParam ? parseDateInputValue(dateParam) : today;
+  const isToday = sameDate(date, today);
+  const prevDate = addDays(date, -1);
+  const nextDate = addDays(date, 1);
 
   // Итог можно подводить/поправлять сколько угодно раз за день и после — не только
   // один раз вечером. Если итог уже был сохранён, подставляем прежние значения
@@ -40,12 +45,33 @@ export default async function EveningSummaryPage({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Итог дня</h1>
-        <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
-        {existingDay && (
-          <p className="text-xs text-ink-600 mt-0.5">Итог уже был подведён — можно поправить и сохранить заново.</p>
-        )}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold">Итог дня</h1>
+          <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
+          {existingDay && (
+            <p className="text-xs text-ink-600 mt-0.5">Итог уже был подведён — можно поправить и сохранить заново.</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1 text-sm shrink-0">
+          <Link
+            href={`/today/summary?date=${toDateInputValue(prevDate)}`}
+            className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+          >
+            ← Вчера
+          </Link>
+          {!isToday && (
+            <Link href="/today/summary" className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600">
+              Сегодня
+            </Link>
+          )}
+          <Link
+            href={`/today/summary?date=${toDateInputValue(nextDate)}`}
+            className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+          >
+            Завтра →
+          </Link>
+        </div>
       </div>
 
       <form action={submitEveningForm} className="space-y-6">
@@ -60,7 +86,7 @@ export default async function EveningSummaryPage({
           </div>
         )}
         {tasks.length === 0 && movedTasks.length === 0 && (
-          <p className="text-sm text-neutral-400">На сегодня не было запланированных задач.</p>
+          <p className="text-sm text-neutral-400">На этот день не было запланированных задач.</p>
         )}
 
         {movedTasks.length > 0 && (
@@ -138,7 +164,7 @@ export default async function EveningSummaryPage({
           type="submit"
           className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
         >
-          {existingDay ? "Сохранить изменения" : "Сохранить итог и сформировать план на завтра"}
+          {existingDay ? "Сохранить изменения" : "Сохранить итог и перенести незавершённое дальше"}
         </button>
       </form>
     </div>

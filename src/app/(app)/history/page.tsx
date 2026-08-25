@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { formatDateHuman, toDateInputValue, todayDate } from "@/lib/dates";
+import { tasksWord } from "@/lib/pluralize";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -153,7 +154,7 @@ export default async function HistoryPage({
                 </p>
                 {counts && counts.total > 0 && (
                   <p className="text-xs text-neutral-500 mt-0.5">
-                    {counts.total} задач · {counts.done} выполнено
+                    {counts.total} {tasksWord(counts.total)} · {counts.done} выполнено
                     {avgScore != null && <> · средняя оценка {avgScore.toFixed(1)}</>}
                     {day?.efficiency != null && <> · эффективность {day.efficiency}/10</>}
                   </p>

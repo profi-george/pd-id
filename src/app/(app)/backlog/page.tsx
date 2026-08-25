@@ -4,6 +4,7 @@ import { TaskStatus } from "@/generated/prisma/client";
 import PriorityMatrix from "@/components/PriorityMatrix";
 import { getGoogleStatus } from "@/app/(app)/actions";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
+import { tasksWord } from "@/lib/pluralize";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -11,16 +12,22 @@ export const dynamic = "force-dynamic";
 export default async function BacklogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ project?: string; filter?: string }>;
 }) {
   const user = await requireUser();
-  const { project: projectFilter } = await searchParams;
+  const { project: projectFilter, filter } = await searchParams;
+  const undatedOnly = filter === "undated";
 
   const [tasks, projects, googleStatus] = await Promise.all([
-    // «Задачи» — это Бэклог: только нераспределённые (без даты) задачи. Как только
-    // задаче назначается дата — это уже «План дня» той даты, не Бэклог.
+    // «Задачи» — по умолчанию весь активный объём (и нераспределённое, и уже
+    // стоящее в каком-то дне), одним списком по приоритету — чтобы видеть всё
+    // сразу. «Только нераспределённые» — это фильтр внутри той же страницы,
+    // а не отдельный раздел навигации.
     prisma.task.findMany({
-      where: { userId: user.id, status: TaskStatus.BACKLOG },
+      where: {
+        userId: user.id,
+        status: undatedOnly ? TaskStatus.BACKLOG : { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] },
+      },
       include: { project: true },
       orderBy: { createdAt: "asc" },
     }),
@@ -41,6 +48,14 @@ export default async function BacklogPage({
   const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }));
   const projectOptions = flattenProjectsForSelect(projectNodes);
 
+  const filterToggleHref = (() => {
+    const params = new URLSearchParams();
+    if (projectFilter) params.set("project", projectFilter);
+    if (!undatedOnly) params.set("filter", "undated");
+    const qs = params.toString();
+    return `/backlog${qs ? `?${qs}` : ""}`;
+  })();
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-2">
@@ -49,23 +64,31 @@ export default async function BacklogPage({
             {projectFilter === "none" ? "Без проекта" : "Задачи"}
           </h1>
           <p className="text-sm text-neutral-500">
-            {matrixTasks.length} нераспределённых
-            {projectFilter !== "none" ? " · отсортированы по приоритету" : ""}
+            {matrixTasks.length} {tasksWord(matrixTasks.length)}
+            {undatedOnly ? " · нераспределённые" : ""} · отсортированы по приоритету
           </p>
         </div>
-        <Link
-          href="/add"
-          className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 shrink-0"
-        >
-          + Добавить задачу
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href={filterToggleHref}
+            className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+          >
+            {undatedOnly ? "Показать все" : "Только нераспределённые"}
+          </Link>
+          <Link
+            href="/add"
+            className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+          >
+            + Добавить задачу
+          </Link>
+        </div>
       </div>
 
       <PriorityMatrix
         tasks={matrixTasks}
         projectOptions={projectOptions}
         googleConnected={googleStatus.connected}
-        removeOnSchedule
+        removeOnSchedule={undatedOnly}
       />
     </div>
   );

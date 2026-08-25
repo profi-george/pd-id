@@ -53,9 +53,11 @@ export function formatDateHuman(d: Date): string {
 // только если не текущий). Сырой ISO (2026-08-25) не должен быть тем, что видит
 // пользователь как основной текст где бы то ни было в интерфейсе.
 export function formatDateRelative(d: Date, today: Date = todayDate()): string {
-  if (sameDate(d, today)) return "Сегодня";
-  if (sameDate(d, addDays(today, 1))) return "Завтра";
-  if (sameDate(d, addDays(today, -1))) return "Вчера";
+  // Строчными — все места использования вставляют это в середину фразы
+  // ("· на сегодня", "В план на завтра"), а не в начало предложения.
+  if (sameDate(d, today)) return "сегодня";
+  if (sameDate(d, addDays(today, 1))) return "завтра";
+  if (sameDate(d, addDays(today, -1))) return "вчера";
   return d.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
