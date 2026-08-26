@@ -3,16 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { todayDate, addDays, sameDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
-import { formatEffort } from "@/lib/priorityEngine";
 import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
 import { requireUser } from "@/lib/auth";
 import { getGoogleStatus } from "@/app/(app)/actions";
 
 export const dynamic = "force-dynamic";
-
-// Дневной лимит для предупреждения о перегрузке плана — ориентир, не жёсткое ограничение.
-const DAILY_CAPACITY_MINUTES = 6 * 60;
 
 export default async function TodayPage({
   searchParams,
@@ -49,10 +45,6 @@ export default async function TodayPage({
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
   );
 
-  // Перегрузка считается по тому, что ещё реально предстоит сделать — не по всему дню.
-  const totalMinutes = planned.reduce((sum, t) => sum + t.effortMinutes, 0);
-  const overloaded = totalMinutes > DAILY_CAPACITY_MINUTES;
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-2">
@@ -61,7 +53,7 @@ export default async function TodayPage({
           <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
           {planned.length > 0 && (
             <p className="text-xs text-neutral-400 mt-0.5">
-              {planned.length} {tasksWord(planned.length)} · ≈{formatEffort(totalMinutes)}
+              {planned.length} {tasksWord(planned.length)}
             </p>
           )}
         </div>
@@ -86,7 +78,7 @@ export default async function TodayPage({
         </div>
       </div>
 
-      {day && (
+      {day ? (
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
           Итог дня подведён. Трудность {day.difficulty} · настроение {day.mood} · эффективность{" "}
           {day.efficiency} · переживания {day.worry}
@@ -97,6 +89,15 @@ export default async function TodayPage({
             Изменить итог →
           </Link>
         </div>
+      ) : (
+        dayTasks.length > 0 && (
+          <Link
+            href={`/today/summary?date=${toDateInputValue(date)}`}
+            className="inline-block text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
+          >
+            Подвести итог дня
+          </Link>
+        )
       )}
 
       <div className="flex items-center justify-between">
@@ -111,13 +112,6 @@ export default async function TodayPage({
         </Link>
       </div>
 
-      {overloaded && (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          В плане ≈{formatEffort(totalMinutes)} — это больше, чем обычно помещается в день.
-          Возможно, стоит перенести часть на другой день.
-        </p>
-      )}
-
       {/* Только активные задачи. Не прячем список, даже если итог дня уже подведён:
           иначе новая задача, добавленная на "закрытый" день, была бы не видна нигде. */}
       <PriorityMatrix
@@ -126,15 +120,6 @@ export default async function TodayPage({
         googleConnected={googleStatus.connected}
         planView
       />
-
-      {dayTasks.length > 0 && !day && (
-        <Link
-          href={`/today/summary?date=${toDateInputValue(date)}`}
-          className="inline-block text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
-        >
-          Подвести итог дня
-        </Link>
-      )}
 
       <p className="text-xs text-neutral-400">
         <Link href="/history" className="underline hover:text-neutral-600">

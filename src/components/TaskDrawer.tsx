@@ -226,7 +226,7 @@ export default function TaskDrawer({
         <div className="flex items-start justify-between gap-2">
           <textarea
             value={task.text}
-            onChange={(e) => onChangeText(e.target.value)}
+            onChange={(e) => { onChangeText(e.target.value); flashSaved(); }}
             rows={2}
             className="flex-1 text-lg font-medium border-none outline-none resize-none"
           />
@@ -311,6 +311,17 @@ export default function TaskDrawer({
               className="w-full max-w-[10rem] border border-neutral-300 rounded px-2 py-1"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-neutral-500 mb-1">Заметка — как подступиться, что учесть</label>
+          <textarea
+            value={task.note ?? ""}
+            onChange={(e) => handleChangeField({ note: e.target.value || null })}
+            rows={2}
+            placeholder="Например: начать с черновика письма, а не сразу звонить"
+            className="w-full border border-neutral-300 rounded px-2 py-1.5 text-sm resize-none"
+          />
         </div>
 
         <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3 space-y-2">

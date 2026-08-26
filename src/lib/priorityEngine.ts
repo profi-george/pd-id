@@ -21,6 +21,7 @@ export type TaskEvaluation = {
   manualPriority?: string | null; // P0 | P1 | P2 | P3 | LATER — ручной override
   primaryReason?: string | null; // объяснение (только для отображения)
   riskText?: string | null; // риск отложить (только для отображения)
+  note?: string | null; // заметка пользователя о подходе к выполнению (только для отображения)
 };
 
 export type PriorityLabel = "P0" | "P1" | "P2" | "P3" | "LATER";

@@ -340,6 +340,7 @@ export async function updateTaskFields(
     goalAlignment: number;
     effortMinutes: number;
     deadline: Date | null;
+    note: string | null;
   }>
 ) {
   const user = await requireUser();
@@ -655,6 +656,7 @@ async function relocateTask(
       financialConsequence: task.financialConsequence,
       primaryReason: task.primaryReason,
       riskText: task.riskText,
+      note: task.note,
       aiValue: task.aiValue,
       aiCostOfDelay: task.aiCostOfDelay,
       aiUrgency: task.aiUrgency,
