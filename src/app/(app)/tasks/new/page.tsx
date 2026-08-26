@@ -28,7 +28,7 @@ export default async function NewTaskPage({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Новая задача (вручную)</h1>
+        <h1 className="text-xl font-display font-bold">Новая задача (вручную)</h1>
         <div className="flex gap-3">
           <Link href={aiHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">
             Пусть оценит ИИ →

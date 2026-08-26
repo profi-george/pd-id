@@ -17,7 +17,7 @@ export default async function LoginPage() {
   return (
     <div className="min-h-full flex items-center justify-center px-4 py-10 bg-neutral-50">
       <div className="w-full max-w-sm">
-        <p className="text-center font-semibold text-neutral-800 tracking-tight mb-6">ПД-ИД</p>
+        <p className="text-center font-display font-bold text-neutral-800 tracking-tight mb-6 text-lg">ПД-ИД</p>
         <LoginForm cabinets={cabinets} />
       </div>
     </div>

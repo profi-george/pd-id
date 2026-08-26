@@ -50,7 +50,7 @@ export default async function EveningSummaryPage({
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold">Итог дня</h1>
+          <h1 className="text-xl font-display font-bold">Итог дня</h1>
           <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
           {existingDay && (
             <p className="text-xs text-ink-600 mt-0.5">Итог уже был подведён — можно поправить и сохранить заново.</p>

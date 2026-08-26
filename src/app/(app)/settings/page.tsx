@@ -12,7 +12,7 @@ export default async function SettingsPage({
 
   return (
     <div className="space-y-6 max-w-lg">
-      <h1 className="text-xl font-semibold">Настройки</h1>
+      <h1 className="text-xl font-display font-bold">Настройки</h1>
 
       {connected && (
         <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">

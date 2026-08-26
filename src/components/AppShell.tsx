@@ -46,7 +46,7 @@ export default function AppShell({
               <path d="M3 5.5h14M3 10h14M3 14.5h14" />
             </svg>
           </button>
-          <Link href="/add" className="font-semibold text-neutral-800 tracking-tight hover:text-ink-600">
+          <Link href="/add" className="font-display font-bold text-neutral-800 tracking-tight hover:text-ink-600">
             ПД-ИД
           </Link>
           <div className="ml-auto flex items-center gap-2">

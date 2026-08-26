@@ -49,7 +49,7 @@ export default async function TodayPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold">План дня</h1>
+          <h1 className="text-xl font-display font-bold">План дня</h1>
           <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
           {planned.length > 0 && (
             <p className="text-xs text-neutral-400 mt-0.5">

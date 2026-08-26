@@ -39,7 +39,7 @@ export default async function ProjectDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">{project.name}</h1>
+        <h1 className="text-xl font-display font-bold">{project.name}</h1>
         <p className="text-sm text-neutral-500">{scopedTasks.length} задач</p>
       </div>
       <PriorityMatrix

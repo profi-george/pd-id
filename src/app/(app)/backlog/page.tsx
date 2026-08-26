@@ -60,7 +60,7 @@ export default async function BacklogPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold">
+          <h1 className="text-xl font-display font-bold">
             {projectFilter === "none" ? "Без проекта" : "Задачи"}
           </h1>
           <p className="text-sm text-neutral-500">

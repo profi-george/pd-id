@@ -83,7 +83,7 @@ export default async function HistoryPage({
 
   return (
     <div className="space-y-6 max-w-lg">
-      <h1 className="text-xl font-semibold">История</h1>
+      <h1 className="text-xl font-display font-bold">История</h1>
 
       <div>
         <div className="flex items-center justify-between mb-2">

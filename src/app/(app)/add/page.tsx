@@ -20,7 +20,7 @@ export default async function AddPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Добавить задачи</h1>
+        <h1 className="text-xl font-display font-bold">Добавить задачи</h1>
         <p className="text-sm text-neutral-500">Выгрузите всё, что сейчас в голове — дальше разберём вместе.</p>
       </div>
 
