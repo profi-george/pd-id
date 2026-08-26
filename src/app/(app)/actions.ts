@@ -614,13 +614,20 @@ async function relocateTask(
   newDate: Date | null,
   newStatus: TaskStatus
 ) {
+  // Задача уже когда-то была перенесена — её история продолжилась в копии
+  // (movedFromTaskId у той копии указывает сюда), а эта запись "закрыта".
+  // Повторное действие над ней — открытая карточка, не закрытая после первого
+  // клика, второй нетерпеливый тап — не должно её "воскрешать" и превращать
+  // в дубликат уже существующей копии; такую запись просто больше не трогаем.
+  if (task.status === TaskStatus.MOVED) return;
+
   const wasOnAPlan = task.status === TaskStatus.PLANNED && task.date !== null;
   const unchanged = task.date && newDate && sameDate(task.date, newDate);
 
   if (!wasOnAPlan || unchanged) {
     await prisma.task.update({
       where: { id: task.id },
-      data: { date: newDate, status: newStatus, order: newDate ? initialOrderKey(task) : 0 },
+      data: { date: newDate, status: newStatus, order: newDate ? initialOrderKey(task) : 0, movedToDate: null },
     });
     return;
   }
@@ -631,10 +638,15 @@ async function relocateTask(
     await deleteCalendarEvent(userId, task.googleEventId).catch(() => {});
   }
 
-  await prisma.task.update({
-    where: { id: task.id },
+  // Атомарный условный update как мьютекс: если задачу параллельно уже перенёс
+  // другой почти одновременный вызов (двойной тап, гонка двух запросов), этот
+  // updateMany не найдёт status=PLANNED и затронет 0 строк — тогда копию ниже
+  // не создаём, вместо того чтобы наплодить дубликат на новой дате.
+  const relocated = await prisma.task.updateMany({
+    where: { id: task.id, userId, status: TaskStatus.PLANNED },
     data: { status: TaskStatus.MOVED, movedToDate: newDate, googleEventId: null, googleEventUrl: null },
   });
+  if (relocated.count === 0) return;
 
   await prisma.task.create({
     data: {
