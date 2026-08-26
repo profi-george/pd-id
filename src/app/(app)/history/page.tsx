@@ -136,7 +136,9 @@ export default async function HistoryPage({
       </div>
 
       {sortedDates.length === 0 ? (
-        <p className="text-sm text-neutral-400">Пока нет ни одного дня с планом.</p>
+        <p className="text-sm text-neutral-400">
+          Первая запись появится, как только вы подведёте итог сегодняшнего дня.
+        </p>
       ) : (
         <ul className="space-y-2">
           {sortedDates.map((ms) => {

@@ -18,6 +18,21 @@ function getIsMobile(): boolean {
 
 const MAX_TEXTAREA_HEIGHT = 320;
 
+// Статичное "Думаю…" не отличить от зависшего запроса — по одной фразе не понять,
+// идёт ли обработка вообще. Смена фразы каждые ~1.6с — самый дешёвый честный сигнал
+// "процесс идёт", без реального прогресс-бара (шагов AI-цепочки мы не знаем заранее).
+const THINKING_PHRASES = ["Думаю…", "Читаю задачу…", "Прикидываю приоритет…", "Ещё немного…"];
+
+function useThinkingPhrase(active: boolean): string {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setI((v) => (v + 1) % THINKING_PHRASES.length), 1600);
+    return () => { clearInterval(id); setI(0); };
+  }, [active]);
+  return active ? THINKING_PHRASES[i] : THINKING_PHRASES[0];
+}
+
 export default function UnifiedTaskInput({ projects }: { projects: ProjectOption[] }) {
   const router = useRouter();
   const isMobile = useSyncExternalStore(noSubscription, getIsMobile, () => false);
@@ -33,6 +48,7 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
   const [reviewTasks, setReviewTasks] = useState<ReviewTask[] | null>(null);
   const [isSending, startSending] = useTransition();
   const [isSaving, startSaving] = useTransition();
+  const thinkingPhrase = useThinkingPhrase(isSending);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -175,7 +191,7 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
               disabled={isSending || !input.trim()}
               className="text-sm px-4 py-1.5 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-40"
             >
-              {isSending ? "Думаю…" : "Отправить →"}
+              {isSending ? thinkingPhrase : "Разобрать →"}
             </button>
           </div>
 

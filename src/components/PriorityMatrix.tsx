@@ -25,8 +25,11 @@ import {
   updateTaskFields,
   addTaskToGoogleCalendar,
   removeTaskFromGoogleCalendar,
+  addSubtask,
+  toggleSubtask,
+  deleteSubtask,
 } from "@/app/(app)/actions";
-import TaskDrawer, { type DrawerTask } from "@/components/TaskDrawer";
+import TaskDrawer, { type DrawerTask, type SubtaskItem } from "@/components/TaskDrawer";
 
 export type MatrixTask = TaskEvaluation & {
   id: string;
@@ -36,6 +39,7 @@ export type MatrixTask = TaskEvaluation & {
   projectName: string | null;
   date?: Date | null;
   movedToDate?: Date | null;
+  subtasks?: SubtaskItem[];
   manualRank?: number | null;
   confidenceReason?: string | null;
   googleEventId?: string | null;
@@ -455,6 +459,15 @@ function TaskRow({
           {task.text}
         </p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
+          {task.subtasks && task.subtasks.length > 0 && (
+            <span
+              className={`tabular-nums ${
+                task.subtasks.every((s) => s.done) ? "text-emerald-600" : ""
+              }`}
+            >
+              ☑ {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
+            </span>
+          )}
           <ProjectPicker
             projectId={task.projectId}
             projectName={task.projectName}
@@ -537,6 +550,7 @@ export default function PriorityMatrix({
   googleConnected = false,
   planView = false,
   removeOnSchedule = false,
+  emptyMessage = "Здесь пока пусто.",
 }: {
   tasks: MatrixTask[];
   projectOptions: { id: string; label: string }[];
@@ -547,6 +561,9 @@ export default function PriorityMatrix({
   // true на «Задачах» (Бэклог): список — только нераспределённые (без даты), поэтому
   // назначение ЛЮБОЙ даты уводит задачу из этого списка в «План дня» той даты.
   removeOnSchedule?: boolean;
+  // Пустое состояние разное по смыслу на разных экранах (план дня / задачи /
+  // проект) — общее "Здесь пока пусто" не объясняет, что делать дальше.
+  emptyMessage?: string;
 }) {
   const [items, setItems] = useState(tasks);
   const [prevTasks, setPrevTasks] = useState(tasks);
@@ -759,7 +776,7 @@ export default function PriorityMatrix({
   const laterVisible = laterExpanded ? groups.LATER : groups.LATER.slice(0, LATER_PREVIEW);
 
   if (items.length === 0) {
-    return <p className="text-sm text-neutral-400 px-1">Здесь пока пусто.</p>;
+    return <p className="text-sm text-neutral-400 px-1">{emptyMessage}</p>;
   }
 
   return (
@@ -902,6 +919,33 @@ export default function PriorityMatrix({
           if (!openId) return;
           patch(openId, { googleEventId: null, googleEventUrl: null });
           startTransition(() => { removeTaskFromGoogleCalendar(openId); });
+        }}
+        onAddSubtask={async (text) => {
+          if (!openId) return;
+          const created = await addSubtask(openId, text);
+          if (!created) return;
+          const current = items.find((t) => t.id === openId);
+          patch(openId, {
+            subtasks: [...(current?.subtasks ?? []), { id: created.id, text: created.text, done: created.done }],
+          } as Partial<MatrixTask>);
+        }}
+        onToggleSubtask={(subtaskId, done) => {
+          if (!openId) return;
+          const current = items.find((t) => t.id === openId);
+          if (!current) return;
+          patch(openId, {
+            subtasks: (current.subtasks ?? []).map((s) => (s.id === subtaskId ? { ...s, done } : s)),
+          } as Partial<MatrixTask>);
+          startTransition(() => { toggleSubtask(subtaskId, done); });
+        }}
+        onDeleteSubtask={(subtaskId) => {
+          if (!openId) return;
+          const current = items.find((t) => t.id === openId);
+          if (!current) return;
+          patch(openId, {
+            subtasks: (current.subtasks ?? []).filter((s) => s.id !== subtaskId),
+          } as Partial<MatrixTask>);
+          startTransition(() => { deleteSubtask(subtaskId); });
         }}
       />
 

@@ -89,7 +89,9 @@ export default async function EveningSummaryPage({
           </div>
         )}
         {tasks.length === 0 && movedTasks.length === 0 && (
-          <p className="text-sm text-neutral-400">На этот день не было запланированных задач.</p>
+          <p className="text-sm text-neutral-400">
+            В этот день план был пуст — подводить особо нечего, но метрики ниже заполнить всё равно можно.
+          </p>
         )}
 
         {movedTasks.length > 0 && (

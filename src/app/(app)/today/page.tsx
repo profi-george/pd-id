@@ -27,7 +27,7 @@ export default async function TodayPage({
     prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
     prisma.task.findMany({
       where: { userId: user.id, date },
-      include: { project: true },
+      include: { project: true, subtasks: { orderBy: { order: "asc" } } },
       orderBy: { order: "asc" },
     }),
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
@@ -119,6 +119,11 @@ export default async function TodayPage({
         projectOptions={projectOptions}
         googleConnected={googleStatus.connected}
         planView
+        emptyMessage={
+          isToday
+            ? "На сегодня пока пусто — хороший повод решить, что сделать в первую очередь."
+            : "На этот день пока ничего не запланировано."
+        }
       />
 
       <p className="text-xs text-neutral-400">

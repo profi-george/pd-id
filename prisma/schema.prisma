@@ -115,6 +115,21 @@ model Task {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  subtasks Subtask[]
+}
+
+// Подзадача — лёгкий чек-лист внутри задачи, без своей приоритизации: у неё нет
+// критериев/AI-оценки, только текст и галочка "сделано". Отдельная модель, а не
+// self-relation на Task — не нагружаем чек-лист тридцатью полями, которые ему не нужны.
+model Subtask {
+  id        String   @id @default(cuid())
+  text      String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String
+  createdAt DateTime @default(now())
 }
 
 model AppSettings {

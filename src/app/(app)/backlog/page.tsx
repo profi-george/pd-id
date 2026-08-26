@@ -28,7 +28,7 @@ export default async function BacklogPage({
         userId: user.id,
         status: undatedOnly ? TaskStatus.BACKLOG : { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] },
       },
-      include: { project: true },
+      include: { project: true, subtasks: { orderBy: { order: "asc" } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
@@ -97,6 +97,13 @@ export default async function BacklogPage({
         projectOptions={projectOptions}
         googleConnected={googleStatus.connected}
         removeOnSchedule={undatedOnly}
+        emptyMessage={
+          undatedOnly
+            ? "Все задачи уже привязаны к дате."
+            : projectFilter === "none"
+            ? "В задачах без проекта пока пусто."
+            : "Пока нет незапланированных задач — опишите новую мысль в «Добавить AI»."
+        }
       />
     </div>
   );

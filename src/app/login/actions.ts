@@ -15,7 +15,7 @@ export async function loginAction(
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !verifyPin(pin, user.pinSalt, user.pinHash)) {
-    return { error: "Неверный PIN." };
+    return { error: "PIN не подошёл — проверьте и попробуйте снова." };
   }
 
   await createSession(user.id);
@@ -32,10 +32,10 @@ export async function createCabinetAction(
 
   if (!name) return { error: "Введите название кабинета." };
   if (pin.length < 4) return { error: "PIN должен быть не короче 4 символов." };
-  if (pin !== pinConfirm) return { error: "PIN не совпадает." };
+  if (pin !== pinConfirm) return { error: "PIN введён по-разному — впишите один и тот же дважды." };
 
   const existing = await prisma.user.findUnique({ where: { name } });
-  if (existing) return { error: "Кабинет с таким названием уже есть." };
+  if (existing) return { error: "Кабинет с таким именем уже есть — выберите другое название." };
 
   const salt = generateSalt();
   const user = await prisma.user.create({

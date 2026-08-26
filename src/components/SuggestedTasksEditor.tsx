@@ -10,7 +10,8 @@ import {
   type PriorityLabel,
 } from "@/lib/priorityEngine";
 import { CRITERIA_INFO } from "@/lib/criteriaInfo";
-import { formatDateRelative, parseDateInputValue } from "@/lib/dates";
+import { formatDateRelative, parseDateInputValue, todayDate, tomorrowDate, toDateInputValue } from "@/lib/dates";
+import { tasksWord } from "@/lib/pluralize";
 
 const SCALE = [1, 2, 3, 4, 5];
 const PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3", "LATER"];
@@ -48,10 +49,14 @@ function PriorityPicker({ label, onPick }: { label: PriorityLabel; onPick: (l: P
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 font-medium hover:bg-neutral-200"
+        className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-neutral-300 bg-white text-neutral-700 font-medium hover:border-ink-300 hover:bg-neutral-50"
+        title="Изменить приоритет"
       >
         <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
         {PRIORITY_LABEL_TEXT[label]}
+        <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400 shrink-0">
+          <path d="M4 6l4 4 4-4" />
+        </svg>
       </button>
       {open && (
         <div className="absolute left-0 top-7 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
@@ -71,6 +76,68 @@ function PriorityPicker({ label, onPick }: { label: PriorityLabel; onPick: (l: P
         </div>
       )}
     </span>
+  );
+}
+
+// Раньше тут была одна галочка "в план на сегодня/на дату из AI" — если дата не
+// сегодня и не распознана AI, поправить её можно было только в открытой панели
+// "Почему? / настроить". Теперь выбор даты виден сразу и без даты не остаётся
+// молча — под рядом кнопок появляется мягкое напоминание, а не блокирующий шаг.
+function PlanPicker({
+  includeInPlan,
+  scheduledDate,
+  onChange,
+}: {
+  includeInPlan: boolean;
+  scheduledDate: string | null;
+  onChange: (patch: Partial<ReviewTask>) => void;
+}) {
+  const [pickingDate, setPickingDate] = useState(false);
+  const todayISO = toDateInputValue(todayDate());
+  const tomorrowISO = toDateInputValue(tomorrowDate());
+  const isToday = includeInPlan && (!scheduledDate || scheduledDate === todayISO);
+  const isTomorrow = includeInPlan && scheduledDate === tomorrowISO;
+  const isCustom = includeInPlan && Boolean(scheduledDate) && scheduledDate !== todayISO && scheduledDate !== tomorrowISO;
+
+  const pill = (active: boolean) =>
+    `px-2 py-1 rounded-md border text-xs font-medium ${
+      active ? "bg-neutral-800 text-white border-neutral-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+    }`;
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <button type="button" className={pill(isToday)} onClick={() => { onChange({ includeInPlan: true, scheduledDate: null }); setPickingDate(false); }}>
+          Сегодня
+        </button>
+        <button type="button" className={pill(isTomorrow)} onClick={() => { onChange({ includeInPlan: true, scheduledDate: tomorrowISO }); setPickingDate(false); }}>
+          Завтра
+        </button>
+        <button type="button" className={pill(isCustom)} onClick={() => setPickingDate((v) => !v)}>
+          {isCustom && scheduledDate ? formatDateRelative(parseDateInputValue(scheduledDate)) : "Другая дата"}
+        </button>
+        <button type="button" className={pill(!includeInPlan)} onClick={() => { onChange({ includeInPlan: false, scheduledDate: null }); setPickingDate(false); }}>
+          Без даты
+        </button>
+        {pickingDate && (
+          <input
+            type="date"
+            autoFocus
+            value={scheduledDate ?? ""}
+            onChange={(e) => { if (e.target.value) { onChange({ includeInPlan: true, scheduledDate: e.target.value }); setPickingDate(false); } }}
+            className="border border-neutral-300 rounded-md px-1.5 py-1 text-xs"
+          />
+        )}
+      </div>
+      {!includeInPlan && (
+        <p className="text-[11px] text-neutral-400 mt-1">
+          Без даты задача уйдёт в «Задачи» — можно сразу{" "}
+          <button type="button" onClick={() => onChange({ includeInPlan: true, scheduledDate: null })} className="underline hover:text-neutral-600">
+            выбрать день
+          </button>.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -107,16 +174,11 @@ function TaskCard({
         </button>
       </div>
 
-      <label className="flex items-center gap-1.5 text-xs text-neutral-700 bg-neutral-50 border border-neutral-200 rounded px-2 py-1 w-fit">
-        <input
-          type="checkbox"
-          checked={task.includeInPlan}
-          onChange={(e) => onChange({ includeInPlan: e.target.checked })}
-        />
-        {task.scheduledDate
-          ? `В план на ${formatDateRelative(parseDateInputValue(task.scheduledDate))}`
-          : "В план на сегодня"}
-      </label>
+      <PlanPicker
+        includeInPlan={task.includeInPlan}
+        scheduledDate={task.scheduledDate}
+        onChange={onChange}
+      />
 
       <div className="flex items-center gap-2 text-xs flex-wrap">
         <PriorityPicker
@@ -287,7 +349,7 @@ export default function SuggestedTasksEditor({
 
       <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
         <p className="text-xs text-neutral-500">
-          Не отмеченные задачи попадут в «Задачи» без даты — добавите в план позже, когда решите.
+          Задачи «Без даты» попадут в «Задачи» без даты — добавите в план позже, когда решите.
         </p>
         <button
           type="button"
@@ -295,7 +357,7 @@ export default function SuggestedTasksEditor({
           disabled={isSaving || tasks.length === 0}
           className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-50"
         >
-          {isSaving ? "Сохраняю..." : `Сохранить все задачи (${tasks.length})`}
+          {isSaving ? "Сохраняю..." : `Добавить ${tasks.length} ${tasksWord(tasks.length)} →`}
         </button>
       </div>
     </div>

@@ -21,7 +21,7 @@ export default async function ProjectDetailPage({
     prisma.project.findMany({ where: { userId: user.id } }),
     prisma.task.findMany({
       where: { userId: user.id, status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
-      include: { project: true },
+      include: { project: true, subtasks: { orderBy: { order: "asc" } } },
     }),
     getGoogleStatus(),
   ]);
@@ -46,6 +46,7 @@ export default async function ProjectDetailPage({
         tasks={scopedTasks}
         projectOptions={projectOptions}
         googleConnected={googleStatus.connected}
+        emptyMessage="В этом проекте пока нет задач."
       />
     </div>
   );

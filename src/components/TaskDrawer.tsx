@@ -14,6 +14,8 @@ import { CRITERIA_INFO, type CriterionKey } from "@/lib/criteriaInfo";
 import CriterionInfo from "@/components/CriterionInfo";
 import { recalculatePriority, answerConfidenceQuestion } from "@/app/(app)/actions";
 
+export type SubtaskItem = { id: string; text: string; done: boolean };
+
 export type DrawerTask = TaskEvaluation & {
   id: string;
   text: string;
@@ -21,6 +23,7 @@ export type DrawerTask = TaskEvaluation & {
   date?: Date | null;
   googleEventId?: string | null;
   googleEventUrl?: string | null;
+  subtasks?: SubtaskItem[];
   aiValue?: number | null;
   aiCostOfDelay?: number | null;
   aiUrgency?: number | null;
@@ -132,6 +135,9 @@ export default function TaskDrawer({
   onScheduleDate,
   onAddToCalendar,
   onRemoveFromCalendar,
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
 }: {
   task: DrawerTask | null;
   projectOptions: { id: string; label: string }[];
@@ -147,6 +153,9 @@ export default function TaskDrawer({
   onScheduleDate?: (dateISO: string) => void;
   onAddToCalendar?: (date: string, startTime: string, durationMinutes: number) => Promise<{ ok: boolean; error?: string }>;
   onRemoveFromCalendar?: () => void;
+  onAddSubtask?: (text: string) => void | Promise<void>;
+  onToggleSubtask?: (id: string, done: boolean) => void;
+  onDeleteSubtask?: (id: string) => void;
 }) {
   const [scheduleDate, setScheduleDate] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -167,6 +176,7 @@ export default function TaskDrawer({
   const [confidenceLoading, setConfidenceLoading] = useState(false);
   const [confidenceError, setConfidenceError] = useState<string | null>(null);
   const [draggingKey, setDraggingKey] = useState<CriterionKey | null>(null);
+  const [newSubtask, setNewSubtask] = useState("");
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   if ((task?.id ?? null) !== prevTaskId) {
@@ -181,6 +191,7 @@ export default function TaskDrawer({
     setConfidenceError(null);
     setShowDatePicker(false);
     setCalError(null);
+    setNewSubtask("");
   }
 
   useEffect(() => {
@@ -458,6 +469,71 @@ export default function TaskDrawer({
             className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm resize-none"
           />
         </div>
+
+        {(onAddSubtask || (task.subtasks && task.subtasks.length > 0)) && (
+          <div>
+            <label className="flex items-center justify-between text-xs text-neutral-500 mb-1.5">
+              <span>Подзадачи</span>
+              {task.subtasks && task.subtasks.length > 0 && (
+                <span className="tabular-nums">
+                  {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
+                </span>
+              )}
+            </label>
+            {task.subtasks && task.subtasks.length > 0 && (
+              <ul className="space-y-1 mb-2">
+                {task.subtasks.map((s) => (
+                  <li key={s.id} className="flex items-center gap-2 group">
+                    <input
+                      type="checkbox"
+                      checked={s.done}
+                      onChange={(e) => onToggleSubtask?.(s.id, e.target.checked)}
+                      className="accent-ink-500 shrink-0"
+                    />
+                    <span className={`flex-1 text-sm ${s.done ? "line-through text-neutral-400" : "text-neutral-700"}`}>
+                      {s.text}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteSubtask?.(s.id)}
+                      className="text-neutral-300 hover:text-red-600 opacity-0 group-hover:opacity-100 shrink-0 text-xs px-1"
+                      aria-label="Удалить подзадачу"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {onAddSubtask && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const text = newSubtask.trim();
+                  if (!text) return;
+                  onAddSubtask(text);
+                  setNewSubtask("");
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  value={newSubtask}
+                  onChange={(e) => setNewSubtask(e.target.value)}
+                  placeholder="+ Добавить подзадачу"
+                  className="flex-1 border border-neutral-300 rounded-lg px-2.5 py-1.5 text-sm placeholder:text-neutral-400"
+                />
+                <button
+                  type="submit"
+                  disabled={!newSubtask.trim()}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
+                >
+                  Добавить
+                </button>
+              </form>
+            )}
+          </div>
+        )}
 
         <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 space-y-2">
           <div className="flex items-center justify-between">
@@ -762,7 +838,7 @@ export default function TaskDrawer({
               onClick={onClose}
               className="text-sm px-4 py-2 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700"
             >
-              Сохранить
+              Готово
             </button>
           </div>
         </div>

@@ -349,6 +349,35 @@ export async function updateTaskFields(
   revalidatePath("/today");
 }
 
+// Подзадачи — простой чек-лист внутри задачи, без своей приоритизации. Владение
+// проверяем через связанную задачу (у Subtask своего userId нет).
+export async function addSubtask(taskId: string, text: string) {
+  const user = await requireUser();
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
+  if (!task) return null;
+  const count = await prisma.subtask.count({ where: { taskId } });
+  const subtask = await prisma.subtask.create({ data: { text: trimmed, taskId, order: count } });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+  return subtask;
+}
+
+export async function toggleSubtask(id: string, done: boolean) {
+  const user = await requireUser();
+  await prisma.subtask.updateMany({ where: { id, task: { userId: user.id } }, data: { done } });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
+export async function deleteSubtask(id: string) {
+  const user = await requireUser();
+  await prisma.subtask.deleteMany({ where: { id, task: { userId: user.id } } });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
 export async function setManualPriority(taskId: string, label: string | null) {
   const user = await requireUser();
   if (label !== null && !isPriorityLabel(label)) return;
@@ -648,7 +677,11 @@ async function relocateTask(
   });
   if (relocated.count === 0) return;
 
-  await prisma.task.create({
+  // Подзадачи переносятся вместе с задачей — иначе чек-лист молча терялся бы
+  // при каждом переносе на другой день.
+  const subtasks = await prisma.subtask.findMany({ where: { taskId: task.id }, orderBy: { order: "asc" } });
+
+  const createdTask = await prisma.task.create({
     data: {
       text: task.text,
       resultText: task.resultText,
@@ -686,6 +719,12 @@ async function relocateTask(
       movedFromTaskId: task.id,
     },
   });
+
+  if (subtasks.length > 0) {
+    await prisma.subtask.createMany({
+      data: subtasks.map((s) => ({ text: s.text, done: s.done, order: s.order, taskId: createdTask.id })),
+    });
+  }
 }
 
 // Отмена переноса — вернуть задачу туда, где она была, если копия на новом месте
