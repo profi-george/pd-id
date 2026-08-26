@@ -9,7 +9,7 @@ import {
   type PriorityLabel,
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
-import { formatDateRelative } from "@/lib/dates";
+import { formatDateRelative, parseDateInputValue } from "@/lib/dates";
 import { tasksWord } from "@/lib/pluralize";
 import {
   deleteTask,
@@ -29,8 +29,10 @@ import {
   toggleSubtask,
   renameSubtask,
   deleteSubtask,
+  splitPartialTask,
 } from "@/app/(app)/actions";
 import TaskDrawer, { type DrawerTask, type SubtaskItem } from "@/components/TaskDrawer";
+import PartialCompleteDialog from "@/components/PartialCompleteDialog";
 
 export type MatrixTask = TaskEvaluation & {
   id: string;
@@ -85,6 +87,7 @@ function QuickMenu({
   onComplete,
   onRevert,
   onScheduleTomorrow,
+  onPartialComplete,
 }: {
   status?: string;
   scheduled: boolean;
@@ -93,6 +96,7 @@ function QuickMenu({
   onComplete: () => void;
   onRevert: () => void;
   onScheduleTomorrow?: () => void;
+  onPartialComplete?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -106,25 +110,25 @@ function QuickMenu({
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
-  // Отметить/снять отметку — переключатель только между PLANNED и DONE. Для
+  // Отметить/снять отметку — переключатель между PLANNED и DONE/PARTIAL. Для
   // "не выполнена"/"перенесена" тут кнопки нет намеренно: снятие статуса там
   // задевает вторую запись (дубликат на другом дне) или данные "Итога дня",
   // это отдельное, более осторожное действие, не однокликовое.
-  const canToggle = status === "PLANNED" || status === "DONE" || status === undefined;
+  const canToggle = status === "PLANNED" || status === "DONE" || status === "PARTIAL" || status === undefined;
 
   return (
     <span className="flex items-center shrink-0">
       {canToggle && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); if (status === "DONE") onRevert(); else onComplete(); }}
+          onClick={(e) => { e.stopPropagation(); if (status === "DONE" || status === "PARTIAL") onRevert(); else onComplete(); }}
           className={`w-7 h-7 flex items-center justify-center rounded ${
-            status === "DONE"
+            status === "DONE" || status === "PARTIAL"
               ? "text-emerald-600 hover:bg-emerald-50"
               : "text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50"
           }`}
-          aria-label={status === "DONE" ? "Вернуть в план" : "Выполнено"}
-          title={status === "DONE" ? "Вернуть в план" : "Отметить выполненной"}
+          aria-label={status === "DONE" || status === "PARTIAL" ? "Вернуть в план" : "Выполнено"}
+          title={status === "DONE" || status === "PARTIAL" ? "Вернуть в план" : "Отметить выполненной"}
         >
           ✓
         </button>
@@ -162,6 +166,15 @@ function QuickMenu({
                 className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
               >
                 Убрать из плана
+              </button>
+            )}
+            {canToggle && onPartialComplete && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setOpen(false); onPartialComplete(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+              >
+                Частично выполнено…
               </button>
             )}
             <button
@@ -372,6 +385,7 @@ function TaskRow({
   selected,
   onToggleSelect,
   groupSize,
+  onPartialComplete,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
@@ -393,6 +407,7 @@ function TaskRow({
   // Балл сравнивать не с чем, если в группе приоритета всего одна задача —
   // тогда число просто шум, а не полезный сигнал.
   groupSize: number;
+  onPartialComplete: () => void;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
   // Балл — уже существующее число, по которому идёт сортировка внутри группы
@@ -509,11 +524,17 @@ function TaskRow({
         {(task.status === "DONE" ||
           task.status === "NOT_DONE" ||
           task.status === "MOVED" ||
+          task.status === "PARTIAL" ||
           task.confidence < LOW_CONFIDENCE_THRESHOLD ||
           flash) && (
           <div className="flex flex-wrap items-center gap-1 text-[11px]">
             {task.status === "DONE" && (
               <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">выполнена</span>
+            )}
+            {task.status === "PARTIAL" && (
+              <span className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                частично{task.movedToDate ? ` · продолжение → ${formatDateRelative(task.movedToDate)}` : ""}
+              </span>
             )}
             {task.status === "NOT_DONE" && (
               <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500">не выполнена</span>
@@ -570,6 +591,7 @@ function TaskRow({
           onComplete={onComplete}
           onRevert={onRevert}
           onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
+          onPartialComplete={onPartialComplete}
         />
       </div>
     </div>
@@ -603,6 +625,7 @@ export default function PriorityMatrix({
   const [laterExpanded, setLaterExpanded] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ task: MatrixTask; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [partialTaskId, setPartialTaskId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const pendingDeleteRef = useRef(pendingDelete);
   useEffect(() => {
@@ -762,6 +785,23 @@ export default function PriorityMatrix({
     return res.ok;
   }
 
+  // Продолжение создаётся на сервере с новым id, которого у нас ещё нет —
+  // проще убрать исходную задачу из вида (как и при обычном "На завтра") и
+  // дать следующей навигации/ревалидации показать новую запись там, где ей
+  // положено быть, чем пытаться на клиенте угадывать её форму.
+  async function handlePartialComplete(input: { doneNote: string | null; remainingNote: string | null; newDateISO: string | null }) {
+    if (!partialTaskId) return;
+    const res = await splitPartialTask(partialTaskId, {
+      doneNote: input.doneNote,
+      remainingNote: input.remainingNote,
+      newDate: input.newDateISO ? parseDateInputValue(input.newDateISO) : null,
+    });
+    if (res.ok) {
+      setItems((prev) => prev.filter((t) => t.id !== partialTaskId));
+      setPartialTaskId(null);
+    }
+  }
+
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -851,6 +891,7 @@ export default function PriorityMatrix({
                 selected={selectedIds.has(t.id)}
                 onToggleSelect={() => toggleSelect(t.id)}
                 groupSize={groups[label].length}
+                onPartialComplete={() => setPartialTaskId(t.id)}
               />
             ))}
           </div>
@@ -895,6 +936,7 @@ export default function PriorityMatrix({
                 selected={selectedIds.has(t.id)}
                 onToggleSelect={() => toggleSelect(t.id)}
                 groupSize={groups.LATER.length}
+                onPartialComplete={() => setPartialTaskId(t.id)}
               />
             ))}
           </div>
@@ -1029,6 +1071,18 @@ export default function PriorityMatrix({
           </button>
         </div>
       )}
+
+      {partialTaskId && (() => {
+        const partialTask = items.find((t) => t.id === partialTaskId);
+        if (!partialTask) return null;
+        return (
+          <PartialCompleteDialog
+            taskText={partialTask.text}
+            onClose={() => setPartialTaskId(null)}
+            onSubmit={handlePartialComplete}
+          />
+        );
+      })()}
     </div>
   );
 }

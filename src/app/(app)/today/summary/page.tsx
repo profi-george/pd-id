@@ -27,7 +27,7 @@ export default async function EveningSummaryPage({
   // Итог можно подводить/поправлять сколько угодно раз за день и после — не только
   // один раз вечером. Если итог уже был сохранён, подставляем прежние значения
   // (а не дефолты), чтобы повторное сохранение не затирало то, что уже было.
-  const [existingDay, tasks, movedTasks] = await Promise.all([
+  const [existingDay, tasks, movedTasks, partialTasks] = await Promise.all([
     prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
     // Весь план этого дня — что ещё не отмечено (PLANNED), что уже отмечено
     // галочкой в течение дня (DONE), и что уже помечено невыполненным (NOT_DONE) —
@@ -42,6 +42,13 @@ export default async function EveningSummaryPage({
     // показываем как факт, без формы: тут уже нечего заполнять.
     prisma.task.findMany({
       where: { userId: user.id, date, status: TaskStatus.MOVED },
+      orderBy: { order: "asc" },
+    }),
+    // Частично сделанные в течение дня (кнопкой "Частично выполнено") — уже
+    // закрыты со своей заметкой, повторно спрашивать "почему не получилось"
+    // здесь не нужно, продолжение живёт отдельной задачей на другом дне.
+    prisma.task.findMany({
+      where: { userId: user.id, date, status: TaskStatus.PARTIAL },
       orderBy: { order: "asc" },
     }),
   ]);
@@ -88,10 +95,29 @@ export default async function EveningSummaryPage({
             ))}
           </div>
         )}
-        {tasks.length === 0 && movedTasks.length === 0 && (
+        {tasks.length === 0 && movedTasks.length === 0 && partialTasks.length === 0 && (
           <p className="text-sm text-neutral-400">
             В этот день план был пуст — подводить особо нечего, но метрики ниже заполнить всё равно можно.
           </p>
+        )}
+
+        {partialTasks.length > 0 && (
+          <div className="space-y-1.5">
+            <h2 className="text-sm font-medium text-neutral-600">Частично выполнено</h2>
+            <ul className="space-y-1">
+              {partialTasks.map((t) => (
+                <li key={t.id} className="text-sm bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  <span className="text-neutral-800">{t.text}</span>
+                  <span className="text-xs text-neutral-500">
+                    {" "}— {t.movedToDate ? `продолжение → ${formatDateHuman(t.movedToDate)}` : "без даты продолжения"}
+                  </span>
+                  {t.whySucceeded && (
+                    <p className="text-xs text-neutral-500 mt-0.5">Сделано: {t.whySucceeded}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {movedTasks.length > 0 && (

@@ -633,7 +633,10 @@ export async function revertTaskStatus(id: string) {
   const user = await requireUser();
   await prisma.task.updateMany({
     where: { id, userId: user.id },
-    data: { status: TaskStatus.PLANNED, score: null, whySucceeded: null, whyFailed: null },
+    // movedToDate тоже сбрасываем — иначе после отмены "частично выполнено"
+    // на карточке осталась бы висеть стрелка на продолжение, которого для
+    // этой записи больше нет.
+    data: { status: TaskStatus.PLANNED, score: null, whySucceeded: null, whyFailed: null, movedToDate: null },
   });
   revalidatePath("/backlog");
   revalidatePath("/today");
@@ -764,6 +767,86 @@ export async function undoMoveTask(id: string): Promise<{ ok: boolean }> {
     where: { id: original.id },
     data: { status: TaskStatus.PLANNED, movedToDate: null },
   });
+
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+  revalidatePath("/today/summary");
+  return { ok: true };
+}
+
+// «Частично выполнено»: задачу сделали не до конца — исходная запись закрывается
+// (статус PARTIAL, что именно сделано — в whySucceeded, том же поле, что и в
+// Итоге дня), а хвост продолжается отдельной новой задачей на выбранный день,
+// с заметкой о том, что осталось. Незавершённые подзадачи переезжают вместе
+// с хвостом — уже отмеченные остаются при исходной записи как часть истории.
+export async function splitPartialTask(
+  id: string,
+  input: { doneNote: string | null; remainingNote: string | null; newDate: Date | null }
+): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id, userId: user.id } });
+  if (!task) return { ok: false };
+
+  if (task.googleEventId) {
+    await deleteCalendarEvent(user.id, task.googleEventId).catch(() => {});
+  }
+
+  await prisma.task.update({
+    where: { id: task.id },
+    data: {
+      status: TaskStatus.PARTIAL,
+      whySucceeded: input.doneNote || null,
+      movedToDate: input.newDate,
+      googleEventId: null,
+      googleEventUrl: null,
+    },
+  });
+
+  const createdTask = await prisma.task.create({
+    data: {
+      text: task.text,
+      resultText: task.resultText,
+      motivationText: task.motivationText,
+      projectId: task.projectId,
+      userId: user.id,
+      value: task.value,
+      costOfDelay: task.costOfDelay,
+      urgency: task.urgency,
+      timeSensitivity: task.timeSensitivity,
+      goalAlignment: task.goalAlignment,
+      effortMinutes: task.effortMinutes,
+      alternativeQuality: task.alternativeQuality,
+      confidence: task.confidence,
+      confidenceReason: task.confidenceReason,
+      deadline: task.deadline,
+      financialConsequence: task.financialConsequence,
+      primaryReason: task.primaryReason,
+      riskText: task.riskText,
+      note: input.remainingNote || task.note || null,
+      aiValue: task.aiValue,
+      aiCostOfDelay: task.aiCostOfDelay,
+      aiUrgency: task.aiUrgency,
+      aiTimeSensitivity: task.aiTimeSensitivity,
+      aiEffortMinutes: task.aiEffortMinutes,
+      aiReasoningValue: task.aiReasoningValue,
+      aiReasoningCostOfDelay: task.aiReasoningCostOfDelay,
+      aiReasoningUrgency: task.aiReasoningUrgency,
+      aiReasoningTimeSensitivity: task.aiReasoningTimeSensitivity,
+      aiReasoningEffort: task.aiReasoningEffort,
+      manualPriority: task.manualPriority,
+      date: input.newDate,
+      status: input.newDate ? TaskStatus.PLANNED : TaskStatus.BACKLOG,
+      order: input.newDate ? initialOrderKey(task) : 0,
+      movedFromTaskId: task.id,
+    },
+  });
+
+  const subtasks = await prisma.subtask.findMany({ where: { taskId: task.id, done: false }, orderBy: { order: "asc" } });
+  if (subtasks.length > 0) {
+    await prisma.subtask.createMany({
+      data: subtasks.map((s) => ({ text: s.text, done: false, order: s.order, taskId: createdTask.id })),
+    });
+  }
 
   revalidatePath("/backlog");
   revalidatePath("/today");
