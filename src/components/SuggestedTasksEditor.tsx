@@ -132,7 +132,11 @@ function PlanPicker({
       {!includeInPlan && (
         <p className="text-[11px] text-neutral-400 mt-1">
           Без даты задача уйдёт в «Задачи» — можно сразу{" "}
-          <button type="button" onClick={() => onChange({ includeInPlan: true, scheduledDate: null })} className="underline hover:text-neutral-600">
+          <button
+            type="button"
+            onClick={() => { onChange({ includeInPlan: true, scheduledDate: null }); setPickingDate(true); }}
+            className="underline hover:text-neutral-600"
+          >
             выбрать день
           </button>.
         </p>

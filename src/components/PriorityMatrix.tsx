@@ -83,6 +83,7 @@ function QuickMenu({
   onUnschedule,
   onComplete,
   onRevert,
+  onScheduleTomorrow,
 }: {
   status?: string;
   scheduled: boolean;
@@ -90,6 +91,7 @@ function QuickMenu({
   onUnschedule: () => void;
   onComplete: () => void;
   onRevert: () => void;
+  onScheduleTomorrow?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -124,6 +126,21 @@ function QuickMenu({
           title={status === "DONE" ? "Вернуть в план" : "Отметить выполненной"}
         >
           ✓
+        </button>
+      )}
+      {canToggle && onScheduleTomorrow && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onScheduleTomorrow(); }}
+          className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-ink-600 hover:bg-neutral-100"
+          aria-label="Перенести на завтра"
+          title="Перенести на завтра"
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1.5" y="3" width="9.5" height="9.5" rx="1.5" />
+            <path d="M1.5 6h9.5M4.25 1.5v3" />
+            <path d="M11 8.5l3 2-3 2" />
+          </svg>
         </button>
       )}
       <span ref={ref} className="relative">
@@ -538,6 +555,7 @@ function TaskRow({
           onUnschedule={onUnschedule}
           onComplete={onComplete}
           onRevert={onRevert}
+          onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
         />
       </div>
     </div>
@@ -950,7 +968,11 @@ export default function PriorityMatrix({
       />
 
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-1.5 shadow-lg flex-wrap justify-center max-w-[calc(100vw-2rem)]">
+        <div
+          className={`fixed left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-1.5 shadow-lg flex-wrap justify-center max-w-[calc(100vw-2rem)] transition-[bottom] ${
+            pendingDelete ? "bottom-20" : "bottom-4"
+          }`}
+        >
           <span className="pr-1.5">{selectedIds.size} {tasksWord(selectedIds.size)}</span>
           <button type="button" onClick={bulkComplete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
             Выполнено

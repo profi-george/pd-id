@@ -825,22 +825,13 @@ export default function TaskDrawer({
             </button>
           )}
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm px-4 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-50"
-            >
-              Отмена
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm px-4 py-2 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700"
-            >
-              Готово
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm px-4 py-2 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700"
+          >
+            Готово
+          </button>
         </div>
       </div>
     </div>
