@@ -24,6 +24,20 @@ export default function KeyboardShortcuts() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Единственная подсказка о клавишах — маленькая "?" в углу — легко не заметить
+  // вовсе. Один раз при первом визите открываем её сами, дальше — как обычно,
+  // по клику; факт показа запоминаем, чтобы не навязывать это каждый раз.
+  useEffect(() => {
+    queueMicrotask(() => {
+      try {
+        if (!localStorage.getItem("pd-id:shortcuts-seen")) {
+          setOpen(true);
+          localStorage.setItem("pd-id:shortcuts-seen", "1");
+        }
+      } catch {}
+    });
+  }, []);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;

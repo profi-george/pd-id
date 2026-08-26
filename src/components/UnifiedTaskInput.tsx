@@ -18,6 +18,30 @@ function getIsMobile(): boolean {
 
 const MAX_TEXTAREA_HEIGHT = 320;
 
+// Черновик живёт только в памяти вкладки — случайно закрытая вкладка или переход
+// по ссылке в сайдбаре стирали работу ИИ и правки без единого предупреждения.
+// Храним в localStorage и восстанавливаем при заходе на страницу; чистим сразу,
+// как только задачи реально сохранены (см. reset()).
+const DRAFT_KEY = "pd-id:add-draft:v1";
+
+type Draft = {
+  history: ChatMessage[];
+  pendingQuestion: string | null;
+  input: string;
+  pendingTasks: AiTaskEvaluation[] | null;
+  reviewTasks: ReviewTask[] | null;
+};
+
+function loadDraft(): Draft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Статичное "Думаю…" не отличить от зависшего запроса — по одной фразе не понять,
 // идёт ли обработка вообще. Смена фразы каждые ~1.6с — самый дешёвый честный сигнал
 // "процесс идёт", без реального прогресс-бара (шагов AI-цепочки мы не знаем заранее).
@@ -50,6 +74,43 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
   const [isSaving, startSaving] = useTransition();
   const thinkingPhrase = useThinkingPhrase(isSending);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+
+  // Восстанавливаем черновик один раз при заходе на страницу — после первого
+  // рендера, чтобы не спорить с серверной разметкой (там localStorage не виден).
+  useEffect(() => {
+    // Обёрнуто в микротаск: это чтение внешнего источника (localStorage) на
+    // старте, а не синхронная реакция на рендер — тот же принцип, что и в
+    // useThinkingPhrase выше, просто через другую механику отложенного вызова.
+    queueMicrotask(() => {
+      const draft = loadDraft();
+      if (draft) {
+        setHistory(draft.history);
+        setPendingQuestion(draft.pendingQuestion);
+        setInput(draft.input);
+        setPendingTasks(draft.pendingTasks);
+        setReviewTasks(draft.reviewTasks);
+      }
+      setDraftLoaded(true);
+    });
+  }, []);
+
+  // Сохраняем черновик при любом изменении — но только после того, как восстановление
+  // отработало, иначе первая же запись пустого состояния затёрла бы ещё не прочитанный черновик.
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const hasDraft = history.length > 0 || Boolean(input.trim()) || Boolean(pendingTasks) || Boolean(reviewTasks);
+    try {
+      if (hasDraft) {
+        localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({ history, pendingQuestion, input, pendingTasks, reviewTasks })
+        );
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch {}
+  }, [draftLoaded, history, pendingQuestion, input, pendingTasks, reviewTasks]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -71,6 +132,7 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
     setPendingTasks(null);
     setReviewTasks(null);
     setError(null);
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
   }
 
   function handleSend() {
@@ -130,8 +192,21 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
     });
   }
 
+  const hasDraft = history.length > 0 || Boolean(input.trim()) || Boolean(pendingTasks) || Boolean(reviewTasks);
+
   return (
     <div className="space-y-4">
+      {hasDraft && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={reset}
+            className="text-xs text-neutral-400 hover:text-red-600 hover:underline"
+          >
+            Очистить черновик и начать заново
+          </button>
+        </div>
+      )}
       {!reviewTasks && (
         <div className="bg-white border border-neutral-200 rounded-xl p-5 space-y-3 shadow-sm">
           <p className="text-base font-medium text-neutral-800">

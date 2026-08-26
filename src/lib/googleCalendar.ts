@@ -142,6 +142,15 @@ async function getValidAccessToken(userId: string): Promise<string> {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    // invalid_grant значит сам refresh-токен мёртв (доступ отозван в Google-аккаунте,
+    // истёк за неактивностью и т.п.) — это не временный сбой, повторные попытки не
+    // помогут. Раньше в этом случае "Настройки" продолжали молча показывать
+    // "подключено", пока не сломается конкретная попытка добавить событие — теперь
+    // сразу чистим сохранённое состояние, чтобы оно не врало о реальном статусе.
+    if (res.status === 400 && /invalid_grant/i.test(body)) {
+      await disconnectGoogle(userId);
+      throw new Error("Google-календарь отключился — переподключите его в настройках.");
+    }
     throw new Error(`Не удалось обновить токен Google (${res.status}): ${body.slice(0, 300)}`);
   }
 

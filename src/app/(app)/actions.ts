@@ -371,6 +371,15 @@ export async function toggleSubtask(id: string, done: boolean) {
   revalidatePath("/today");
 }
 
+export async function renameSubtask(id: string, text: string) {
+  const user = await requireUser();
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  await prisma.subtask.updateMany({ where: { id, task: { userId: user.id } }, data: { text: trimmed } });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
 export async function deleteSubtask(id: string) {
   const user = await requireUser();
   await prisma.subtask.deleteMany({ where: { id, task: { userId: user.id } } });

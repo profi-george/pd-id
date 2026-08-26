@@ -27,6 +27,7 @@ import {
   removeTaskFromGoogleCalendar,
   addSubtask,
   toggleSubtask,
+  renameSubtask,
   deleteSubtask,
 } from "@/app/(app)/actions";
 import TaskDrawer, { type DrawerTask, type SubtaskItem } from "@/components/TaskDrawer";
@@ -370,6 +371,7 @@ function TaskRow({
   onScheduleDate,
   selected,
   onToggleSelect,
+  groupSize,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
@@ -388,6 +390,9 @@ function TaskRow({
   onScheduleDate: (dateISO: string) => void;
   selected: boolean;
   onToggleSelect: () => void;
+  // Балл сравнивать не с чем, если в группе приоритета всего одна задача —
+  // тогда число просто шум, а не полезный сигнал.
+  groupSize: number;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
   // Балл — уже существующее число, по которому идёт сортировка внутри группы
@@ -435,7 +440,7 @@ function TaskRow({
         setDragOver(null);
         if (draggedId) onDropBefore(draggedId, before);
       }}
-      className={`relative border-l-2 ${BORDER_CLASS[color]} flex items-start ${
+      className={`group relative border-l-2 ${BORDER_CLASS[color]} flex items-start ${
         dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
       }`}
     >
@@ -447,7 +452,9 @@ function TaskRow({
           type="checkbox"
           checked={selected}
           onChange={onToggleSelect}
-          className="accent-ink-500"
+          // Тише по умолчанию — редкий сценарий, не должен спорить за внимание
+          // с остальной строкой; проявляется при наведении, фокусе или выборе.
+          className="accent-ink-500 opacity-30 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           aria-label="Выбрать задачу"
         />
       </label>
@@ -540,14 +547,21 @@ function TaskRow({
             {task.primaryReason}
           </p>
         )}
+        {task.note && (
+          <p className="text-xs text-neutral-500 border-l border-neutral-300 pl-2 leading-snug">
+            {task.note}
+          </p>
+        )}
       </div>
       <div className="pt-1.5 pr-1.5 flex items-center gap-1">
-        <span
-          className="text-[10px] tabular-nums text-neutral-300"
-          title="Приоритетный балл — чем выше, тем важнее задача среди других в этой группе"
-        >
-          {scorePercent}
-        </span>
+        {groupSize > 1 && (
+          <span
+            className="text-[10px] tabular-nums text-neutral-300"
+            title="Приоритетный балл — чем выше, тем важнее задача среди других в этой группе"
+          >
+            {scorePercent}
+          </span>
+        )}
         <QuickMenu
           status={task.status}
           scheduled={Boolean(task.date)}
@@ -836,6 +850,7 @@ export default function PriorityMatrix({
                 onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
                 selected={selectedIds.has(t.id)}
                 onToggleSelect={() => toggleSelect(t.id)}
+                groupSize={groups[label].length}
               />
             ))}
           </div>
@@ -879,6 +894,7 @@ export default function PriorityMatrix({
                 onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
                 selected={selectedIds.has(t.id)}
                 onToggleSelect={() => toggleSelect(t.id)}
+                groupSize={groups.LATER.length}
               />
             ))}
           </div>
@@ -955,6 +971,15 @@ export default function PriorityMatrix({
             subtasks: (current.subtasks ?? []).map((s) => (s.id === subtaskId ? { ...s, done } : s)),
           } as Partial<MatrixTask>);
           startTransition(() => { toggleSubtask(subtaskId, done); });
+        }}
+        onRenameSubtask={(subtaskId, text) => {
+          if (!openId) return;
+          const current = items.find((t) => t.id === openId);
+          if (!current) return;
+          patch(openId, {
+            subtasks: (current.subtasks ?? []).map((s) => (s.id === subtaskId ? { ...s, text } : s)),
+          } as Partial<MatrixTask>);
+          startTransition(() => { renameSubtask(subtaskId, text); });
         }}
         onDeleteSubtask={(subtaskId) => {
           if (!openId) return;

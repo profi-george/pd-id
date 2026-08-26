@@ -112,6 +112,72 @@ function IconSparkle({ className }: { className?: string }) {
   );
 }
 
+// Клик по тексту — редактирование на месте, не отдельная форма. Раньше
+// поправить формулировку можно было только удалив и создав заново, теряя
+// сам факт, что этот пункт уже был.
+function SubtaskRow({
+  subtask,
+  onToggle,
+  onDelete,
+  onRename,
+}: {
+  subtask: SubtaskItem;
+  onToggle?: (id: string, done: boolean) => void;
+  onDelete?: (id: string) => void;
+  onRename?: (id: string, text: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(subtask.text);
+
+  function commit() {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== subtask.text) onRename?.(subtask.id, trimmed);
+    else setDraft(subtask.text);
+  }
+
+  return (
+    <li className="flex items-center gap-2 group">
+      <input
+        type="checkbox"
+        checked={subtask.done}
+        onChange={(e) => onToggle?.(subtask.id, e.target.checked)}
+        className="accent-ink-500 shrink-0"
+      />
+      {editing ? (
+        <input
+          type="text"
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setDraft(subtask.text); setEditing(false); }
+          }}
+          className="flex-1 text-sm border border-neutral-300 rounded px-1.5 py-0.5"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => { setDraft(subtask.text); setEditing(true); }}
+          className={`flex-1 text-left text-sm ${subtask.done ? "line-through text-neutral-400" : "text-neutral-700"}`}
+        >
+          {subtask.text}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => onDelete?.(subtask.id)}
+        className="text-neutral-300 hover:text-red-600 opacity-0 group-hover:opacity-100 shrink-0 text-xs px-1"
+        aria-label="Удалить подзадачу"
+      >
+        ×
+      </button>
+    </li>
+  );
+}
+
 function IconChevronDown({ className }: { className?: string }) {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -138,6 +204,7 @@ export default function TaskDrawer({
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
+  onRenameSubtask,
 }: {
   task: DrawerTask | null;
   projectOptions: { id: string; label: string }[];
@@ -156,6 +223,7 @@ export default function TaskDrawer({
   onAddSubtask?: (text: string) => void | Promise<void>;
   onToggleSubtask?: (id: string, done: boolean) => void;
   onDeleteSubtask?: (id: string) => void;
+  onRenameSubtask?: (id: string, text: string) => void;
 }) {
   const [scheduleDate, setScheduleDate] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -483,25 +551,13 @@ export default function TaskDrawer({
             {task.subtasks && task.subtasks.length > 0 && (
               <ul className="space-y-1 mb-2">
                 {task.subtasks.map((s) => (
-                  <li key={s.id} className="flex items-center gap-2 group">
-                    <input
-                      type="checkbox"
-                      checked={s.done}
-                      onChange={(e) => onToggleSubtask?.(s.id, e.target.checked)}
-                      className="accent-ink-500 shrink-0"
-                    />
-                    <span className={`flex-1 text-sm ${s.done ? "line-through text-neutral-400" : "text-neutral-700"}`}>
-                      {s.text}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteSubtask?.(s.id)}
-                      className="text-neutral-300 hover:text-red-600 opacity-0 group-hover:opacity-100 shrink-0 text-xs px-1"
-                      aria-label="Удалить подзадачу"
-                    >
-                      ×
-                    </button>
-                  </li>
+                  <SubtaskRow
+                    key={s.id}
+                    subtask={s}
+                    onToggle={onToggleSubtask}
+                    onDelete={onDeleteSubtask}
+                    onRename={onRenameSubtask}
+                  />
                 ))}
               </ul>
             )}
