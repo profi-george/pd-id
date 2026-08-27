@@ -9,12 +9,12 @@ import {
   type PriorityLabel,
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
-import { todayDate, tomorrowDate, sameDate, formatDateHuman } from "@/lib/dates";
+import { todayDate, tomorrowDate, sameDate, formatDateHuman, formatDateRelative } from "@/lib/dates";
 import { CRITERIA_INFO, type CriterionKey } from "@/lib/criteriaInfo";
 import CriterionInfo from "@/components/CriterionInfo";
 import { recalculatePriority, answerConfidenceQuestion } from "@/app/(app)/actions";
 
-export type SubtaskItem = { id: string; text: string; done: boolean };
+export type SubtaskItem = { id: string; text: string; done: boolean; date?: Date | null };
 
 export type DrawerTask = TaskEvaluation & {
   id: string;
@@ -115,16 +115,60 @@ function IconSparkle({ className }: { className?: string }) {
 // Клик по тексту — редактирование на месте, не отдельная форма. Раньше
 // поправить формулировку можно было только удалив и создав заново, теряя
 // сам факт, что этот пункт уже был.
+// Своя дата у шага — не открывает попап, просто переключает "текст" на нативный
+// date-инпут на месте: реже нужное действие не заслуживает отдельного диалога.
+function SubtaskDateControl({
+  date,
+  onChange,
+}: {
+  date: Date | null | undefined;
+  onChange: (dateISO: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <input
+        type="date"
+        autoFocus
+        defaultValue={date ? toDateInput(date) : ""}
+        onChange={(e) => { onChange(e.target.value || null); setEditing(false); }}
+        onBlur={() => setEditing(false)}
+        className="text-xs border border-neutral-300 rounded px-1 py-0.5 shrink-0"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className={`shrink-0 text-xs whitespace-nowrap ${
+        date
+          ? "text-ink-600"
+          // Базово чуть видна (не opacity-0) — иначе на тач-экране до кнопки
+          // не добраться вообще, наведения мышью там не бывает.
+          : "text-neutral-300 opacity-40 group-hover:opacity-100 focus-visible:opacity-100"
+      }`}
+      aria-label={date ? `Дата шага: ${formatDateRelative(date)}. Изменить` : "Назначить дату шагу"}
+    >
+      {date ? formatDateRelative(date) : "+ дата"}
+    </button>
+  );
+}
+
 function SubtaskRow({
   subtask,
   onToggle,
   onDelete,
   onRename,
+  onScheduleDate,
 }: {
   subtask: SubtaskItem;
   onToggle?: (id: string, done: boolean) => void;
   onDelete?: (id: string) => void;
   onRename?: (id: string, text: string) => void;
+  onScheduleDate?: (id: string, dateISO: string | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(subtask.text);
@@ -161,15 +205,21 @@ function SubtaskRow({
         <button
           type="button"
           onClick={() => { setDraft(subtask.text); setEditing(true); }}
-          className={`flex-1 text-left text-sm ${subtask.done ? "line-through text-neutral-400" : "text-neutral-700"}`}
+          className={`flex-1 min-w-0 truncate text-left text-sm ${subtask.done ? "line-through text-neutral-400" : "text-neutral-700"}`}
         >
           {subtask.text}
         </button>
       )}
+      {onScheduleDate && (
+        <SubtaskDateControl
+          date={subtask.date}
+          onChange={(dateISO) => onScheduleDate(subtask.id, dateISO)}
+        />
+      )}
       <button
         type="button"
         onClick={() => onDelete?.(subtask.id)}
-        className="text-neutral-300 hover:text-red-600 opacity-0 group-hover:opacity-100 shrink-0 text-xs px-1"
+        className="text-neutral-300 hover:text-red-600 opacity-40 group-hover:opacity-100 focus-visible:opacity-100 shrink-0 text-xs px-1"
         aria-label="Удалить подзадачу"
       >
         ×
@@ -205,6 +255,7 @@ export default function TaskDrawer({
   onToggleSubtask,
   onDeleteSubtask,
   onRenameSubtask,
+  onScheduleSubtask,
 }: {
   task: DrawerTask | null;
   projectOptions: { id: string; label: string }[];
@@ -224,8 +275,10 @@ export default function TaskDrawer({
   onToggleSubtask?: (id: string, done: boolean) => void;
   onDeleteSubtask?: (id: string) => void;
   onRenameSubtask?: (id: string, text: string) => void;
+  onScheduleSubtask?: (id: string, dateISO: string | null) => void;
 }) {
   const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calTime, setCalTime] = useState("09:00");
   const [calSaving, setCalSaving] = useState(false);
@@ -258,6 +311,7 @@ export default function TaskDrawer({
     setConfidenceAnswer("");
     setConfidenceError(null);
     setShowDatePicker(false);
+    setScheduleTime("");
     setCalError(null);
     setNewSubtask("");
   }
@@ -265,6 +319,16 @@ export default function TaskDrawer({
   useEffect(() => {
     return () => { if (savedTimer.current) clearTimeout(savedTimer.current); };
   }, []);
+
+  // Название растёт по содержимому — иначе длинный AI-сгенерированный текст
+  // обрезается внутри одной строки, а браузер добавляет собственные стрелки
+  // прокрутки внутри поля вместо того, чтобы просто показать вторую строку.
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [task?.text]);
 
   function flashSaved() {
     setSaved(true);
@@ -364,6 +428,23 @@ export default function TaskDrawer({
     if (!res.ok) setCalError(res.error ?? "Не удалось добавить событие.");
   }
 
+  // Перенос на произвольную дату — день задачи и время в Google Calendar это
+  // раньше были два отдельных шага (сначала "Выбрать дату", потом отдельно
+  // включить чекбокс календаря). Если время уже указано тут же, применяем оба
+  // сразу одним действием.
+  async function handleConfirmCustomDate() {
+    if (!scheduleDate || !task) return;
+    onScheduleDate?.(scheduleDate);
+    flashSaved();
+    if (googleConnected && scheduleTime && onAddToCalendar) {
+      setCalSaving(true);
+      setCalError(null);
+      const res = await onAddToCalendar(scheduleDate, scheduleTime, task.effortMinutes);
+      setCalSaving(false);
+      if (!res.ok) setCalError(res.error ?? "Не удалось добавить событие.");
+    }
+  }
+
   function handleToggleCalendar(checked: boolean) {
     if (checked) {
       handleAddToCalendar();
@@ -448,13 +529,13 @@ export default function TaskDrawer({
 
           <div>
             <label className="block text-xs text-neutral-500 mb-1.5">Приоритет</label>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               {MAIN_LABELS.map((l) => (
                 <button
                   key={l}
                   type="button"
                   onClick={() => handleManualPriority(l === aiLabel && !isManual ? null : l)}
-                  className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl border ${
+                  className={`flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl border ${
                     label === l
                       ? "bg-neutral-800 text-white border-neutral-800"
                       : "border-neutral-300 hover:bg-neutral-50"
@@ -482,113 +563,6 @@ export default function TaskDrawer({
               Вернуть оценку AI
             </button>
           </p>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <span className="block text-xs text-neutral-500 mb-1.5">Время выполнения</span>
-            <div className="flex items-center gap-2 border border-neutral-300 rounded-xl px-3 py-2.5">
-              <IconClock className="text-neutral-400 shrink-0" />
-              <input
-                type="number"
-                min={5}
-                step={5}
-                value={task.effortMinutes}
-                onChange={(e) => handleChangeField({ effortMinutes: Number(e.target.value) })}
-                className="flex-1 min-w-0 border-none outline-none bg-transparent text-sm"
-              />
-              <span className="text-xs text-neutral-400 shrink-0">мин</span>
-            </div>
-            <span className="block text-xs text-neutral-400 mt-1">
-              {effortChanged ? `AI: ${formatEffort(effortAi!)}` : effortSource === "введено вами" ? "введено вами" : "оценка AI"}
-            </span>
-          </div>
-          <div>
-            <span className="block text-xs text-neutral-500 mb-1.5">Дедлайн</span>
-            <div className="flex items-center gap-2 border border-neutral-300 rounded-xl px-3 py-2.5">
-              <IconCalendar className="text-neutral-400 shrink-0" />
-              <input
-                type="date"
-                value={task.deadline ? toDateInput(task.deadline) : ""}
-                onChange={(e) => handleChangeField({ deadline: e.target.value ? new Date(e.target.value) : null })}
-                className="flex-1 min-w-0 border-none outline-none bg-transparent text-sm"
-              />
-              {task.deadline && (
-                <button
-                  type="button"
-                  onClick={() => handleChangeField({ deadline: null })}
-                  className="text-neutral-400 hover:text-neutral-700 shrink-0"
-                  aria-label="Убрать дедлайн"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs text-neutral-500 mb-1.5">Заметка — как подступиться, что учесть</label>
-          <textarea
-            value={task.note ?? ""}
-            onChange={(e) => handleChangeField({ note: e.target.value || null })}
-            rows={2}
-            placeholder="Например: начать с черновика письма, а не сразу звонить"
-            className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm resize-none"
-          />
-        </div>
-
-        {(onAddSubtask || (task.subtasks && task.subtasks.length > 0)) && (
-          <div>
-            <label className="flex items-center justify-between text-xs text-neutral-500 mb-1.5">
-              <span>Подзадачи</span>
-              {task.subtasks && task.subtasks.length > 0 && (
-                <span className="tabular-nums">
-                  {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
-                </span>
-              )}
-            </label>
-            {task.subtasks && task.subtasks.length > 0 && (
-              <ul className="space-y-1 mb-2">
-                {task.subtasks.map((s) => (
-                  <SubtaskRow
-                    key={s.id}
-                    subtask={s}
-                    onToggle={onToggleSubtask}
-                    onDelete={onDeleteSubtask}
-                    onRename={onRenameSubtask}
-                  />
-                ))}
-              </ul>
-            )}
-            {onAddSubtask && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const text = newSubtask.trim();
-                  if (!text) return;
-                  onAddSubtask(text);
-                  setNewSubtask("");
-                }}
-                className="flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={newSubtask}
-                  onChange={(e) => setNewSubtask(e.target.value)}
-                  placeholder="+ Добавить подзадачу"
-                  className="flex-1 border border-neutral-300 rounded-lg px-2.5 py-1.5 text-sm placeholder:text-neutral-400"
-                />
-                <button
-                  type="submit"
-                  disabled={!newSubtask.trim()}
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
-                >
-                  Добавить
-                </button>
-              </form>
-            )}
-          </div>
         )}
 
         <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 space-y-2">
@@ -768,6 +742,113 @@ export default function TaskDrawer({
           </div>
         </div>
 
+        <div>
+          <span className="block text-xs text-neutral-500 mb-1.5">Время выполнения</span>
+          <div className="flex items-center gap-2 border border-neutral-300 rounded-xl px-3 py-2.5 max-w-[12rem]">
+            <IconClock className="text-neutral-400 shrink-0" />
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={task.effortMinutes}
+              onChange={(e) => handleChangeField({ effortMinutes: Number(e.target.value) })}
+              className="flex-1 min-w-0 border-none outline-none bg-transparent text-sm"
+            />
+            <span className="text-xs text-neutral-400 shrink-0">мин</span>
+          </div>
+          <span className="block text-xs text-neutral-400 mt-1">
+            {effortChanged ? `AI: ${formatEffort(effortAi!)}` : effortSource === "введено вами" ? "введено вами" : "оценка AI"}
+          </span>
+        </div>
+
+        {(onAddSubtask || (task.subtasks && task.subtasks.length > 0)) && (
+          <div>
+            <label className="flex items-center justify-between text-xs text-neutral-500 mb-1.5">
+              <span>Подзадачи</span>
+              {task.subtasks && task.subtasks.length > 0 && (
+                <span className="tabular-nums">
+                  {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
+                </span>
+              )}
+            </label>
+            {task.subtasks && task.subtasks.length > 0 && (
+              <ul className="space-y-1 mb-2">
+                {task.subtasks.map((s) => (
+                  <SubtaskRow
+                    key={s.id}
+                    subtask={s}
+                    onToggle={onToggleSubtask}
+                    onDelete={onDeleteSubtask}
+                    onRename={onRenameSubtask}
+                    onScheduleDate={onScheduleSubtask}
+                  />
+                ))}
+              </ul>
+            )}
+            {onAddSubtask && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const text = newSubtask.trim();
+                  if (!text) return;
+                  onAddSubtask(text);
+                  setNewSubtask("");
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  value={newSubtask}
+                  onChange={(e) => setNewSubtask(e.target.value)}
+                  placeholder="+ Добавить подзадачу"
+                  className="flex-1 border border-neutral-300 rounded-lg px-2.5 py-1.5 text-sm placeholder:text-neutral-400"
+                />
+                <button
+                  type="submit"
+                  disabled={!newSubtask.trim()}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
+                >
+                  Добавить
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs text-neutral-500 mb-1.5">Заметка — как подступиться, что учесть</label>
+          <textarea
+            value={task.note ?? ""}
+            onChange={(e) => handleChangeField({ note: e.target.value || null })}
+            rows={2}
+            placeholder="Например: начать с черновика письма, а не сразу звонить"
+            className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm resize-none"
+          />
+        </div>
+
+        <div>
+          <span className="block text-xs text-neutral-500 mb-1.5">Дедлайн</span>
+          <div className="flex items-center gap-2 border border-neutral-300 rounded-xl px-3 py-2.5 max-w-xs">
+            <IconCalendar className="text-neutral-400 shrink-0" />
+            <input
+              type="date"
+              value={task.deadline ? toDateInput(task.deadline) : ""}
+              onChange={(e) => handleChangeField({ deadline: e.target.value ? new Date(e.target.value) : null })}
+              className="flex-1 min-w-0 border-none outline-none bg-transparent text-sm"
+            />
+            {task.deadline && (
+              <button
+                type="button"
+                onClick={() => handleChangeField({ deadline: null })}
+                className="text-neutral-400 hover:text-neutral-700 shrink-0"
+                aria-label="Убрать дедлайн"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </div>
+
         {(onScheduleToday || onScheduleTomorrow || onScheduleDate) && (
           <div>
             <label className="block text-xs text-neutral-500 mb-1.5">Когда выполнить</label>
@@ -807,20 +888,34 @@ export default function TaskDrawer({
               )}
             </div>
             {onScheduleDate && (showDatePicker || isCustomDate) && (
-              <div className="flex gap-2 mt-2">
-                <input
-                  type="date"
-                  value={scheduleDate}
-                  onChange={(e) => setScheduleDate(e.target.value)}
-                  className="flex-1 border border-neutral-300 rounded-xl px-3 py-2 text-sm"
-                />
-                <button
-                  onClick={() => { if (scheduleDate) { onScheduleDate(scheduleDate); flashSaved(); } }}
-                  disabled={!scheduleDate}
-                  className="text-sm px-3 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
-                >
-                  На дату
-                </button>
+              <div className="space-y-1 mt-2">
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    className="flex-1 min-w-[9rem] border border-neutral-300 rounded-xl px-3 py-2 text-sm"
+                  />
+                  {googleConnected && (
+                    <input
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      title="Необязательно — если указать, сразу создаст событие в Google Календаре на это время"
+                      className="w-24 border border-neutral-300 rounded-xl px-2 py-2 text-sm"
+                    />
+                  )}
+                  <button
+                    onClick={handleConfirmCustomDate}
+                    disabled={!scheduleDate || calSaving}
+                    className="text-sm px-3 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
+                  >
+                    {calSaving ? "Сохраняю…" : "На дату"}
+                  </button>
+                </div>
+                {googleConnected && (
+                  <p className="text-[11px] text-neutral-400">Время — необязательно, добавит событие в Google Календарь</p>
+                )}
               </div>
             )}
           </div>

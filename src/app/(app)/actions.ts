@@ -398,6 +398,16 @@ export async function deleteSubtask(id: string) {
   revalidatePath("/today");
 }
 
+// Своя дата у подзадачи — независимо от даты родительской задачи (например,
+// один шаг уже сделан сегодня, другой отложен на конкретный день).
+export async function scheduleSubtask(id: string, dateISO: string | null) {
+  const user = await requireUser();
+  const date = dateISO ? parseDateInputValue(dateISO) : null;
+  await prisma.subtask.updateMany({ where: { id, task: { userId: user.id } }, data: { date } });
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
 export async function setManualPriority(taskId: string, label: string | null) {
   const user = await requireUser();
   if (label !== null && !isPriorityLabel(label)) return;
@@ -745,7 +755,7 @@ async function relocateTask(
 
   if (subtasks.length > 0) {
     await prisma.subtask.createMany({
-      data: subtasks.map((s) => ({ text: s.text, done: s.done, order: s.order, taskId: createdTask.id })),
+      data: subtasks.map((s) => ({ text: s.text, done: s.done, order: s.order, date: s.date, taskId: createdTask.id })),
     });
   }
 }
@@ -855,7 +865,7 @@ export async function splitPartialTask(
   const subtasks = await prisma.subtask.findMany({ where: { taskId: task.id, done: false }, orderBy: { order: "asc" } });
   if (subtasks.length > 0) {
     await prisma.subtask.createMany({
-      data: subtasks.map((s) => ({ text: s.text, done: false, order: s.order, taskId: createdTask.id })),
+      data: subtasks.map((s) => ({ text: s.text, done: false, order: s.order, date: s.date, taskId: createdTask.id })),
     });
   }
 

@@ -29,6 +29,7 @@ import {
   toggleSubtask,
   renameSubtask,
   deleteSubtask,
+  scheduleSubtask,
   splitPartialTask,
 } from "@/app/(app)/actions";
 import TaskDrawer, { type DrawerTask, type SubtaskItem } from "@/components/TaskDrawer";
@@ -1112,6 +1113,16 @@ export default function PriorityMatrix({
             subtasks: (current.subtasks ?? []).filter((s) => s.id !== subtaskId),
           } as Partial<MatrixTask>);
           startTransition(() => { deleteSubtask(subtaskId); });
+        }}
+        onScheduleSubtask={(subtaskId, dateISO) => {
+          if (!openId) return;
+          const current = items.find((t) => t.id === openId);
+          if (!current) return;
+          const date = dateISO ? parseDateInputValue(dateISO) : null;
+          patch(openId, {
+            subtasks: (current.subtasks ?? []).map((s) => (s.id === subtaskId ? { ...s, date } : s)),
+          } as Partial<MatrixTask>);
+          startTransition(() => { scheduleSubtask(subtaskId, dateISO); });
         }}
       />
 

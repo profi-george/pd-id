@@ -125,13 +125,14 @@ model Task {
 // критериев/AI-оценки, только текст и галочка "сделано". Отдельная модель, а не
 // self-relation на Task — не нагружаем чек-лист тридцатью полями, которые ему не нужны.
 model Subtask {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   text      String
-  done      Boolean  @default(false)
-  order     Int      @default(0)
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  done      Boolean   @default(false)
+  order     Int       @default(0)
+  date      DateTime? // свой день у шага, независимо от даты родительской задачи
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   taskId    String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 }
 
 model AppSettings {
