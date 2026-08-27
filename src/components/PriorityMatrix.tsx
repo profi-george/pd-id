@@ -77,7 +77,7 @@ const BORDER_CLASS: Record<PriorityLabel, string> = {
   LATER: "border-l-neutral-200",
 };
 
-const LATER_PREVIEW = 3;
+const GROUP_PREVIEW = 3;
 
 function QuickMenu({
   status,
@@ -88,6 +88,7 @@ function QuickMenu({
   onRevert,
   onScheduleTomorrow,
   onPartialComplete,
+  hideCheckToggle = false,
 }: {
   status?: string;
   scheduled: boolean;
@@ -97,6 +98,9 @@ function QuickMenu({
   onRevert: () => void;
   onScheduleTomorrow?: () => void;
   onPartialComplete?: () => void;
+  // На hero-карточке ("Сейчас") отметка о выполнении уже есть отдельной крупной
+  // кнопкой в теле карточки — второй маленький ✓ в этом меню был бы дублем.
+  hideCheckToggle?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -118,7 +122,7 @@ function QuickMenu({
 
   return (
     <span className="flex items-center shrink-0">
-      {canToggle && (
+      {canToggle && !hideCheckToggle && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); if (status === "DONE" || status === "PARTIAL") onRevert(); else onComplete(); }}
@@ -385,6 +389,7 @@ function TaskRow({
   selected,
   onToggleSelect,
   onPartialComplete,
+  hero = false,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
@@ -404,6 +409,9 @@ function TaskRow({
   selected: boolean;
   onToggleSelect: () => void;
   onPartialComplete: () => void;
+  // Карточка "Сейчас" наверху экрана дня: крупная кнопка выполнения и балл
+  // приоритета видны сразу, без похода в детали задачи.
+  hero?: boolean;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
   // Быстрые правки прямо в списке (приоритет/проект/дата) иначе проходят молча —
@@ -565,8 +573,31 @@ function TaskRow({
             {task.note}
           </p>
         )}
+        {hero && (task.status === "PLANNED" || task.status === undefined || task.status === "DONE" || task.status === "PARTIAL") && (
+          <div className="pt-1.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => { if (task.status === "DONE" || task.status === "PARTIAL") onRevert(); else onComplete(); }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                task.status === "DONE" || task.status === "PARTIAL"
+                  ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  : "bg-neutral-900 text-white hover:bg-neutral-800"
+              }`}
+            >
+              {task.status === "DONE" || task.status === "PARTIAL" ? "✓ Выполнено — вернуть в план" : "Выполнить"}
+            </button>
+          </div>
+        )}
       </div>
       <div className="pt-1.5 pr-1.5 flex items-center gap-1">
+        {hero && (
+          <span
+            className="mr-0.5 w-9 h-9 rounded-full border-2 border-ink-400 bg-white flex items-center justify-center text-ink-700 shrink-0 tabular-nums"
+            title="Приоритетный балл"
+          >
+            <span className="text-xs font-bold leading-none">{computePriority(task).scorePercent}</span>
+          </span>
+        )}
         <QuickMenu
           status={task.status}
           scheduled={Boolean(task.date)}
@@ -576,6 +607,7 @@ function TaskRow({
           onRevert={onRevert}
           onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
           onPartialComplete={onPartialComplete}
+          hideCheckToggle={hero}
         />
       </div>
     </div>
@@ -611,7 +643,12 @@ export default function PriorityMatrix({
   const [items, setItems] = useState(tasks);
   const [prevTasks, setPrevTasks] = useState(tasks);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [laterExpanded, setLaterExpanded] = useState(false);
+  // Раскрытие длинного хвоста списка — своё для каждой группы приоритета (и LATER),
+  // чтобы разворачивание одной группы не разворачивало остальные.
+  const [expandedGroups, setExpandedGroups] = useState<Set<PriorityLabel>>(new Set());
+  // Какая из групп P0–P3 сейчас показана под "Сейчас" — вкладки вместо сплошного
+  // стека секций, чтобы не вываливать все активные задачи разом (Hick's law).
+  const [activeLabelState, setActiveLabelState] = useState<PriorityLabel | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ task: MatrixTask; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [partialTaskId, setPartialTaskId] = useState<string | null>(null);
@@ -659,6 +696,21 @@ export default function PriorityMatrix({
       const found = groups[label].find((t) => t.status === "PLANNED" || t.status === undefined);
       if (found) { topTask = found; break; }
     }
+  }
+
+  // Вкладки под "Сейчас" — только те группы, где после выноса hero-задачи ещё
+  // что-то осталось. Если активная вкладка опустела (задачу выполнили/перенесли),
+  // само выражение съезжает на первую непустую, без лишнего useEffect.
+  const nonEmptyLabels = COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id));
+  const activeLabel = activeLabelState && nonEmptyLabels.includes(activeLabelState) ? activeLabelState : nonEmptyLabels[0] ?? null;
+
+  function toggleGroupExpanded(label: PriorityLabel) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
   }
 
   function patch(id: string, p: Partial<MatrixTask>) {
@@ -845,16 +897,21 @@ export default function PriorityMatrix({
   const openTask = items.find((t) => t.id === openId) ?? null;
   const drawerTask: DrawerTask | null = openTask ? { ...openTask } : null;
 
-  const laterVisible = laterExpanded ? groups.LATER : groups.LATER.slice(0, LATER_PREVIEW);
+  const laterExpanded = expandedGroups.has("LATER");
+  const laterVisible = laterExpanded ? groups.LATER : groups.LATER.slice(0, GROUP_PREVIEW);
+  const activeGroupTasks = activeLabel ? groups[activeLabel].filter((t) => t.id !== topTask?.id) : [];
+  const activeGroupExpanded = activeLabel ? expandedGroups.has(activeLabel) : false;
+  const activeGroupVisible = activeGroupExpanded ? activeGroupTasks : activeGroupTasks.slice(0, GROUP_PREVIEW);
 
   // Общий рендер строки — переиспользуется и для "Сейчас" наверху, и для обычных
   // групп ниже, чтобы вся логика строки (клики, drag, быстрые правки) жила в одном месте.
-  function renderRow(t: MatrixTask, label: PriorityLabel) {
+  function renderRow(t: MatrixTask, label: PriorityLabel, hero = false) {
     return (
       <TaskRow
         key={t.id}
         task={t}
         color={label}
+        hero={hero}
         onOpen={() => setOpenId(t.id)}
         onDropBefore={(draggedId, before) => moveTask(label, t.id, before, draggedId)}
         onDelete={() => handleDeleteRequest(t.id)}
@@ -885,32 +942,65 @@ export default function PriorityMatrix({
         <div>
           <p className="text-xs font-semibold text-ink-600 uppercase tracking-wide px-1 mb-1.5">Сейчас</p>
           <div className="border-2 border-ink-500 bg-ink-50/50 rounded-xl overflow-hidden">
-            {renderRow(topTask, computePriority(topTask).label)}
+            {renderRow(topTask, computePriority(topTask).label, true)}
           </div>
         </div>
       )}
 
-      {COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
-        <div key={label}>
-          <div className="flex items-center gap-1.5 px-1 mb-1.5">
-            <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
-            <p className="text-xs font-semibold text-neutral-600">
-              {PRIORITY_LABEL_TEXT[label]} · {groups[label].length}
-            </p>
-          </div>
+      {activeLabel && (
+        <div>
+          {nonEmptyLabels.length > 1 ? (
+            <div className="flex items-center gap-1.5 px-1 mb-1.5 flex-wrap">
+              {nonEmptyLabels.map((label) => {
+                const count = groups[label].filter((t) => t.id !== topTask?.id).length;
+                const active = label === activeLabel;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setActiveLabelState(label)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${
+                      active
+                        ? "bg-neutral-800 border-neutral-800 text-white"
+                        : "border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${active ? "bg-white" : DOT_CLASS[label]}`} />
+                    {PRIORITY_LABEL_TEXT[label]} · {count}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-1 mb-1.5">
+              <span className={`w-2 h-2 rounded-full ${DOT_CLASS[activeLabel]}`} />
+              <p className="text-xs font-semibold text-neutral-600">
+                {PRIORITY_LABEL_TEXT[activeLabel]} · {activeGroupTasks.length}
+              </p>
+            </div>
+          )}
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
               const draggedId = e.dataTransfer.getData("text/plain");
-              if (draggedId) moveTask(label, null, false, draggedId);
+              if (draggedId) moveTask(activeLabel, null, false, draggedId);
             }}
             className="divide-y divide-neutral-100 bg-white border border-neutral-200 rounded-xl overflow-hidden"
           >
-            {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
+            {activeGroupVisible.map((t) => renderRow(t, activeLabel))}
           </div>
+          {activeGroupTasks.length > GROUP_PREVIEW && (
+            <button
+              type="button"
+              onClick={() => toggleGroupExpanded(activeLabel)}
+              className="text-xs text-neutral-400 hover:text-neutral-700 px-1 mt-1"
+            >
+              {activeGroupExpanded ? "Свернуть" : `Показать ещё ${activeGroupTasks.length - GROUP_PREVIEW} →`}
+            </button>
+          )}
         </div>
-      ))}
+      )}
 
       {groups.LATER.length > 0 && (
         <div>
@@ -931,13 +1021,13 @@ export default function PriorityMatrix({
           >
             {laterVisible.map((t) => renderRow(t, "LATER"))}
           </div>
-          {groups.LATER.length > LATER_PREVIEW && (
+          {groups.LATER.length > GROUP_PREVIEW && (
             <button
               type="button"
-              onClick={() => setLaterExpanded((v) => !v)}
+              onClick={() => toggleGroupExpanded("LATER")}
               className="text-xs text-neutral-400 hover:text-neutral-700 px-1 mt-1"
             >
-              {laterExpanded ? "Свернуть" : `Показать ещё ${groups.LATER.length - LATER_PREVIEW} →`}
+              {laterExpanded ? "Свернуть" : `Показать ещё ${groups.LATER.length - GROUP_PREVIEW} →`}
             </button>
           )}
         </div>

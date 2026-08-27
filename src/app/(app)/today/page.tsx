@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, addDays, sameDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
+import { todayDate, addDays, sameDate, formatDateHuman, formatDateHumanFull, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
@@ -163,7 +163,7 @@ export default async function TodayPage({
           <h1 className="text-xl font-display font-bold">
             {isToday ? "Сегодня" : "План дня"}
           </h1>
-          <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
+          <p className="text-sm text-neutral-500">{formatDateHumanFull(date)}</p>
           {planned.length > 0 && (
             <p className="text-xs text-neutral-400 mt-0.5">
               {planned.length} {tasksWord(planned.length)}

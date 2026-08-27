@@ -48,6 +48,12 @@ export function formatDateHuman(d: Date): string {
   });
 }
 
+// С днём недели — для заголовка экрана дня, где это первое, что видно на странице.
+export function formatDateHumanFull(d: Date): string {
+  const weekday = d.toLocaleDateString("ru-RU", { weekday: "long", timeZone: "UTC" });
+  return `${formatDateHuman(d)}, ${weekday}`;
+}
+
 // Человекочитаемая дата для мест, где важна не столько точная дата, сколько
 // "далеко/близко" — Сегодня/Завтра/Вчера, иначе короткое "26 августа" (год —
 // только если не текущий). Сырой ISO (2026-08-25) не должен быть тем, что видит
