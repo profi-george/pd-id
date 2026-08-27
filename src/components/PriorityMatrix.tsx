@@ -455,7 +455,7 @@ function TaskRow({
         setDragOver(null);
         if (draggedId) onDropBefore(draggedId, before);
       }}
-      className={`group relative border-l-2 ${BORDER_CLASS[color]} flex items-start ${
+      className={`group relative border-l-2 ${hero ? "border-l-transparent" : BORDER_CLASS[color]} flex items-start ${
         dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
       }`}
     >
