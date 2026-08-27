@@ -108,6 +108,17 @@ export async function renameProject(id: string, formData: FormData) {
   revalidatePath("/today");
 }
 
+// Приоритет проекта — небольшой модификатор в priorityEngine (см. PROJECT_PRIORITY_MOD),
+// не отдельная система приоритизации. null = нейтрально, как будто не задан.
+export async function setProjectPriority(id: string, priority: string | null) {
+  const user = await requireUser();
+  if (priority !== null && !isPriorityLabel(priority)) return;
+  await prisma.project.updateMany({ where: { id, userId: user.id }, data: { priority } });
+  revalidatePath("/projects");
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
 export async function deleteProject(id: string) {
   const user = await requireUser();
   await prisma.project.deleteMany({ where: { id, userId: user.id } });
@@ -916,10 +927,24 @@ export async function submitEveningForm(formData: FormData) {
   const whyWorked = str(formData, "whyWorked") || null;
   const whyNotWorked = str(formData, "whyNotWorked") || null;
 
+  const cycleDayRaw = str(formData, "cycleDay");
+  const cycleDay = cycleDayRaw === "" ? null : Number(cycleDayRaw);
+  const hadConflict = str(formData, "hadConflict") === "yes";
+  // "С кем"/"из-за чего" заполняются только при hadConflict=true — при "Нет"
+  // не сохраняем их, даже если в скрытых полях что-то осталось от прошлого раза.
+  const conflictWith = hadConflict ? str(formData, "conflictWith") || null : null;
+  const conflictAbout = hadConflict ? str(formData, "conflictAbout") || null : null;
+
   await prisma.day.upsert({
     where: { userId_date: { userId: user.id, date } },
-    create: { userId: user.id, date, conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked },
-    update: { conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked },
+    create: {
+      userId: user.id, date, conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked,
+      cycleDay, hadConflict, conflictWith, conflictAbout,
+    },
+    update: {
+      conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked,
+      cycleDay, hadConflict, conflictWith, conflictAbout,
+    },
   });
 
   // PLANNED (ещё не отмечены) + DONE (отмечены галочкой в течение дня раньше) —

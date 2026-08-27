@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }),
   ]);
 
-  const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }));
+  const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, priority: p.priority }));
   const byId = new Map(projectNodes.map((p) => [p.id, p]));
 
   // "Задачи" по умолчанию показывает весь активный объём (бэклог + то, что уже

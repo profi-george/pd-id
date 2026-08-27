@@ -7,6 +7,7 @@ import EveningTaskRow from "@/components/EveningTaskRow";
 import EveningSummaryCounter from "@/components/EveningSummaryCounter";
 import UndoMoveButton from "@/components/UndoMoveButton";
 import EveningSubmitButton from "@/components/EveningSubmitButton";
+import DayContextFields from "@/components/DayContextFields";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -160,6 +161,13 @@ export default async function EveningSummaryPage({
             </div>
           ))}
         </div>
+
+        <DayContextFields
+          cycleDay={existingDay?.cycleDay ?? null}
+          hadConflict={existingDay?.hadConflict ?? null}
+          conflictWith={existingDay?.conflictWith ?? null}
+          conflictAbout={existingDay?.conflictAbout ?? null}
+        />
 
         <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
           <h2 className="text-sm font-medium text-neutral-600">Почему так вышло</h2>

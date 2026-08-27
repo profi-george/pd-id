@@ -161,6 +161,23 @@ export default async function HistoryPage({
                     {day?.efficiency != null && <> · эффективность {day.efficiency}/10</>}
                   </p>
                 )}
+                {day && (day.cycleDay != null || day.mood != null || day.hadConflict != null) && (
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {day.cycleDay != null && <>день цикла {day.cycleDay}</>}
+                    {day.cycleDay != null && day.mood != null && <> · </>}
+                    {day.mood != null && <>настроение {day.mood}/10</>}
+                    {(day.cycleDay != null || day.mood != null) && day.hadConflict != null && <> · </>}
+                    {day.hadConflict === true && <>был конфликт</>}
+                    {day.hadConflict === false && <>без конфликтов</>}
+                  </p>
+                )}
+                {day?.hadConflict && (day.conflictWith || day.conflictAbout) && (
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {day.conflictWith && <>с {day.conflictWith}</>}
+                    {day.conflictWith && day.conflictAbout && <> — </>}
+                    {day.conflictAbout}
+                  </p>
+                )}
                 <div className="flex items-center gap-3 text-xs mt-1">
                   <Link href={`/today?date=${iso}`} className="text-ink-600 underline hover:text-ink-500">
                     План дня

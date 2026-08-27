@@ -37,6 +37,7 @@ model User {
 model Project {
   id       String  @id @default(cuid())
   name     String
+  priority String? // P0 | P1 | P2 | P3 | LATER — влияет на приоритет задач внутри проекта
   parentId String?
   parent   Project? @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children Project[] @relation("ProjectHierarchy")
@@ -159,6 +160,11 @@ model Day {
   worry        Int? // переживания 1-10
 
   conclusion String? // вывод на завтра
+
+  cycleDay      Int?     // день цикла — личный контекст дня, число
+  hadConflict   Boolean? // были ли конфликты в этот день
+  conflictWith  String?  // с кем — заполняется только если hadConflict=true
+  conflictAbout String?  // из-за чего / суть — заполняется только если hadConflict=true
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -384,7 +384,6 @@ function TaskRow({
   onScheduleDate,
   selected,
   onToggleSelect,
-  groupSize,
   onPartialComplete,
 }: {
   task: MatrixTask;
@@ -404,16 +403,9 @@ function TaskRow({
   onScheduleDate: (dateISO: string) => void;
   selected: boolean;
   onToggleSelect: () => void;
-  // Балл сравнивать не с чем, если в группе приоритета всего одна задача —
-  // тогда число просто шум, а не полезный сигнал.
-  groupSize: number;
   onPartialComplete: () => void;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
-  // Балл — уже существующее число, по которому идёт сортировка внутри группы
-  // приоритета; просто раньше нигде не показывался. Позволяет на глаз сравнить
-  // две задачи одной группы, а не только открывать карточку по одной.
-  const { scorePercent } = computePriority(task);
   // Быстрые правки прямо в списке (приоритет/проект/дата) иначе проходят молча —
   // секундная сетевая заминка выглядела бы точно как сбой. Короткая вспышка "✓"
   // подтверждает, что тап действительно принят, тем же языком, что уже есть
@@ -575,14 +567,6 @@ function TaskRow({
         )}
       </div>
       <div className="pt-1.5 pr-1.5 flex items-center gap-1">
-        {groupSize > 1 && (
-          <span
-            className="text-[10px] tabular-nums text-neutral-300"
-            title="Приоритетный балл — чем выше, тем важнее задача среди других в этой группе"
-          >
-            {scorePercent}
-          </span>
-        )}
         <QuickMenu
           status={task.status}
           scheduled={Boolean(task.date)}
@@ -605,6 +589,7 @@ export default function PriorityMatrix({
   planView = false,
   removeOnSchedule = false,
   emptyMessage = "Здесь пока пусто.",
+  showTopPick = false,
 }: {
   tasks: MatrixTask[];
   projectOptions: { id: string; label: string }[];
@@ -618,6 +603,10 @@ export default function PriorityMatrix({
   // Пустое состояние разное по смыслу на разных экранах (план дня / задачи /
   // проект) — общее "Здесь пока пусто" не объясняет, что делать дальше.
   emptyMessage?: string;
+  // Экран дня: выносит самую приоритетную активную задачу отдельным блоком
+  // наверх — после её выполнения следующая по очереди сама займёт то же место,
+  // без дополнительных действий.
+  showTopPick?: boolean;
 }) {
   const [items, setItems] = useState(tasks);
   const [prevTasks, setPrevTasks] = useState(tasks);
@@ -659,6 +648,17 @@ export default function PriorityMatrix({
       if (ra !== rb) return ra - rb;
       return computePriority(b).score - computePriority(a).score;
     });
+  }
+
+  // "Сейчас" — первая ещё активная задача по уже посчитанному порядку (тому же,
+  // что определяет группы выше). LATER сознательно не участвует — эти задачи не
+  // должны попадать в фокус только потому, что больше ничего активного не осталось.
+  let topTask: MatrixTask | null = null;
+  if (showTopPick) {
+    for (const label of COLUMN_ORDER) {
+      const found = groups[label].find((t) => t.status === "PLANNED" || t.status === undefined);
+      if (found) { topTask = found; break; }
+    }
   }
 
   function patch(id: string, p: Partial<MatrixTask>) {
@@ -847,13 +847,50 @@ export default function PriorityMatrix({
 
   const laterVisible = laterExpanded ? groups.LATER : groups.LATER.slice(0, LATER_PREVIEW);
 
+  // Общий рендер строки — переиспользуется и для "Сейчас" наверху, и для обычных
+  // групп ниже, чтобы вся логика строки (клики, drag, быстрые правки) жила в одном месте.
+  function renderRow(t: MatrixTask, label: PriorityLabel) {
+    return (
+      <TaskRow
+        key={t.id}
+        task={t}
+        color={label}
+        onOpen={() => setOpenId(t.id)}
+        onDropBefore={(draggedId, before) => moveTask(label, t.id, before, draggedId)}
+        onDelete={() => handleDeleteRequest(t.id)}
+        onUnschedule={() => handleUnschedule(t.id)}
+        onComplete={() => handleComplete(t.id)}
+        onRevert={() => handleRevert(t.id)}
+        onUndoMove={() => handleUndoMove(t.id)}
+        onManualPriority={(l) => handleManualPriority(t.id, l)}
+        onAssignProject={(id) => handleAssignProject(t.id, id)}
+        projectOptions={projectOptions}
+        onScheduleToday={() => handleSchedule(t.id, "today")}
+        onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
+        onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
+        selected={selectedIds.has(t.id)}
+        onToggleSelect={() => toggleSelect(t.id)}
+        onPartialComplete={() => setPartialTaskId(t.id)}
+      />
+    );
+  }
+
   if (items.length === 0) {
     return <p className="text-sm text-neutral-400 px-1">{emptyMessage}</p>;
   }
 
   return (
     <div className="space-y-6">
-      {COLUMN_ORDER.filter((label) => groups[label].length > 0).map((label) => (
+      {topTask && (
+        <div>
+          <p className="text-xs font-semibold text-ink-600 uppercase tracking-wide px-1 mb-1.5">Сейчас</p>
+          <div className="border-2 border-ink-500 bg-ink-50/50 rounded-xl overflow-hidden">
+            {renderRow(topTask, computePriority(topTask).label)}
+          </div>
+        </div>
+      )}
+
+      {COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
         <div key={label}>
           <div className="flex items-center gap-1.5 px-1 mb-1.5">
             <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
@@ -870,30 +907,7 @@ export default function PriorityMatrix({
             }}
             className="divide-y divide-neutral-100 bg-white border border-neutral-200 rounded-xl overflow-hidden"
           >
-            {groups[label].map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                color={label}
-                onOpen={() => setOpenId(t.id)}
-                onDropBefore={(draggedId, before) => moveTask(label, t.id, before, draggedId)}
-                onDelete={() => handleDeleteRequest(t.id)}
-                onUnschedule={() => handleUnschedule(t.id)}
-                onComplete={() => handleComplete(t.id)}
-                onRevert={() => handleRevert(t.id)}
-                onUndoMove={() => handleUndoMove(t.id)}
-                onManualPriority={(l) => handleManualPriority(t.id, l)}
-                onAssignProject={(id) => handleAssignProject(t.id, id)}
-                projectOptions={projectOptions}
-                onScheduleToday={() => handleSchedule(t.id, "today")}
-                onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
-                onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
-                selected={selectedIds.has(t.id)}
-                onToggleSelect={() => toggleSelect(t.id)}
-                groupSize={groups[label].length}
-                onPartialComplete={() => setPartialTaskId(t.id)}
-              />
-            ))}
+            {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
           </div>
         </div>
       ))}
@@ -915,30 +929,7 @@ export default function PriorityMatrix({
             }}
             className="divide-y divide-neutral-100 bg-neutral-50 border border-neutral-200 rounded-xl overflow-hidden"
           >
-            {laterVisible.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                color="LATER"
-                onOpen={() => setOpenId(t.id)}
-                onDropBefore={(draggedId, before) => moveTask("LATER", t.id, before, draggedId)}
-                onDelete={() => handleDeleteRequest(t.id)}
-                onUnschedule={() => handleUnschedule(t.id)}
-                onComplete={() => handleComplete(t.id)}
-                onRevert={() => handleRevert(t.id)}
-                onUndoMove={() => handleUndoMove(t.id)}
-                onManualPriority={(l) => handleManualPriority(t.id, l)}
-                onAssignProject={(id) => handleAssignProject(t.id, id)}
-                projectOptions={projectOptions}
-                onScheduleToday={() => handleSchedule(t.id, "today")}
-                onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
-                onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
-                selected={selectedIds.has(t.id)}
-                onToggleSelect={() => toggleSelect(t.id)}
-                groupSize={groups.LATER.length}
-                onPartialComplete={() => setPartialTaskId(t.id)}
-              />
-            ))}
+            {laterVisible.map((t) => renderRow(t, "LATER"))}
           </div>
           {groups.LATER.length > LATER_PREVIEW && (
             <button

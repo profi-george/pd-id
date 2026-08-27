@@ -22,6 +22,7 @@ export type TaskEvaluation = {
   primaryReason?: string | null; // объяснение (только для отображения)
   riskText?: string | null; // риск отложить (только для отображения)
   note?: string | null; // заметка пользователя о подходе к выполнению (только для отображения)
+  projectPriority?: string | null; // P0 | P1 | P2 | P3 | LATER — приоритет проекта, к которому привязана задача
 };
 
 export type PriorityLabel = "P0" | "P1" | "P2" | "P3" | "LATER";
@@ -40,6 +41,19 @@ const LABEL_ORDER: PriorityLabel[] = ["P0", "P1", "P2", "P3", "LATER"];
 export function isPriorityLabel(v: unknown): v is PriorityLabel {
   return typeof v === "string" && (LABEL_ORDER as string[]).includes(v);
 }
+
+// Приоритет проекта — небольшой модификатор в том же узком диапазоне, что и
+// остальные (goalMod/timeMod/altMod), а не отдельная система: проект с высоким
+// приоритетом слегка подтягивает свои задачи вверх, но не переворачивает порядок
+// внутри проекта самостоятельно, и не задаётся — задача без проекта или проект
+// без выставленного приоритета получают нейтральный множитель.
+const PROJECT_PRIORITY_MOD: Record<PriorityLabel, number> = {
+  P0: 1.15,
+  P1: 1.05,
+  P2: 1.0,
+  P3: 0.92,
+  LATER: 0.85,
+};
 
 // Effort Factor: чем больше времени требует задача, тем сильнее это давит на приоритет вниз.
 // Шкала — проектная v1, см. ТЗ; при накоплении данных можно откалибровать.
@@ -86,6 +100,9 @@ export function computePriority(evalu: TaskEvaluation, now: Date = new Date()): 
 
   let score = base * goalMod * timeMod * altMod;
   if (evalu.financialConsequence) score *= 1.1;
+  if (evalu.projectPriority && isPriorityLabel(evalu.projectPriority)) {
+    score *= PROJECT_PRIORITY_MOD[evalu.projectPriority];
+  }
 
   const hardRuleApplied = isDeadlineCritical(evalu.deadline, now);
 
@@ -112,9 +129,9 @@ export function computePriority(evalu: TaskEvaluation, now: Date = new Date()): 
 // Технические коды остаются во внутренней логике (сортировка, хранение, движок).
 export const PRIORITY_LABEL_TEXT: Record<PriorityLabel, string> = {
   P0: "Фокус",
-  P1: "Высокий приоритет",
-  P2: "Средний приоритет",
-  P3: "Низкий приоритет",
+  P1: "Высокий",
+  P2: "Средний",
+  P3: "Низкий",
   LATER: "Не сейчас",
 };
 

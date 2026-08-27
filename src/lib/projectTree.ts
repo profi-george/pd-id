@@ -2,6 +2,7 @@ export type ProjectNode = {
   id: string;
   name: string;
   parentId: string | null;
+  priority?: string | null;
 };
 
 export type ProjectTreeNode = ProjectNode & { children: ProjectTreeNode[] };

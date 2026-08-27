@@ -352,7 +352,7 @@ export default function TaskDrawer({
   }
 
   if (!task) return null;
-  const { label, aiLabel, isManual } = computePriority(task);
+  const { label, aiLabel, isManual, scorePercent } = computePriority(task);
 
   async function handleAddToCalendar() {
     if (!onAddToCalendar || !task) return;
@@ -703,6 +703,13 @@ export default function TaskDrawer({
           )}
 
           <div className="pt-1 border-t border-neutral-100 space-y-1.5">
+            <p className="text-xs text-neutral-400 flex items-center gap-1">
+              Приоритетный балл: {scorePercent}
+              <CriterionInfo
+                title="Приоритетный балл"
+                definition="Число, по которому задачи сортируются внутри группы приоритета — чем выше, тем важнее задача среди других такого же уровня. В общем списке не показывается намеренно, чтобы не отвлекать от сути."
+              />
+            </p>
             {task.confidence >= LOW_CONFIDENCE_THRESHOLD ? (
               <p className="text-xs text-neutral-400 flex items-center gap-1">
                 Уверенность AI: {Math.round(task.confidence * 100)}%

@@ -32,7 +32,7 @@ export default async function ProjectDetailPage({
   const scopeIds = projectAndDescendantIds(id, projectNodes);
   const scopedTasks = tasks
     .filter((t) => t.projectId && scopeIds.has(t.projectId))
-    .map((t) => ({ ...t, projectName: t.project?.name ?? null }));
+    .map((t) => ({ ...t, projectName: t.project?.name ?? null, projectPriority: t.project?.priority ?? null }));
 
   const projectOptions = flattenProjectsForSelect(projectNodes);
 

@@ -1,10 +1,82 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { assignTaskToProject, createProject, renameProject, deleteProject } from "@/app/(app)/actions";
+import { assignTaskToProject, createProject, renameProject, deleteProject, setProjectPriority } from "@/app/(app)/actions";
 import { buildProjectTree, type ProjectNode } from "@/lib/projectTree";
+import { PRIORITY_LABEL_TEXT, type PriorityLabel } from "@/lib/priorityEngine";
+
+const PROJECT_PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3"];
+const PROJECT_DOT_CLASS: Record<PriorityLabel, string> = {
+  P0: "bg-red-500",
+  P1: "bg-amber-500",
+  P2: "bg-blue-400",
+  P3: "bg-neutral-400",
+  LATER: "bg-neutral-300",
+};
+
+// Приоритет проекта — небольшой модификатор общего расчёта (см. priorityEngine),
+// задаётся тут же в сайдбаре, без отдельного экрана настроек проекта.
+function ProjectPriorityDot({
+  priority,
+  onPick,
+  dim,
+}: {
+  priority: string | null;
+  onPick: (p: PriorityLabel | null) => void;
+  dim?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const valid: PriorityLabel | null = priority && PROJECT_PRIORITY_OPTIONS.includes(priority as PriorityLabel) ? (priority as PriorityLabel) : null;
+
+  return (
+    <span ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`w-3.5 h-3.5 rounded-full border ${dim ? "border-white/30" : "border-neutral-300"} flex items-center justify-center`}
+        title={valid ? `Приоритет проекта: ${PRIORITY_LABEL_TEXT[valid]}` : "Приоритет проекта не задан"}
+        aria-label="Приоритет проекта"
+      >
+        {valid && <span className={`w-2 h-2 rounded-full ${PROJECT_DOT_CLASS[valid]}`} />}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-5 z-30 w-40 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-xs text-neutral-700">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onPick(null); }}
+            className={`w-full text-left px-3 py-1.5 hover:bg-neutral-50 ${!valid ? "font-medium text-neutral-900" : ""}`}
+          >
+            Не задан
+          </button>
+          {PROJECT_PRIORITY_OPTIONS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => { setOpen(false); onPick(l); }}
+              className={`w-full flex items-center gap-2 text-left px-3 py-1.5 hover:bg-neutral-50 ${valid === l ? "font-medium text-neutral-900" : ""}`}
+            >
+              <span className={`w-2 h-2 rounded-full ${PROJECT_DOT_CLASS[l]}`} />
+              {PRIORITY_LABEL_TEXT[l]}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
 
 function ProjectRow({
   id,
@@ -12,29 +84,38 @@ function ProjectRow({
   count,
   active,
   sub,
+  priority,
   onDragOver,
   onDragLeave,
   onDrop,
   dragOver,
   onRenamed,
   onDeleted,
+  onPriorityChanged,
 }: {
   id: string;
   name: string;
   count: number;
   active: boolean;
   sub?: boolean;
+  priority: string | null;
   dragOver: boolean;
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent) => void;
   onRenamed: (name: string) => void;
   onDeleted: () => void;
+  onPriorityChanged: (p: string | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [value, setValue] = useState(name);
   const [, startTransition] = useTransition();
+
+  function handlePriorityPick(p: PriorityLabel | null) {
+    onPriorityChanged(p);
+    startTransition(() => { setProjectPriority(id, p); });
+  }
 
   async function save() {
     const trimmed = value.trim();
@@ -104,6 +185,7 @@ function ProjectRow({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      <ProjectPriorityDot priority={priority} onPick={handlePriorityPick} dim={active} />
       <Link href={`/projects/${id}`} className="flex-1 min-w-0 flex items-center justify-between">
         <span className="truncate">{sub ? `— ${name}` : name}</span>
         <span className="text-xs opacity-60 ml-1 shrink-0">{count}</span>
@@ -200,6 +282,10 @@ export default function Sidebar({
     setProjects((prev) => prev.filter((p) => p.id !== id && p.parentId !== id));
   }
 
+  function priorityLocal(id: string, priority: string | null) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, priority } : p)));
+  }
+
   const rowClass = (active: boolean, dragOver: boolean) =>
     `flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm cursor-pointer ${
       dragOver
@@ -217,9 +303,6 @@ export default function Sidebar({
         </Link>
         <Link href="/today" className={rowClass(pathname === "/today", false)}>
           <span>План дня</span>
-        </Link>
-        <Link href="/backlog" className={rowClass(pathname === "/backlog", false)}>
-          <span>Задачи</span>
           <span className="text-xs opacity-60">{totalCount}</span>
         </Link>
         <Link href="/history" className={rowClass(pathname === "/history", false)}>
@@ -232,7 +315,7 @@ export default function Sidebar({
         onDragLeave={() => setDragOverKey((k) => (k === "__none__" ? null : k))}
         onDrop={handleDrop(null)}
       >
-        <Link href="/backlog?project=none" className={rowClass(false, dragOverKey === "__none__")}>
+        <Link href="/today?view=all&project=none" className={rowClass(false, dragOverKey === "__none__")}>
           <span>Без проекта</span>
           <span className="text-xs opacity-60">{noProjectCount}</span>
         </Link>
@@ -287,12 +370,14 @@ export default function Sidebar({
                       name={top.name}
                       count={counts[top.id] ?? 0}
                       active={pathname === `/projects/${top.id}`}
+                      priority={top.priority ?? null}
                       dragOver={dragOverKey === top.id}
                       onDragOver={(e) => { e.preventDefault(); setDragOverKey(top.id); }}
                       onDragLeave={() => setDragOverKey((k) => (k === top.id ? null : k))}
                       onDrop={handleDrop(top.id)}
                       onRenamed={(n) => renameLocal(top.id, n)}
                       onDeleted={() => deleteLocal(top.id)}
+                      onPriorityChanged={(p) => priorityLocal(top.id, p)}
                     />
                   </div>
                 </div>
@@ -306,12 +391,14 @@ export default function Sidebar({
                         count={counts[sub.id] ?? 0}
                         active={pathname === `/projects/${sub.id}`}
                         sub
+                        priority={sub.priority ?? null}
                         dragOver={dragOverKey === sub.id}
                         onDragOver={(e) => { e.preventDefault(); setDragOverKey(sub.id); }}
                         onDragLeave={() => setDragOverKey((k) => (k === sub.id ? null : k))}
                         onDrop={handleDrop(sub.id)}
                         onRenamed={(n) => renameLocal(sub.id, n)}
                         onDeleted={() => deleteLocal(sub.id)}
+                        onPriorityChanged={(p) => priorityLocal(sub.id, p)}
                       />
                     ))}
                     {addingSubTo === top.id ? (
