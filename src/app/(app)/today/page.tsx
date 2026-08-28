@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, addDays, sameDate, formatDateHuman, formatDateHumanFull, toDateInputValue, parseDateInputValue } from "@/lib/dates";
+import { todayDate, sameDate, formatDateHuman, formatDateHumanFull, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
+import DayDateNav from "@/components/DayDateNav";
 import { requireUser } from "@/lib/auth";
 import { getGoogleStatus } from "@/app/(app)/actions";
 
@@ -127,9 +128,6 @@ export default async function TodayPage({
 
   // mode === "day"
   const isToday = sameDate(date, today);
-  const prevDate = addDays(date, -1);
-  const nextDate = addDays(date, 1);
-
   const [day, dayTasks, projects, googleStatus] = await Promise.all([
     prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
     prisma.task.findMany({
@@ -172,25 +170,7 @@ export default async function TodayPage({
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <ViewToggle mode="day" date={date} />
-          <div className="flex items-center gap-1 text-sm">
-            <Link
-              href={`/today?date=${toDateInputValue(prevDate)}`}
-              className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
-            >
-              ← Вчера
-            </Link>
-            {!isToday && (
-              <Link href="/today" className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600">
-                Сегодня
-              </Link>
-            )}
-            <Link
-              href={`/today?date=${toDateInputValue(nextDate)}`}
-              className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
-            >
-              Завтра →
-            </Link>
-          </div>
+          <DayDateNav date={date} isToday={isToday} todayISO={toDateInputValue(today)} />
         </div>
       </div>
 
