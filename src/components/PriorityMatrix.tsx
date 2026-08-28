@@ -78,6 +78,17 @@ const BORDER_CLASS: Record<PriorityLabel, string> = {
   LATER: "border-l-neutral-200",
 };
 
+// Рамка hero-карточки "Сейчас" берёт цвет из приоритета САМОЙ задачи вместо
+// фиксированного индиго — точка приоритета и обводка карточки говорят одно
+// и то же, а не спорят двумя разными акцентами.
+const HERO_RING_CLASS: Record<PriorityLabel, string> = {
+  P0: "border-red-400 bg-red-50/50",
+  P1: "border-amber-400 bg-amber-50/50",
+  P2: "border-blue-300 bg-blue-50/50",
+  P3: "border-neutral-300 bg-neutral-50",
+  LATER: "border-neutral-300 bg-neutral-50",
+};
+
 const GROUP_PREVIEW = 3;
 
 // Раньше клик по этой иконке сразу переносил задачу на завтра — молча, без
@@ -974,14 +985,17 @@ export default function PriorityMatrix({
 
   return (
     <div className="space-y-6">
-      {topTask && (
-        <div>
-          <p className="text-xs font-semibold text-ink-600 uppercase tracking-wide px-1 mb-1.5">Сейчас</p>
-          <div className="border-2 border-ink-500 bg-ink-50/50 rounded-xl overflow-hidden">
-            {renderRow(topTask, computePriority(topTask).label, true)}
+      {topTask && (() => {
+        const topLabel = computePriority(topTask).label;
+        return (
+          <div>
+            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1 mb-1.5">Сейчас</p>
+            <div className={`border-2 rounded-xl overflow-hidden ${HERO_RING_CLASS[topLabel]}`}>
+              {renderRow(topTask, topLabel, true)}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
         <div key={label}>
@@ -998,7 +1012,7 @@ export default function PriorityMatrix({
               const draggedId = e.dataTransfer.getData("text/plain");
               if (draggedId) moveTask(label, null, false, draggedId);
             }}
-            className="divide-y divide-neutral-100 bg-white border border-neutral-200 rounded-xl overflow-hidden"
+            className="divide-y divide-neutral-200"
           >
             {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
           </div>
@@ -1020,7 +1034,7 @@ export default function PriorityMatrix({
               const draggedId = e.dataTransfer.getData("text/plain");
               if (draggedId) moveTask("LATER", null, false, draggedId);
             }}
-            className="divide-y divide-neutral-100 bg-neutral-50 border border-neutral-200 rounded-xl overflow-hidden"
+            className="divide-y divide-neutral-200"
           >
             {laterVisible.map((t) => renderRow(t, "LATER"))}
           </div>

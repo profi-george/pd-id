@@ -153,6 +153,10 @@ export default async function TodayPage({
   // что было в этот день, с пометкой статуса на каждой строке.
   const isPast = date.getTime() < today.getTime();
   const planned = dayTasks.filter((t) => t.status === TaskStatus.PLANNED);
+  // Для прогресса рядом с "Подвести итог дня" — переносы (MOVED) не в счёт,
+  // это уже не часть плана этого дня.
+  const doneCount = dayTasks.filter((t) => t.status === TaskStatus.DONE).length;
+  const totalForDay = dayTasks.filter((t) => t.status !== TaskStatus.MOVED).length;
   const matrixTasks = (isPast ? dayTasks : planned).map((t) => ({
     ...t,
     projectName: t.project?.name ?? null,
@@ -182,15 +186,15 @@ export default async function TodayPage({
           <ViewToggle mode="day" date={date} />
           <DayDateNav date={date} isToday={isToday} todayISO={toDateInputValue(today)} />
           {cycleInfo && (
-            <div className="max-w-[13rem] text-right">
+            <div className="max-w-[13rem] rounded-lg bg-rose-50 border border-rose-100 px-2.5 py-2 text-right">
               <Link
                 href="/settings"
                 title="Настроить в Настройках"
-                className="text-[11px] font-medium text-neutral-500 hover:text-neutral-700 whitespace-nowrap"
+                className="text-[11px] font-semibold text-rose-700 hover:text-rose-800 whitespace-nowrap"
               >
                 День цикла {cycleInfo.day} · {cycleInfo.phaseLabel}
               </Link>
-              <p className="text-[11px] text-neutral-400 leading-snug mt-0.5">
+              <p className="text-[11px] text-rose-400 leading-snug mt-0.5">
                 {getCycleNote(cycleInfo, cycleSettings.cycleLengthDays ?? undefined)}
               </p>
             </div>
@@ -214,12 +218,17 @@ export default async function TodayPage({
         </div>
       ) : (
         dayTasks.length > 0 && (
-          <Link
-            href={`/today/summary?date=${toDateInputValue(date)}`}
-            className="inline-block text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
-          >
-            Подвести итог дня
-          </Link>
+          <div className="flex items-center justify-between gap-3 bg-white border border-neutral-200 rounded-lg px-3 py-2.5">
+            <p className="text-sm text-neutral-600">
+              <span className="font-semibold text-neutral-800 tabular-nums">{doneCount}</span>/{totalForDay} выполнено
+            </p>
+            <Link
+              href={`/today/summary?date=${toDateInputValue(date)}`}
+              className="text-sm px-3 py-1.5 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 shrink-0"
+            >
+              Подвести итог дня
+            </Link>
+          </div>
         )
       )}
 
