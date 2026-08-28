@@ -8,7 +8,7 @@ import PriorityMatrix from "@/components/PriorityMatrix";
 import DayDateNav from "@/components/DayDateNav";
 import { requireUser } from "@/lib/auth";
 import { getGoogleStatus, getCycleSettings } from "@/app/(app)/actions";
-import { getCycleInfo } from "@/lib/cycle";
+import { getCycleInfo, getCycleNote } from "@/lib/cycle";
 
 export const dynamic = "force-dynamic";
 
@@ -182,13 +182,18 @@ export default async function TodayPage({
           <ViewToggle mode="day" date={date} />
           <DayDateNav date={date} isToday={isToday} todayISO={toDateInputValue(today)} />
           {cycleInfo && (
-            <Link
-              href="/settings"
-              title="Календарь цикла — настроить в Настройках"
-              className="text-[11px] text-neutral-400 hover:text-neutral-600 whitespace-nowrap"
-            >
-              День цикла {cycleInfo.day} · {cycleInfo.phaseLabel}
-            </Link>
+            <div className="max-w-[13rem] text-right">
+              <Link
+                href="/settings"
+                title="Настроить в Настройках"
+                className="text-[11px] font-medium text-neutral-500 hover:text-neutral-700 whitespace-nowrap"
+              >
+                День цикла {cycleInfo.day} · {cycleInfo.phaseLabel}
+              </Link>
+              <p className="text-[11px] text-neutral-400 leading-snug mt-0.5">
+                {getCycleNote(cycleInfo, cycleSettings.cycleLengthDays ?? undefined)}
+              </p>
+            </div>
           )}
         </div>
       </div>

@@ -63,3 +63,29 @@ export function getCycleInfo(
   const phase = computeCyclePhase(day, cycleLengthDays, periodLengthDays);
   return { day, phase, phaseLabel: PHASE_LABEL[phase] };
 }
+
+// Короткие заметки по фазам — по общим данным исследований цикла (не диагноз,
+// не персональная аналитика: собственные конфликты/настроение из "Итога дня"
+// сюда сознательно не подмешиваются, только общая физиология).
+// Источники: Cleveland Clinic (лютеиновая/фолликулярная фаза, симптомы по фазам),
+// NCBI StatPearls (ПМС, до ~75% женщин с регулярным циклом отмечают симптомы
+// в лютеиновой фазе).
+const PHASE_NOTE: Record<CyclePhase, string> = {
+  menstruation: "Эстроген и прогестерон на минимуме — обычно упадок сил и возможны спазмы в первые дни.",
+  follicular: "Эстроген растёт — обычно прибавляется энергии и концентрации.",
+  ovulation: "Пик эстрогена и всплеск ЛГ. Возможна лёгкая тянущая боль внизу живота с одной стороны, у части женщин — прилив энергии.",
+  luteal: "Растёт прогестерон — у части женщин уже появляется чувствительность к переменам настроения и утомляемость.",
+  pms: "Резкий спад гормонов перед месячными — до 75% женщин с регулярным циклом отмечают раздражительность, тревожность, перепады настроения и вздутие.",
+};
+
+export function getCycleNote(
+  info: CycleInfo,
+  cycleLengthDays: number = DEFAULT_CYCLE_LENGTH
+): string {
+  const base = PHASE_NOTE[info.phase];
+  const daysToEnd = cycleLengthDays - info.day;
+  if (daysToEnd <= 1 && daysToEnd >= 0) {
+    return `${base} Через 1–2 дня могут начаться месячные.`;
+  }
+  return base;
+}
