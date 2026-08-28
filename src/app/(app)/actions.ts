@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, tomorrowDate, parseDateInputValue, toDateInputValue, sameDate } from "@/lib/dates";
+import { todayDate, tomorrowDate, nextWeekday, parseDateInputValue, toDateInputValue, sameDate } from "@/lib/dates";
 import { initialOrderKey } from "@/lib/priority";
 import { requireUser } from "@/lib/auth";
 import {
@@ -292,7 +292,7 @@ export async function createTasksWithDetails(
     const date = t.includeInPlan
       ? t.scheduledDate
         ? new Date(`${t.scheduledDate}T00:00:00.000Z`)
-        : todayDate()
+        : nextWeekday(todayDate())
       : null;
     const status = t.includeInPlan ? TaskStatus.PLANNED : TaskStatus.BACKLOG;
     await prisma.task.create({

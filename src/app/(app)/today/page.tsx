@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, sameDate, formatDateHuman, formatDateHumanFull, toDateInputValue, parseDateInputValue } from "@/lib/dates";
+import { todayDate, sameDate, formatDateHumanFull, toDateInputValue, parseDateInputValue } from "@/lib/dates";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
@@ -158,15 +158,17 @@ export default async function TodayPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-xl font-display font-bold">
-            {isToday ? "Сегодня" : "План дня"}
-          </h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-display font-bold">
+              {isToday ? "Сегодня" : "План дня"}
+            </h1>
+            {planned.length > 0 && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-ink-100 text-ink-700 tabular-nums shrink-0">
+                {planned.length} {tasksWord(planned.length)}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-neutral-500">{formatDateHumanFull(date)}</p>
-          {planned.length > 0 && (
-            <p className="text-xs text-neutral-400 mt-0.5">
-              {planned.length} {tasksWord(planned.length)}
-            </p>
-          )}
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <ViewToggle mode="day" date={date} />
@@ -200,7 +202,7 @@ export default async function TodayPage({
 
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-neutral-600">
-          {isToday ? "Что важно сделать сегодня" : `План на ${formatDateHuman(date)}`}
+          {isToday ? "Что важно сделать сегодня" : "Что важно сделать"}
         </p>
         <Link
           href="/add"

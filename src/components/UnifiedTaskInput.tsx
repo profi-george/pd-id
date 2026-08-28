@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { chatStep, createTasksWithDetails } from "@/app/(app)/actions";
+import { todayDate, nextWeekday, toDateInputValue } from "@/lib/dates";
 import type { AiTaskEvaluation, ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
@@ -167,16 +168,22 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
 
   function handleConfirm() {
     if (!pendingTasks) return;
+    // Если AI не понял явный день из текста — по умолчанию ставим на сегодня,
+    // но только если сегодня будний день. На выходных без явного "в субботу"/
+    // "в воскресенье" день молча сдвигается на ближайший понедельник — автоматом
+    // на выходные ничего не ставим.
+    const defaultDateISO = toDateInputValue(nextWeekday(todayDate()));
     setReviewTasks(
       pendingTasks.map((t) => ({
         ...t,
         projectId: t.suggestedProjectId,
-        // По умолчанию — в план (на сегодня, либо на дату, которую AI понял из
-        // текста): именно это и написано в подписи чекбокса на этой карточке.
+        // По умолчанию — в план (на сегодня/ближайший будний, либо на дату, которую
+        // AI понял из текста): именно это и написано в подписи чекбокса на карточке.
         // Раньше по умолчанию было false, если AI не нашёл явную дату в тексте —
         // задача тихо уходила в бэклог, хотя пользователь ожидал увидеть её
         // в плане дня. Снять галочку всё ещё можно вручную.
         includeInPlan: true,
+        scheduledDate: t.scheduledDate ?? defaultDateISO,
       }))
     );
     setPendingTasks(null);

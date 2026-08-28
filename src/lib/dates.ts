@@ -35,6 +35,17 @@ export function tomorrowDate(): Date {
   return addDays(todayDate(), 1);
 }
 
+// Ближайший будний день — сама дата, если это уже Пн–Пт, иначе следующий
+// понедельник. Используется только там, где день подставляется автоматически
+// (не было явного выбора пользователя) — суббота/воскресенье не должны
+// получать задачи молча, только если день назвали прямо.
+export function nextWeekday(d: Date): Date {
+  const day = d.getUTCDay(); // 0 = вс, 6 = сб
+  if (day === 6) return addDays(d, 2);
+  if (day === 0) return addDays(d, 1);
+  return d;
+}
+
 export function sameDate(a: Date, b: Date): boolean {
   return a.getTime() === b.getTime();
 }

@@ -470,7 +470,10 @@ export default function TaskDrawer({
 
   return (
     <div
-      className="fixed inset-0 bg-black/30 z-40 flex items-start sm:items-center justify-center p-0 sm:p-4 overflow-y-auto"
+      // items-start везде (не sm:items-center) — центрированный flex-контейнер с overflow
+      // обрезает свой верх недостижимо для скролла, если контент перерастает экран
+      // (например, после раскрытия критериев или длинного списка подзадач).
+      className="fixed inset-0 bg-black/30 z-40 flex items-start justify-center p-0 sm:p-4 sm:py-8 overflow-y-auto"
       onClick={onClose}
     >
       <div
