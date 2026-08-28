@@ -78,6 +78,48 @@ export async function setCurrentGoal(formData: FormData) {
   revalidatePath("/backlog");
 }
 
+// ---------- Календарь цикла (см. src/lib/cycle.ts) ----------
+
+export async function getCycleSettings() {
+  const user = await requireUser();
+  const settings = await prisma.appSettings.findUnique({ where: { userId: user.id } });
+  return {
+    cycleStartDate: settings?.cycleStartDate ?? null,
+    cycleLengthDays: settings?.cycleLengthDays ?? null,
+    periodLengthDays: settings?.periodLengthDays ?? null,
+  };
+}
+
+export async function setCycleSettings(formData: FormData) {
+  const user = await requireUser();
+  const startISO = str(formData, "cycleStartDate");
+  const cycleStartDate = startISO ? parseDateInputValue(startISO) : null;
+  const cycleLengthRaw = str(formData, "cycleLengthDays");
+  const cycleLengthDays = cycleLengthRaw ? Number(cycleLengthRaw) : null;
+  const periodLengthRaw = str(formData, "periodLengthDays");
+  const periodLengthDays = periodLengthRaw ? Number(periodLengthRaw) : null;
+  await prisma.appSettings.upsert({
+    where: { userId: user.id },
+    create: { userId: user.id, cycleStartDate, cycleLengthDays, periodLengthDays },
+    update: { cycleStartDate, cycleLengthDays, periodLengthDays },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/today");
+}
+
+// Быстрая отметка "цикл начался сегодня" — без похода в настройки и без
+// необходимости пересчитывать дату вручную каждый раз.
+export async function markCycleStartToday() {
+  const user = await requireUser();
+  await prisma.appSettings.upsert({
+    where: { userId: user.id },
+    create: { userId: user.id, cycleStartDate: todayDate() },
+    update: { cycleStartDate: todayDate() },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/today");
+}
+
 // ---------- Проекты ----------
 
 export async function createProject(formData: FormData) {
@@ -939,6 +981,7 @@ export async function submitEveningForm(formData: FormData) {
 
   const cycleDayRaw = str(formData, "cycleDay");
   const cycleDay = cycleDayRaw === "" ? null : Number(cycleDayRaw);
+  const hasPms = str(formData, "hasPms") === "yes";
   const hadConflict = str(formData, "hadConflict") === "yes";
   // "С кем"/"из-за чего" заполняются только при hadConflict=true — при "Нет"
   // не сохраняем их, даже если в скрытых полях что-то осталось от прошлого раза.
@@ -949,11 +992,11 @@ export async function submitEveningForm(formData: FormData) {
     where: { userId_date: { userId: user.id, date } },
     create: {
       userId: user.id, date, conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked,
-      cycleDay, hadConflict, conflictWith, conflictAbout,
+      cycleDay, hasPms, hadConflict, conflictWith, conflictAbout,
     },
     update: {
       conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked,
-      cycleDay, hadConflict, conflictWith, conflictAbout,
+      cycleDay, hasPms, hadConflict, conflictWith, conflictAbout,
     },
   });
 

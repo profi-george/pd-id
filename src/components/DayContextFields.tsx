@@ -7,16 +7,24 @@ import { useState } from "react";
 // отдельная серверная форма.
 export default function DayContextFields({
   cycleDay,
+  cyclePhaseLabel,
+  hasPms,
   hadConflict,
   conflictWith,
   conflictAbout,
 }: {
   cycleDay: number | null;
+  // Если для этого дня цикл ещё не сохранён вручную — сюда приходит
+  // расчёт из src/lib/cycle.ts (по дате начала из настроек), чтобы не
+  // считать день цикла в уме каждый вечер.
+  cyclePhaseLabel: string | null;
+  hasPms: boolean | null;
   hadConflict: boolean | null;
   conflictWith: string | null;
   conflictAbout: string | null;
 }) {
   const [conflict, setConflict] = useState(hadConflict === true);
+  const [pms, setPms] = useState(hasPms === true);
 
   return (
     <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
@@ -33,6 +41,25 @@ export default function DayContextFields({
           placeholder="необязательно"
           className="w-24 border border-neutral-300 rounded px-2 py-1 text-sm"
         />
+        {cyclePhaseLabel && (
+          <span className="block text-xs text-neutral-400 mt-1">
+            Расчётно по настройкам: {cyclePhaseLabel}
+          </span>
+        )}
+      </div>
+
+      <div>
+        <span className="block text-xs text-neutral-500 mb-1.5">Есть ПМС?</span>
+        <div className="flex gap-3">
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="radio" name="hasPms" value="no" checked={!pms} onChange={() => setPms(false)} />
+            Нет
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="radio" name="hasPms" value="yes" checked={pms} onChange={() => setPms(true)} />
+            Да
+          </label>
+        </div>
       </div>
 
       <div>

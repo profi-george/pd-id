@@ -7,7 +7,8 @@ import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
 import DayDateNav from "@/components/DayDateNav";
 import { requireUser } from "@/lib/auth";
-import { getGoogleStatus } from "@/app/(app)/actions";
+import { getGoogleStatus, getCycleSettings } from "@/app/(app)/actions";
+import { getCycleInfo } from "@/lib/cycle";
 
 export const dynamic = "force-dynamic";
 
@@ -128,7 +129,7 @@ export default async function TodayPage({
 
   // mode === "day"
   const isToday = sameDate(date, today);
-  const [day, dayTasks, projects, googleStatus] = await Promise.all([
+  const [day, dayTasks, projects, googleStatus, cycleSettings] = await Promise.all([
     prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
     prisma.task.findMany({
       where: { userId: user.id, date },
@@ -137,7 +138,14 @@ export default async function TodayPage({
     }),
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     getGoogleStatus(),
+    getCycleSettings(),
   ]);
+
+  // Ненавязчивый бейдж сбоку — только если дата начала цикла вообще задана
+  // в настройках, иначе просто не показываем ничего.
+  const cycleInfo = cycleSettings.cycleStartDate
+    ? getCycleInfo(cycleSettings.cycleStartDate, date, cycleSettings.cycleLengthDays ?? undefined, cycleSettings.periodLengthDays ?? undefined)
+    : null;
 
   // "План дня" на сегодня/будущее показывает только активные задачи — то, что ЕЩЁ
   // предстоит. Но для прошедшего дня "активных" уже почти никогда нет (всё решено) —
@@ -173,6 +181,15 @@ export default async function TodayPage({
         <div className="flex flex-col items-end gap-2 shrink-0">
           <ViewToggle mode="day" date={date} />
           <DayDateNav date={date} isToday={isToday} todayISO={toDateInputValue(today)} />
+          {cycleInfo && (
+            <Link
+              href="/settings"
+              title="Календарь цикла — настроить в Настройках"
+              className="text-[11px] text-neutral-400 hover:text-neutral-600 whitespace-nowrap"
+            >
+              День цикла {cycleInfo.day} · {cycleInfo.phaseLabel}
+            </Link>
+          )}
         </div>
       </div>
 
@@ -181,6 +198,7 @@ export default async function TodayPage({
           Итог дня подведён. Трудность {day.difficulty} · настроение {day.mood} · эффективность{" "}
           {day.efficiency} · переживания {day.worry}
           {day.cycleDay != null && <span> · день цикла {day.cycleDay}</span>}
+          {day.hasPms && <span> · ПМС</span>}
           {day.hadConflict && <span> · был конфликт</span>}
           {day.whyWorked && <p className="mt-1 text-emerald-900">Что получилось: {day.whyWorked}</p>}
           {day.whyNotWorked && <p className="mt-1 text-emerald-900">Что не получилось: {day.whyNotWorked}</p>}

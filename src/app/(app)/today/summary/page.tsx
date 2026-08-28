@@ -2,7 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { todayDate, addDays, sameDate, formatDateHuman, toDateInputValue, parseDateInputValue } from "@/lib/dates";
-import { submitEveningForm } from "@/app/(app)/actions";
+import { submitEveningForm, getCycleSettings } from "@/app/(app)/actions";
+import { getCycleInfo } from "@/lib/cycle";
 import EveningTaskRow from "@/components/EveningTaskRow";
 import EveningSummaryCounter from "@/components/EveningSummaryCounter";
 import UndoMoveButton from "@/components/UndoMoveButton";
@@ -28,7 +29,7 @@ export default async function EveningSummaryPage({
   // Итог можно подводить/поправлять сколько угодно раз за день и после — не только
   // один раз вечером. Если итог уже был сохранён, подставляем прежние значения
   // (а не дефолты), чтобы повторное сохранение не затирало то, что уже было.
-  const [existingDay, tasks, movedTasks, partialTasks] = await Promise.all([
+  const [existingDay, tasks, movedTasks, partialTasks, cycleSettings] = await Promise.all([
     prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
     // Весь план этого дня — что ещё не отмечено (PLANNED), что уже отмечено
     // галочкой в течение дня (DONE), и что уже помечено невыполненным (NOT_DONE) —
@@ -52,7 +53,12 @@ export default async function EveningSummaryPage({
       where: { userId: user.id, date, status: TaskStatus.PARTIAL },
       orderBy: { order: "asc" },
     }),
+    getCycleSettings(),
   ]);
+
+  const cycleInfo = cycleSettings.cycleStartDate
+    ? getCycleInfo(cycleSettings.cycleStartDate, date, cycleSettings.cycleLengthDays ?? undefined, cycleSettings.periodLengthDays ?? undefined)
+    : null;
 
   return (
     <div className="space-y-4">
@@ -163,7 +169,9 @@ export default async function EveningSummaryPage({
         </div>
 
         <DayContextFields
-          cycleDay={existingDay?.cycleDay ?? null}
+          cycleDay={existingDay?.cycleDay ?? cycleInfo?.day ?? null}
+          cyclePhaseLabel={cycleInfo ? `день ${cycleInfo.day} · ${cycleInfo.phaseLabel}` : null}
+          hasPms={existingDay?.hasPms ?? null}
           hadConflict={existingDay?.hadConflict ?? null}
           conflictWith={existingDay?.conflictWith ?? null}
           conflictAbout={existingDay?.conflictAbout ?? null}

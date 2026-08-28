@@ -144,6 +144,12 @@ model AppSettings {
   googleRefreshToken String?
   googleTokenExpiry  DateTime?
   googleAccountEmail String? // для отображения "подключено как ..."
+
+  // Календарь цикла — см. src/lib/cycle.ts. cycleStartDate = дата начала последней
+  // менструации; длины — с дефолтами 28/5, если не заданы явно.
+  cycleStartDate   DateTime?
+  cycleLengthDays  Int?
+  periodLengthDays Int?
 }
 
 model Day {
@@ -162,7 +168,8 @@ model Day {
 
   conclusion String? // вывод на завтра
 
-  cycleDay      Int?     // день цикла — личный контекст дня, число
+  cycleDay      Int?     // день цикла — личный контекст дня, число (по умолчанию подставляется расчётом из AppSettings, но можно поправить вручную)
+  hasPms        Boolean? // ПМС в этот день — отмечается вручную, расчёт из cycle.ts только подсказывает фазу
   hadConflict   Boolean? // были ли конфликты в этот день
   conflictWith  String?  // с кем — заполняется только если hadConflict=true
   conflictAbout String?  // из-за чего / суть — заполняется только если hadConflict=true
