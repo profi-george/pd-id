@@ -46,11 +46,13 @@ function ProjectPriorityDot({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`w-3.5 h-3.5 rounded-full border ${dim ? "border-white/30" : "border-neutral-300"} flex items-center justify-center`}
+        className="w-3.5 h-3.5 rounded-full flex items-center justify-center"
         title={valid ? `Приоритет проекта: ${PRIORITY_LABEL_TEXT[valid]}` : "Приоритет проекта не задан"}
         aria-label="Приоритет проекта"
       >
-        {valid && <span className={`w-2 h-2 rounded-full ${PROJECT_DOT_CLASS[valid]}`} />}
+        {/* Без приоритета — бледная точка-статус, а не пустое кольцо: не должна
+            читаться как незаполненный чекбокс/радио. */}
+        <span className={`w-2 h-2 rounded-full ${valid ? PROJECT_DOT_CLASS[valid] : dim ? "bg-white/30" : "bg-neutral-300"}`} />
       </button>
       {open && (
         <div className="absolute left-0 top-5 z-30 w-40 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-xs text-neutral-700">
@@ -78,6 +80,63 @@ function ProjectPriorityDot({
   );
 }
 
+// Переименовать/удалить — раньше были двумя отдельными значками, вместо
+// одного меню "⋯" (тот же язык, что и у меню строки задачи).
+function ProjectMenu({
+  dim,
+  onRename,
+  onDelete,
+}: {
+  dim?: boolean;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`w-5 h-5 flex items-center justify-center rounded text-xs ${
+          dim ? "text-white/70 hover:text-white hover:bg-white/10" : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200"
+        }`}
+        aria-label="Действия с проектом"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className="absolute right-0 top-6 z-30 w-36 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-xs">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onRename(); }}
+            className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+          >
+            Переименовать
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onDelete(); }}
+            className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-red-600"
+          >
+            Удалить
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
+
 function ProjectRow({
   id,
   name,
@@ -92,6 +151,7 @@ function ProjectRow({
   onRenamed,
   onDeleted,
   onPriorityChanged,
+  onAddChild,
 }: {
   id: string;
   name: string;
@@ -106,6 +166,8 @@ function ProjectRow({
   onRenamed: (name: string) => void;
   onDeleted: () => void;
   onPriorityChanged: (p: string | null) => void;
+  // Только у проектов верхнего уровня — вложенность у нас всего в один уровень.
+  onAddChild?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -187,26 +249,30 @@ function ProjectRow({
     >
       <ProjectPriorityDot priority={priority} onPick={handlePriorityPick} dim={active} />
       <Link href={`/projects/${id}`} className="flex-1 min-w-0 flex items-center justify-between">
-        <span className="truncate">{sub ? `— ${name}` : name}</span>
-        <span className="text-xs opacity-60 ml-1 shrink-0">{count}</span>
+        <span className="truncate">{name}</span>
+        <span
+          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums ml-1 shrink-0 ${
+            active ? "bg-white/20 text-white" : "bg-ink-100 text-ink-700"
+          }`}
+        >
+          {count}
+        </span>
       </Link>
-      <span className="hidden group-hover:flex items-center gap-1 shrink-0">
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className={`text-xs ${active ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-neutral-700"}`}
-          title="Переименовать"
-        >
-          ✎
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirmingDelete(true)}
-          className={`text-xs ${active ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-red-600"}`}
-          title="Удалить"
-        >
-          ✕
-        </button>
+      <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+        {onAddChild && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAddChild(); }}
+            className={`w-5 h-5 flex items-center justify-center rounded text-sm leading-none ${
+              active ? "text-white/70 hover:text-white hover:bg-white/10" : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200"
+            }`}
+            title="Новый проект"
+            aria-label="Добавить проект внутри"
+          >
+            +
+          </button>
+        )}
+        <ProjectMenu dim={active} onRename={() => setEditing(true)} onDelete={() => setConfirmingDelete(true)} />
       </span>
     </div>
   );
@@ -378,11 +444,13 @@ export default function Sidebar({
                       onRenamed={(n) => renameLocal(top.id, n)}
                       onDeleted={() => deleteLocal(top.id)}
                       onPriorityChanged={(p) => priorityLocal(top.id, p)}
+                      onAddChild={() => { setAddingSubTo(top.id); setName(""); }}
                     />
                   </div>
                 </div>
-                {!isCollapsed && (
-                  <div className="ml-3">
+                {!isCollapsed && (top.children.length > 0 || addingSubTo === top.id) && (
+                  // Тонкая линия слева — вложенность видна сама, без подписи "подпроект".
+                  <div className="ml-3 pl-2 border-l border-neutral-200">
                     {top.children.map((sub) => (
                       <ProjectRow
                         key={sub.id}
@@ -401,25 +469,21 @@ export default function Sidebar({
                         onPriorityChanged={(p) => priorityLocal(sub.id, p)}
                       />
                     ))}
-                    {addingSubTo === top.id ? (
+                    {addingSubTo === top.id && (
                       <div className="flex gap-1 px-2 py-1">
                         <input
                           autoFocus
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && submitNewProject(top.id)}
-                          placeholder="Подпроект"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") submitNewProject(top.id);
+                            if (e.key === "Escape") { setName(""); setAddingSubTo(null); }
+                          }}
+                          onBlur={() => { if (!name.trim()) setAddingSubTo(null); }}
+                          placeholder="Название"
                           className="flex-1 border border-neutral-300 rounded px-2 py-1 text-xs"
                         />
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => { setAddingSubTo(top.id); setName(""); }}
-                        className="text-xs text-neutral-400 hover:text-neutral-700 px-2"
-                      >
-                        + подпроект
-                      </button>
                     )}
                   </div>
                 )}
