@@ -147,17 +147,16 @@ export default async function TodayPage({
     ? getCycleInfo(cycleSettings.cycleStartDate, date, cycleSettings.cycleLengthDays ?? undefined, cycleSettings.periodLengthDays ?? undefined)
     : null;
 
-  // "План дня" на сегодня/будущее показывает только активные задачи — то, что ЕЩЁ
-  // предстоит. Но для прошедшего дня "активных" уже почти никогда нет (всё решено) —
-  // там план без исхода был бы пустым и бесполезным, поэтому там показываем всё,
-  // что было в этот день, с пометкой статуса на каждой строке.
   const isPast = date.getTime() < today.getTime();
   const planned = dayTasks.filter((t) => t.status === TaskStatus.PLANNED);
   // Для прогресса рядом с "Подвести итог дня" — переносы (MOVED) не в счёт,
   // это уже не часть плана этого дня.
   const doneCount = dayTasks.filter((t) => t.status === TaskStatus.DONE).length;
   const totalForDay = dayTasks.filter((t) => t.status !== TaskStatus.MOVED).length;
-  const matrixTasks = (isPast ? dayTasks : planned).map((t) => ({
+  // Показываем весь план дня, а не только ещё не сделанное — отмеченные DONE
+  // задачи должны оставаться видны (с галочкой), а не пропадать при обновлении
+  // страницы. Раньше это было верно только для прошедших дней.
+  const matrixTasks = dayTasks.map((t) => ({
     ...t,
     projectName: t.project?.name ?? null,
     projectPriority: t.project?.priority ?? null,
