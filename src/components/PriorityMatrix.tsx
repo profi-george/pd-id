@@ -948,6 +948,13 @@ export default function PriorityMatrix({
   const openTask = items.find((t) => t.id === openId) ?? null;
   const drawerTask: DrawerTask | null = openTask ? { ...openTask } : null;
 
+  // Массовые действия должны быть осмысленны для того, что реально выделено —
+  // иначе "Сегодня"/"Завтра" на уже выполненной задаче молча сняли бы отметку
+  // "выполнено" и перенесли её, а "Выполнено" на уже готовой ничего не меняет.
+  const selectedTasks = items.filter((t) => selectedIds.has(t.id));
+  const canBulkComplete = selectedTasks.some((t) => t.status !== "DONE");
+  const canBulkReschedule = selectedTasks.some((t) => t.status !== "DONE" && t.status !== "MOVED");
+
   const laterVisible = laterExpanded ? groups.LATER : groups.LATER.slice(0, GROUP_PREVIEW);
 
   // Общий рендер строки — переиспользуется и для "Сейчас" наверху, и для обычных
@@ -1149,15 +1156,21 @@ export default function PriorityMatrix({
           }`}
         >
           <span className="pr-1.5">{selectedIds.size} {tasksWord(selectedIds.size)}</span>
-          <button type="button" onClick={bulkComplete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
-            Выполнено
-          </button>
-          <button type="button" onClick={() => bulkSchedule("today")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
-            Сегодня
-          </button>
-          <button type="button" onClick={() => bulkSchedule("tomorrow")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
-            Завтра
-          </button>
+          {canBulkComplete && (
+            <button type="button" onClick={bulkComplete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
+              Выполнено
+            </button>
+          )}
+          {canBulkReschedule && (
+            <>
+              <button type="button" onClick={() => bulkSchedule("today")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
+                Сегодня
+              </button>
+              <button type="button" onClick={() => bulkSchedule("tomorrow")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
+                Завтра
+              </button>
+            </>
+          )}
           <button type="button" onClick={bulkDelete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/80">
             Удалить
           </button>
