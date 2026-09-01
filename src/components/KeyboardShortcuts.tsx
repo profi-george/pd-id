@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 const NAV_KEYS: Record<string, string> = {
   n: "/add",
   p: "/today",
-  z: "/backlog",
+  z: "/today?view=all",
   h: "/history",
 };
 
@@ -88,7 +88,7 @@ export default function KeyboardShortcuts() {
           {[
             ["n", "Добавить AI"],
             ["p", "План дня"],
-            ["z", "Задачи"],
+            ["z", "Все задачи"],
             ["h", "История"],
             ["?", "Эта подсказка"],
           ].map(([key, label]) => (

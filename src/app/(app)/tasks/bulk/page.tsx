@@ -26,7 +26,7 @@ export default async function BulkNewTasksPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-display font-bold">Добавить несколько задач сразу</h1>
         <div className="flex gap-3">
-          <Link href="/backlog" className="text-xs text-neutral-500 underline hover:text-neutral-800">
+          <Link href="/add" className="text-xs text-neutral-500 underline hover:text-neutral-800">
             Разобрать с ИИ →
           </Link>
           <Link href={singleHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">

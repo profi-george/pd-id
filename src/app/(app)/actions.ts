@@ -236,7 +236,7 @@ export async function createTask(formData: FormData) {
   revalidatePath("/backlog");
   revalidatePath("/today");
 
-  redirect(dateOption === "backlog" ? "/backlog" : "/today");
+  redirect(dateOption === "backlog" ? "/today?view=all" : "/today");
 }
 
 export async function updateTask(id: string, formData: FormData) {
@@ -256,7 +256,7 @@ export async function updateTask(id: string, formData: FormData) {
 
   revalidatePath("/backlog");
   revalidatePath("/today");
-  redirect(str(formData, "returnTo") || "/backlog");
+  redirect(str(formData, "returnTo") || "/today?view=all");
 }
 
 export async function createTasksBulk(formData: FormData) {
@@ -298,7 +298,7 @@ export async function createTasksBulk(formData: FormData) {
 
   revalidatePath("/backlog");
   revalidatePath("/today");
-  redirect(dateOption === "backlog" ? "/backlog" : "/today");
+  redirect(dateOption === "backlog" ? "/today?view=all" : "/today");
 }
 
 // ---------- Единый ввод задач с помощью ИИ ----------
@@ -1032,6 +1032,11 @@ export async function submitEveningForm(formData: FormData) {
         where: { id: task.id },
         data: {
           status: reschedule ? TaskStatus.MOVED : TaskStatus.NOT_DONE,
+          // При переносе фиксируем, куда именно — иначе "Итог дня"/список задач
+          // того дня показывали бы "перенесена"/"убрана из плана" без даты, и
+          // "отменить перенос" не смог бы найти копию обратно (см. movedFromTaskId
+          // на созданной ниже копии).
+          movedToDate: reschedule ? tomorrow : null,
           score,
           whyFailed,
           whySucceeded: null,
@@ -1075,6 +1080,7 @@ export async function submitEveningForm(formData: FormData) {
           status: TaskStatus.PLANNED,
           order: initialOrderKey(task),
           score: null,
+          movedFromTaskId: task.id,
         },
       });
     }

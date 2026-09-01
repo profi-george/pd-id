@@ -142,7 +142,6 @@ function ProjectRow({
   name,
   count,
   active,
-  sub,
   priority,
   onDragOver,
   onDragLeave,
@@ -157,7 +156,6 @@ function ProjectRow({
   name: string;
   count: number;
   active: boolean;
-  sub?: boolean;
   priority: string | null;
   dragOver: boolean;
   onDragOver: (e: React.DragEvent) => void;
@@ -458,7 +456,6 @@ export default function Sidebar({
                         name={sub.name}
                         count={counts[sub.id] ?? 0}
                         active={pathname === `/projects/${sub.id}`}
-                        sub
                         priority={sub.priority ?? null}
                         dragOver={dragOverKey === sub.id}
                         onDragOver={(e) => { e.preventDefault(); setDragOverKey(sub.id); }}

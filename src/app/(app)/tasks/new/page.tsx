@@ -22,7 +22,7 @@ export default async function NewTaskPage({
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
   );
 
-  const aiHref = "/backlog";
+  const aiHref = "/add";
   const bulkHref = `/tasks/bulk?date=${dateOption}${params.projectId ? `&projectId=${params.projectId}` : ""}`;
 
   return (

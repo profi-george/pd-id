@@ -372,5 +372,6 @@ ${CRITERIA_GUIDE}
 Отвечай СТРОГО JSON-объектом по схеме оценки задачи.`;
 
   const parsed = await callGemini(prompt, EVALUATION_SCHEMA_OBJ);
-  return normalizeEvaluation(parsed, new Set());
+  const validProjectIds = new Set((context?.projects ?? []).map((p) => p.id));
+  return normalizeEvaluation(parsed, validProjectIds);
 }

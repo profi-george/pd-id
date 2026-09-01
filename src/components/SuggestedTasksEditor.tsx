@@ -131,7 +131,7 @@ function PlanPicker({
       </div>
       {!includeInPlan && (
         <p className="text-[11px] text-neutral-400 mt-1">
-          Без даты задача уйдёт в «Задачи» — можно сразу{" "}
+          Без даты задача уйдёт в «Все задачи» — можно сразу{" "}
           <button
             type="button"
             onClick={() => { onChange({ includeInPlan: true, scheduledDate: null }); setPickingDate(true); }}
@@ -353,7 +353,7 @@ export default function SuggestedTasksEditor({
 
       <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
         <p className="text-xs text-neutral-500">
-          Задачи «Без даты» попадут в «Задачи» без даты — добавите в план позже, когда решите.
+          Задачи «Без даты» попадут в «Все задачи» без даты — добавите в план позже, когда решите.
         </p>
         <button
           type="button"

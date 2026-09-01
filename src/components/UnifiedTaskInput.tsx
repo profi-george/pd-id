@@ -195,7 +195,7 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
     startSaving(async () => {
       await createTasksWithDetails(reviewTasks);
       reset();
-      router.push(anyInPlan ? "/today" : "/backlog");
+      router.push(anyInPlan ? "/today" : "/today?view=all");
     });
   }
 
