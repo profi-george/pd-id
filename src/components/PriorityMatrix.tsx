@@ -455,6 +455,7 @@ function TaskRow({
   onScheduleTomorrow,
   onScheduleDate,
   selected,
+  selectionActive,
   onToggleSelect,
   onPartialComplete,
   hero = false,
@@ -475,6 +476,9 @@ function TaskRow({
   onScheduleTomorrow: () => void;
   onScheduleDate: (dateISO: string) => void;
   selected: boolean;
+  // true, если хоть одна задача в списке уже выбрана — тогда обычный тап по
+  // строке тоже добавляет/убирает из выбора, а не открывает карточку.
+  selectionActive: boolean;
   onToggleSelect: () => void;
   onPartialComplete: () => void;
   // Карточка "Сейчас" наверху экрана дня: крупная кнопка выполнения и балл
@@ -482,6 +486,25 @@ function TaskRow({
   hero?: boolean;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
+  // Долгий тап по строке — вход в режим выбора нескольких задач (для массового
+  // переноса/удаления), без отдельного чекбокса, который теперь занят отметкой
+  // выполнения. Таймер отменяется при отпускании/уходе курсора/начале drag —
+  // случайное долгое нажатие не должно молча выбрать задачу.
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+  function startLongPress() {
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      onToggleSelect();
+    }, 450);
+  }
+  function cancelLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
   // Быстрые правки прямо в списке (приоритет/проект/дата) иначе проходят молча —
   // секундная сетевая заминка выглядела бы точно как сбой. Короткая вспышка "✓"
   // подтверждает, что тап действительно принят, тем же языком, что уже есть
@@ -505,10 +528,15 @@ function TaskRow({
     setUndoMoveState(ok ? "idle" : "error");
   }
 
+  // Тот же критерий, что и в QuickMenu — для "не выполнена"/"перенесена" отметка
+  // выполнения не предлагается тут же однокликово (см. комментарий в QuickMenu).
+  const canToggleDone = task.status === "PLANNED" || task.status === "DONE" || task.status === "PARTIAL" || task.status === undefined;
+  const isDone = task.status === "DONE" || task.status === "PARTIAL";
+
   return (
     <div
       draggable
-      onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
+      onDragStart={(e) => { cancelLongPress(); e.dataTransfer.setData("text/plain", task.id); }}
       onDragOver={(e) => {
         e.preventDefault();
         const rect = e.currentTarget.getBoundingClientRect();
@@ -524,8 +552,8 @@ function TaskRow({
         if (draggedId) onDropBefore(draggedId, before);
       }}
       className={`group relative border-l-2 ${hero ? "border-l-transparent" : BORDER_CLASS[color]} flex items-start ${
-        dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""
-      }`}
+        selected ? "bg-ink-50" : ""
+      } ${dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""}`}
     >
       <label
         className="pt-4 pl-2 pr-0.5 shrink-0 self-start"
@@ -533,25 +561,37 @@ function TaskRow({
       >
         <input
           type="checkbox"
-          checked={selected}
-          onChange={onToggleSelect}
-          // Тише по умолчанию — редкий сценарий, не должен спорить за внимание
-          // с остальной строкой; проявляется при наведении, фокусе или выборе.
-          className="accent-ink-500 opacity-30 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-          aria-label="Выбрать задачу"
+          checked={isDone}
+          disabled={!canToggleDone}
+          onChange={() => { if (isDone) onRevert(); else onComplete(); }}
+          className={`accent-ink-500 transition-opacity ${
+            canToggleDone ? "opacity-60 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100" : "opacity-20"
+          }`}
+          aria-label={isDone ? "Вернуть в план" : "Отметить выполненной"}
+          title={isDone ? "Вернуть в план" : "Отметить выполненной"}
         />
       </label>
       <PriorityPicker label={color} onPick={(l) => { onManualPriority(l); triggerFlash(); }} />
       <div
         role="button"
         tabIndex={0}
-        onClick={onOpen}
+        onClick={() => {
+          if (longPressFired.current) { longPressFired.current = false; return; }
+          if (selectionActive) onToggleSelect();
+          else onOpen();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             onOpen();
           }
         }}
+        onMouseDown={startLongPress}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
+        onTouchStart={startLongPress}
+        onTouchEnd={cancelLongPress}
+        onTouchMove={cancelLongPress}
         className="flex-1 min-w-0 text-left pr-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1"
       >
         <p
@@ -980,6 +1020,7 @@ export default function PriorityMatrix({
         onScheduleTomorrow={() => handleSchedule(t.id, "tomorrow")}
         onScheduleDate={(dateISO) => handleScheduleDate(t.id, dateISO)}
         selected={selectedIds.has(t.id)}
+        selectionActive={selectedIds.size > 0}
         onToggleSelect={() => toggleSelect(t.id)}
         onPartialComplete={() => setPartialTaskId(t.id)}
       />
