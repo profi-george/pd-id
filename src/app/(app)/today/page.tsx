@@ -44,13 +44,15 @@ export default async function TodayPage({
   if (mode === "all") {
     const undatedOnly = filter === "undated";
     const [tasks, projects, googleStatus] = await Promise.all([
-      // «Все задачи» — по умолчанию весь активный объём (и нераспределённое, и уже
-      // стоящее в каком-то дне), одним списком по приоритету. «Только нераспределённые» —
-      // фильтр внутри того же режима, а не отдельный экран.
+      // «Все задачи» — весь объём, вкладки Все/Предстоит/Выполнено фильтруют
+      // на клиенте (см. statusTabs в PriorityMatrix), поэтому статус здесь не
+      // ограничиваем. «Только нераспределённые» — про отсутствие даты, а не
+      // про статус: выполненная задача дату получает всегда, так что этот
+      // фильтр и раньше по факту не пересекался с "готово".
       prisma.task.findMany({
         where: {
           userId: user.id,
-          status: undatedOnly ? TaskStatus.BACKLOG : { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] },
+          ...(undatedOnly ? { date: null } : {}),
         },
         include: { project: true, subtasks: { orderBy: { order: "asc" } } },
         orderBy: { createdAt: "asc" },
@@ -115,6 +117,7 @@ export default async function TodayPage({
           projectOptions={projectOptions}
           googleConnected={googleStatus.connected}
           removeOnSchedule={undatedOnly}
+          statusTabs="all"
           emptyMessage={
             undatedOnly
               ? "Все задачи уже привязаны к дате."
@@ -243,14 +246,15 @@ export default async function TodayPage({
         </Link>
       </div>
 
-      {/* Только активные задачи. Не прячем список, даже если итог дня уже подведён:
-          иначе новая задача, добавленная на "закрытый" день, была бы не видна нигде. */}
+      {/* Весь день целиком передаётся в PriorityMatrix — вкладки Предстоит/
+          Выполнено фильтруют на клиенте, без похода на сервер при переключении. */}
       <PriorityMatrix
         tasks={matrixTasks}
         projectOptions={projectOptions}
         googleConnected={googleStatus.connected}
         planView
         showTopPick={!isPast}
+        statusTabs="day"
         emptyMessage={
           isToday
             ? "На сегодня пока пусто — хороший повод решить, что сделать в первую очередь."

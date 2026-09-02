@@ -747,6 +747,13 @@ function TaskRow({
   );
 }
 
+// DONE/NOT_DONE/MOVED/PARTIAL — всё, что больше не "предстоит": закрыто,
+// неважно с каким исходом. Один и тот же критерий для вкладок План дня/Все задачи.
+function statusBucket(status?: string): "upcoming" | "done" {
+  if (status === "DONE" || status === "NOT_DONE" || status === "MOVED" || status === "PARTIAL") return "done";
+  return "upcoming";
+}
+
 export default function PriorityMatrix({
   tasks,
   projectOptions,
@@ -755,6 +762,7 @@ export default function PriorityMatrix({
   removeOnSchedule = false,
   emptyMessage = "Здесь пока пусто.",
   showTopPick = false,
+  statusTabs,
 }: {
   tasks: MatrixTask[];
   projectOptions: { id: string; label: string }[];
@@ -772,8 +780,13 @@ export default function PriorityMatrix({
   // наверх — после её выполнения следующая по очереди сама займёт то же место,
   // без дополнительных действий.
   showTopPick?: boolean;
+  // "day" — вкладки Предстоит/Выполнено, по умолчанию Предстоит. "all" —
+  // добавляется третья вкладка Все, она же по умолчанию. Фильтрация клиентская,
+  // на уже загруженных данных — переключение ощущается мгновенно, без сервера.
+  statusTabs?: "day" | "all";
 }) {
   const [items, setItems] = useState(tasks);
+  const [statusTab, setStatusTab] = useState<"all" | "upcoming" | "done">(statusTabs === "all" ? "all" : "upcoming");
   const [prevTasks, setPrevTasks] = useState(tasks);
   const [openId, setOpenId] = useState<string | null>(null);
   // Раскрытие длинного хвоста списка LATER — единственная группа, которую прячем
@@ -806,8 +819,10 @@ export default function PriorityMatrix({
     };
   }, []);
 
+  const visibleItems = statusTabs && statusTab !== "all" ? items.filter((t) => statusBucket(t.status) === statusTab) : items;
+
   const groups: Record<PriorityLabel, MatrixTask[]> = { P0: [], P1: [], P2: [], P3: [], LATER: [] };
-  for (const t of items) groups[computePriority(t).label].push(t);
+  for (const t of visibleItems) groups[computePriority(t).label].push(t);
   for (const label of [...COLUMN_ORDER, "LATER" as const]) {
     groups[label].sort((a, b) => {
       const ra = a.manualRank ?? Infinity;
@@ -1050,75 +1065,110 @@ export default function PriorityMatrix({
     );
   }
 
-  if (items.length === 0) {
+  if (!statusTabs && items.length === 0) {
     return <p className="text-sm text-neutral-400 px-1">{emptyMessage}</p>;
   }
 
+  const tabBtn = (active: boolean) =>
+    `px-2.5 py-1.5 ${active ? "bg-neutral-800 text-white" : "text-neutral-500 hover:bg-neutral-50"}`;
+
   return (
     <div className="space-y-6">
-      {topTask && (() => {
-        const topLabel = computePriority(topTask).label;
-        return (
-          <div>
-            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1 mb-1.5">Сейчас</p>
-            <div className={`border-2 rounded-xl overflow-hidden ${HERO_RING_CLASS[topLabel]}`}>
-              {renderRow(topTask, topLabel, true)}
-            </div>
-          </div>
-        );
-      })()}
-
-      {COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
-        <div key={label}>
-          <div className="flex items-center gap-1.5 px-1 mb-1.5">
-            <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
-            <p className="text-xs font-semibold text-neutral-600">
-              {PRIORITY_LABEL_TEXT[label]} · {groups[label].filter((t) => t.id !== topTask?.id).length}
-            </p>
-          </div>
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const draggedId = e.dataTransfer.getData("text/plain");
-              if (draggedId) moveTask(label, null, false, draggedId);
-            }}
-            className="divide-y divide-neutral-200"
-          >
-            {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
-          </div>
-        </div>
-      ))}
-
-      {groups.LATER.length > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 px-1 mb-1.5">
-            <span className={`w-2 h-2 rounded-full ${DOT_CLASS.LATER}`} />
-            <p className="text-xs font-semibold text-neutral-500">
-              {PRIORITY_LABEL_TEXT.LATER} · {groups.LATER.length}
-            </p>
-          </div>
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const draggedId = e.dataTransfer.getData("text/plain");
-              if (draggedId) moveTask("LATER", null, false, draggedId);
-            }}
-            className="divide-y divide-neutral-200"
-          >
-            {laterVisible.map((t) => renderRow(t, "LATER"))}
-          </div>
-          {groups.LATER.length > GROUP_PREVIEW && (
-            <button
-              type="button"
-              onClick={() => setLaterExpanded((v) => !v)}
-              className="text-xs text-neutral-400 hover:text-neutral-700 px-1 mt-1"
-            >
-              {laterExpanded ? "Свернуть" : `Показать ещё ${groups.LATER.length - GROUP_PREVIEW} →`}
+      {statusTabs && (
+        <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
+          {statusTabs === "all" && (
+            <button type="button" onClick={() => setStatusTab("all")} className={tabBtn(statusTab === "all")}>
+              Все
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setStatusTab("upcoming")}
+            className={`${tabBtn(statusTab === "upcoming")} border-l border-neutral-300`}
+          >
+            Предстоит выполнить
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusTab("done")}
+            className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
+          >
+            Выполнено
+          </button>
         </div>
+      )}
+
+      {visibleItems.length === 0 ? (
+        <p className="text-sm text-neutral-400 px-1">
+          {statusTab === "done" ? "Пока ничего не выполнено." : emptyMessage}
+        </p>
+      ) : (
+        <>
+          {topTask && (() => {
+            const topLabel = computePriority(topTask).label;
+            return (
+              <div>
+                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1 mb-1.5">Сейчас</p>
+                <div className={`border-2 rounded-xl overflow-hidden ${HERO_RING_CLASS[topLabel]}`}>
+                  {renderRow(topTask, topLabel, true)}
+                </div>
+              </div>
+            );
+          })()}
+
+          {COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
+            <div key={label}>
+              <div className="flex items-center gap-1.5 px-1 mb-1.5">
+                <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
+                <p className="text-xs font-semibold text-neutral-600">
+                  {PRIORITY_LABEL_TEXT[label]} · {groups[label].filter((t) => t.id !== topTask?.id).length}
+                </p>
+              </div>
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const draggedId = e.dataTransfer.getData("text/plain");
+                  if (draggedId) moveTask(label, null, false, draggedId);
+                }}
+                className="divide-y divide-neutral-200"
+              >
+                {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
+              </div>
+            </div>
+          ))}
+
+          {groups.LATER.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 px-1 mb-1.5">
+                <span className={`w-2 h-2 rounded-full ${DOT_CLASS.LATER}`} />
+                <p className="text-xs font-semibold text-neutral-500">
+                  {PRIORITY_LABEL_TEXT.LATER} · {groups.LATER.length}
+                </p>
+              </div>
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const draggedId = e.dataTransfer.getData("text/plain");
+                  if (draggedId) moveTask("LATER", null, false, draggedId);
+                }}
+                className="divide-y divide-neutral-200"
+              >
+                {laterVisible.map((t) => renderRow(t, "LATER"))}
+              </div>
+              {groups.LATER.length > GROUP_PREVIEW && (
+                <button
+                  type="button"
+                  onClick={() => setLaterExpanded((v) => !v)}
+                  className="text-xs text-neutral-400 hover:text-neutral-700 px-1 mt-1"
+                >
+                  {laterExpanded ? "Свернуть" : `Показать ещё ${groups.LATER.length - GROUP_PREVIEW} →`}
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       <TaskDrawer
