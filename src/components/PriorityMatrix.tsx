@@ -199,6 +199,9 @@ function QuickMenu({
   // задевает вторую запись (дубликат на другом дне) или данные "Итога дня",
   // это отдельное, более осторожное действие, не однокликовое.
   const canToggle = status === "PLANNED" || status === "DONE" || status === "PARTIAL" || status === undefined;
+  // Уже строже, чем canToggle — DONE/PARTIAL не должны молча терять отметку
+  // о выполнении через "перенести", даже если ✓ (вернуть в план) им доступен.
+  const canReschedule = status === "PLANNED" || status === undefined;
 
   return (
     <span className="flex items-center shrink-0">
@@ -217,7 +220,7 @@ function QuickMenu({
           ✓
         </button>
       )}
-      {canToggle && onScheduleTomorrow && onScheduleDate && (
+      {canReschedule && onScheduleTomorrow && onScheduleDate && (
         <MovePicker onScheduleTomorrow={onScheduleTomorrow} onScheduleDate={onScheduleDate} />
       )}
       <span ref={ref} className="relative">
@@ -492,14 +495,20 @@ function TaskRow({
   // случайное долгое нажатие не должно молча выбрать задачу.
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
+  // Заметно на глаз, что нажатие вообще регистрируется — иначе 450мс без
+  // единого отклика на экране легко принять за "не работает".
+  const [pressing, setPressing] = useState(false);
   function startLongPress() {
     longPressFired.current = false;
+    setPressing(true);
     longPressTimer.current = setTimeout(() => {
       longPressFired.current = true;
+      setPressing(false);
       onToggleSelect();
     }, 450);
   }
   function cancelLongPress() {
+    setPressing(false);
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
@@ -532,6 +541,9 @@ function TaskRow({
   // выполнения не предлагается тут же однокликово (см. комментарий в QuickMenu).
   const canToggleDone = task.status === "PLANNED" || task.status === "DONE" || task.status === "PARTIAL" || task.status === undefined;
   const isDone = task.status === "DONE" || task.status === "PARTIAL";
+  // DONE/MOVED не должны молча терять отметку о выполнении через перенос —
+  // тот же критерий, что и MovePicker в QuickMenu.
+  const canReschedule = task.status === "PLANNED" || task.status === undefined;
 
   return (
     <div
@@ -592,7 +604,9 @@ function TaskRow({
         onTouchStart={startLongPress}
         onTouchEnd={cancelLongPress}
         onTouchMove={cancelLongPress}
-        className="flex-1 min-w-0 text-left pr-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1"
+        className={`flex-1 min-w-0 text-left pr-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1 transition-colors duration-300 ${
+          pressing ? "bg-ink-100" : ""
+        }`}
       >
         <p
           className={`text-[15px] font-medium leading-snug ${
@@ -622,12 +636,22 @@ function TaskRow({
             onPick={(id) => { onAssignProject(id); triggerFlash(); }}
           />
           <span className={task.projectName ? "text-neutral-400" : ""}>≈ {formatEffort(task.effortMinutes)}</span>
-          <DatePicker
-            date={task.date}
-            onScheduleToday={() => { onScheduleToday(); triggerFlash(); }}
-            onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
-            onScheduleDate={(d) => { onScheduleDate(d); triggerFlash(); }}
-          />
+          {canReschedule ? (
+            <DatePicker
+              date={task.date}
+              onScheduleToday={() => { onScheduleToday(); triggerFlash(); }}
+              onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
+              onScheduleDate={(d) => { onScheduleDate(d); triggerFlash(); }}
+            />
+          ) : (
+            task.date && (
+              // Уже выполненную/перенесённую задачу нельзя перенести отсюда одним
+              // кликом — это молча сняло бы отметку. Дата видна, но не кликабельна.
+              <span className="text-neutral-400" title="Перенести можно после отмены выполнения">
+                · на {formatDateRelative(task.date)}
+              </span>
+            )
+          )}
         </div>
         {(task.status === "DONE" ||
           task.status === "NOT_DONE" ||
@@ -755,7 +779,7 @@ export default function PriorityMatrix({
   // Раскрытие длинного хвоста списка LATER — единственная группа, которую прячем
   // за "Показать ещё"; P0–P3 показываются целиком, одним стеком секций.
   const [laterExpanded, setLaterExpanded] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<{ task: MatrixTask; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ tasks: MatrixTask[]; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [partialTaskId, setPartialTaskId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -777,7 +801,7 @@ export default function PriorityMatrix({
       // Если ушли со страницы с "висящим" удалением — не теряем его молча.
       if (pendingDeleteRef.current) {
         clearTimeout(pendingDeleteRef.current.timer);
-        deleteTask(pendingDeleteRef.current.task.id);
+        pendingDeleteRef.current.tasks.forEach((t) => deleteTask(t.id));
       }
     };
   }, []);
@@ -854,28 +878,35 @@ export default function PriorityMatrix({
     const pending = pendingDeleteRef.current;
     if (!pending) return;
     clearTimeout(pending.timer);
-    startTransition(() => { deleteTask(pending.task.id); });
+    startTransition(() => { pending.tasks.forEach((t) => deleteTask(t.id)); });
     setPendingDelete(null);
   }
 
-  function handleDeleteRequest(id: string) {
-    const task = items.find((t) => t.id === id);
-    if (!task) return;
+  // Общий soft-undo и для одиночного, и для массового удаления — раньше массовое
+  // шло через блокирующий window.confirm(), единственный такой диалог во всём
+  // приложении; теперь оба пути ведут себя одинаково: 6 секунд на "Отменить".
+  function requestDelete(ids: string[]) {
+    const tasks = items.filter((t) => ids.includes(t.id));
+    if (tasks.length === 0) return;
     flushPendingDelete();
-    setItems((prev) => prev.filter((t) => t.id !== id));
+    setItems((prev) => prev.filter((t) => !ids.includes(t.id)));
     setOpenId(null);
     const timer = setTimeout(() => {
-      startTransition(() => { deleteTask(id); });
+      startTransition(() => { tasks.forEach((t) => deleteTask(t.id)); });
       setPendingDelete(null);
     }, 6000);
-    setPendingDelete({ task, timer });
+    setPendingDelete({ tasks, timer });
+  }
+
+  function handleDeleteRequest(id: string) {
+    requestDelete([id]);
   }
 
   function undoDelete() {
     const pending = pendingDeleteRef.current;
     if (!pending) return;
     clearTimeout(pending.timer);
-    setItems((prev) => [...prev, pending.task]);
+    setItems((prev) => [...prev, ...pending.tasks]);
     setPendingDelete(null);
   }
 
@@ -971,17 +1002,9 @@ export default function PriorityMatrix({
     setSelectedIds(new Set());
   }
 
-  // Массовое удаление — не переиспользуем однократный soft-undo (там всего один
-  // "висящий" слот на всё сразу, при нескольких id подряд каждый следующий вызов
-  // немедленно фиксирует предыдущий) — вместо этого одно явное подтверждение
-  // на всю группу, это и честнее для необратимого массового действия.
   function bulkDelete() {
     const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-    if (!confirm(`Удалить ${ids.length} ${tasksWord(ids.length)}? Это нельзя отменить.`)) return;
-    setItems((prev) => prev.filter((t) => !ids.includes(t.id)));
-    setOpenId(null);
-    startTransition(() => { ids.forEach((id) => deleteTask(id)); });
+    requestDelete(ids);
     setSelectedIds(new Set());
   }
 
@@ -1223,7 +1246,11 @@ export default function PriorityMatrix({
 
       {pendingDelete && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg">
-          <span>Задача удалена</span>
+          <span>
+            {pendingDelete.tasks.length === 1
+              ? "Задача удалена"
+              : `${pendingDelete.tasks.length} ${tasksWord(pendingDelete.tasks.length)} удалены`}
+          </span>
           <button
             type="button"
             onClick={undoDelete}

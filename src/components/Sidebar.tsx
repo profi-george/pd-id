@@ -374,7 +374,10 @@ export default function Sidebar({
         </Link>
       </nav>
 
+      {/* Граница перед "Без проекта"/"Проекты" — иначе они визуально сливаются
+          с основной навигацией выше, хотя это разные по смыслу категории. */}
       <div
+        className="pt-3 border-t border-neutral-200"
         onDragOver={(e) => { e.preventDefault(); setDragOverKey("__none__"); }}
         onDragLeave={() => setDragOverKey((k) => (k === "__none__" ? null : k))}
         onDrop={handleDrop(null)}

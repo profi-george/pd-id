@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chatStep, createTasksWithDetails } from "@/app/(app)/actions";
 import { todayDate, nextWeekday, toDateInputValue } from "@/lib/dates";
@@ -278,7 +279,12 @@ export default function UnifiedTaskInput({ projects }: { projects: ProjectOption
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{error}</p>
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+              {error}{" "}
+              <Link href="/tasks/new" className="underline hover:text-red-800">
+                Добавить вручную →
+              </Link>
+            </p>
           )}
         </div>
       )}

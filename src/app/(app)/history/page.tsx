@@ -113,6 +113,17 @@ export default async function HistoryPage({
             const hasContent = allDates.has(ms);
             const isToday = ms === todayMs;
             const iso = toDateInputValue(date);
+            // Цвет точки — по эффективности дня, если итог подведён: беглым
+            // взглядом по месяцу видно, где было тяжело, а не только "что-то было".
+            const efficiency = daysByMs.get(ms)?.efficiency ?? null;
+            const dotClass =
+              efficiency == null
+                ? "bg-ink-500"
+                : efficiency >= 7
+                ? "bg-emerald-500"
+                : efficiency >= 4
+                ? "bg-amber-500"
+                : "bg-red-400";
             return (
               <Link
                 key={ms}
@@ -127,7 +138,7 @@ export default async function HistoryPage({
               >
                 {date.getUTCDate()}
                 {hasContent && !isToday && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-ink-500 mt-1" />
+                  <span className={`w-1.5 h-1.5 rounded-full mt-1 ${dotClass}`} />
                 )}
               </Link>
             );

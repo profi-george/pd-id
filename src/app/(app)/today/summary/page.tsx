@@ -9,6 +9,7 @@ import EveningSummaryCounter from "@/components/EveningSummaryCounter";
 import UndoMoveButton from "@/components/UndoMoveButton";
 import EveningSubmitButton from "@/components/EveningSubmitButton";
 import DayContextFields from "@/components/DayContextFields";
+import DayMetrics from "@/components/DayMetrics";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -145,28 +146,18 @@ export default async function EveningSummaryPage({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4 bg-white border border-neutral-200 rounded-lg p-3">
-          <h2 className="text-sm font-medium text-neutral-600 col-span-2">Метрики дня (1–10)</h2>
-          {[
-            ["difficulty", "Трудность"],
-            ["mood", "Настроение"],
-            ["efficiency", "Эффективность"],
-            ["worry", "Переживания"],
-          ].map(([name, label]) => (
-            <div key={name}>
-              <label className="block text-sm font-medium mb-1">{label}</label>
-              <select
-                name={name}
-                defaultValue={String(existingDay?.[name as "difficulty" | "mood" | "efficiency" | "worry"] ?? 5)}
-                className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
+        <DayMetrics
+          existingDay={
+            existingDay
+              ? {
+                  difficulty: existingDay.difficulty,
+                  mood: existingDay.mood,
+                  efficiency: existingDay.efficiency,
+                  worry: existingDay.worry,
+                }
+              : null
+          }
+        />
 
         <DayContextFields
           cycleDay={existingDay?.cycleDay ?? cycleInfo?.day ?? null}

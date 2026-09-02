@@ -5,7 +5,9 @@ import {
   computePriority,
   formatEffort,
   PRIORITY_LABEL_HINT,
+  PRIORITY_LABEL_TEXT,
   LOW_CONFIDENCE_THRESHOLD,
+  isPriorityLabel,
   type PriorityLabel,
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
@@ -140,20 +142,33 @@ function SubtaskDateControl({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className={`shrink-0 text-xs whitespace-nowrap ${
-        date
-          ? "text-ink-600"
-          // Базово чуть видна (не opacity-0) — иначе на тач-экране до кнопки
-          // не добраться вообще, наведения мышью там не бывает.
-          : "text-neutral-300 opacity-40 group-hover:opacity-100 focus-visible:opacity-100"
-      }`}
-      aria-label={date ? `Дата шага: ${formatDateRelative(date)}. Изменить` : "Назначить дату шагу"}
-    >
-      {date ? formatDateRelative(date) : "+ дата"}
-    </button>
+    <span className="shrink-0 inline-flex items-center gap-0.5">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className={`text-xs whitespace-nowrap ${
+          date
+            ? "text-ink-600"
+            // Базово чуть видна (не opacity-0) — иначе на тач-экране до кнопки
+            // не добраться вообще, наведения мышью там не бывает.
+            : "text-neutral-300 opacity-40 group-hover:opacity-100 focus-visible:opacity-100"
+        }`}
+        aria-label={date ? `Дата шага: ${formatDateRelative(date)}. Изменить` : "Назначить дату шагу"}
+      >
+        {date ? formatDateRelative(date) : "+ дата"}
+      </button>
+      {date && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="text-neutral-300 hover:text-neutral-600"
+          aria-label="Убрать дату шага"
+          title="Убрать дату"
+        >
+          ×
+        </button>
+      )}
+    </span>
   );
 }
 
@@ -613,6 +628,16 @@ export default function TaskDrawer({
                   </div>
                 );
               })}
+              {task.projectPriority && isPriorityLabel(task.projectPriority) && task.projectPriority !== "P2" && (
+                <div className="text-xs">
+                  <span className="text-neutral-500 font-medium">Приоритет проекта: </span>
+                  <span className="text-neutral-600">
+                    {task.projectPriority === "P0" || task.projectPriority === "P1"
+                      ? `выше среднего («${PRIORITY_LABEL_TEXT[task.projectPriority]}») — слегка поднимает балл`
+                      : `ниже среднего («${PRIORITY_LABEL_TEXT[task.projectPriority]}») — слегка снижает балл`}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
