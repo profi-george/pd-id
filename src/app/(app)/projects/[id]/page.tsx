@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
@@ -18,7 +19,7 @@ export default async function ProjectDetailPage({
 
   const [project, allProjects, tasks, googleStatus] = await Promise.all([
     prisma.project.findFirst({ where: { id, userId: user.id } }),
-    prisma.project.findMany({ where: { userId: user.id } }),
+    prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.task.findMany({
       where: { userId: user.id, status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
       include: { project: true, subtasks: { orderBy: { order: "asc" } } },
@@ -38,6 +39,23 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-6">
+      {/* Переключатель между всеми проектами — текущий выделен тёмной пилюлей,
+          остальные обычным текстом, клик сразу переходит на другой проект. */}
+      <div className="flex items-center gap-1 flex-wrap">
+        {allProjects.map((p) => (
+          <Link
+            key={p.id}
+            href={`/projects/${p.id}`}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              p.id === project.id
+                ? "bg-neutral-900 text-white"
+                : "text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
+            }`}
+          >
+            {p.name}
+          </Link>
+        ))}
+      </div>
       <div>
         <h1 className="text-xl font-display font-bold">{project.name}</h1>
         <p className="text-sm text-neutral-500">{scopedTasks.length} задач</p>

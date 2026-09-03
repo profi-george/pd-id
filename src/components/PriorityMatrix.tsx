@@ -203,22 +203,29 @@ function QuickMenu({
   // о выполнении через "перенести", даже если ✓ (вернуть в план) им доступен.
   const canReschedule = status === "PLANNED" || status === undefined;
 
+  const isDone = status === "DONE" || status === "PARTIAL";
+
   return (
     <span className="flex items-center shrink-0">
-      {canToggle && !hideCheckToggle && (
+      {canToggle && !hideCheckToggle && !isDone && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); if (status === "DONE" || status === "PARTIAL") onRevert(); else onComplete(); }}
-          className={`w-7 h-7 flex items-center justify-center rounded ${
-            status === "DONE" || status === "PARTIAL"
-              ? "text-emerald-600 hover:bg-emerald-50"
-              : "text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50"
-          }`}
-          aria-label={status === "DONE" || status === "PARTIAL" ? "Вернуть в план" : "Выполнено"}
-          title={status === "DONE" || status === "PARTIAL" ? "Вернуть в план" : "Отметить выполненной"}
+          onClick={(e) => { e.stopPropagation(); onComplete(); }}
+          className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50"
+          aria-label="Выполнено"
+          title="Отметить выполненной"
         >
           ✓
         </button>
+      )}
+      {canToggle && !hideCheckToggle && isDone && (
+        <span
+          className="w-7 h-7 flex items-center justify-center rounded text-emerald-600"
+          aria-hidden
+          title="Выполнено"
+        >
+          ✓
+        </span>
       )}
       {canReschedule && onScheduleTomorrow && onScheduleDate && (
         <MovePicker onScheduleTomorrow={onScheduleTomorrow} onScheduleDate={onScheduleDate} />
@@ -241,6 +248,15 @@ function QuickMenu({
                 className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
               >
                 Убрать из плана
+              </button>
+            )}
+            {isDone && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setOpen(false); onRevert(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+              >
+                Вернуть в план
               </button>
             )}
             {canToggle && onPartialComplete && (
@@ -574,13 +590,13 @@ function TaskRow({
         <input
           type="checkbox"
           checked={isDone}
-          disabled={!canToggleDone}
-          onChange={() => { if (isDone) onRevert(); else onComplete(); }}
+          disabled={!canToggleDone || isDone}
+          onChange={() => { if (!isDone) onComplete(); }}
           className={`accent-ink-500 transition-opacity ${
             canToggleDone ? "opacity-60 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100" : "opacity-20"
           }`}
-          aria-label={isDone ? "Вернуть в план" : "Отметить выполненной"}
-          title={isDone ? "Вернуть в план" : "Отметить выполненной"}
+          aria-label={isDone ? "Выполнено — чтобы вернуть в план, используйте меню действий" : "Отметить выполненной"}
+          title={isDone ? "Выполнено — вернуть в план можно через меню действий (⋯)" : "Отметить выполненной"}
         />
       </label>
       <PriorityPicker label={color} onPick={(l) => { onManualPriority(l); triggerFlash(); }} />
