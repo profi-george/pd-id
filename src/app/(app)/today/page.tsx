@@ -117,7 +117,7 @@ export default async function TodayPage({
           projectOptions={projectOptions}
           googleConnected={googleStatus.connected}
           removeOnSchedule={undatedOnly}
-          statusTabs="all"
+          statusTabs
           emptyMessage={
             undatedOnly
               ? "Все задачи уже привязаны к дате."
@@ -254,7 +254,7 @@ export default async function TodayPage({
         googleConnected={googleStatus.connected}
         planView
         showTopPick={!isPast}
-        statusTabs="day"
+        statusTabs
         emptyMessage={
           isToday
             ? "На сегодня пока пусто — хороший повод решить, что сделать в первую очередь."

@@ -797,13 +797,13 @@ export default function PriorityMatrix({
   // наверх — после её выполнения следующая по очереди сама займёт то же место,
   // без дополнительных действий.
   showTopPick?: boolean;
-  // "day" — вкладки Предстоит/Выполнено, по умолчанию Предстоит. "all" —
-  // добавляется третья вкладка Все, она же по умолчанию. Фильтрация клиентская,
-  // на уже загруженных данных — переключение ощущается мгновенно, без сервера.
-  statusTabs?: "day" | "all";
+  // Вкладки Предстоит/Выполнено, по умолчанию Предстоит. Фильтрация
+  // клиентская, на уже загруженных данных — переключение ощущается
+  // мгновенно, без сервера.
+  statusTabs?: boolean;
 }) {
   const [items, setItems] = useState(tasks);
-  const [statusTab, setStatusTab] = useState<"all" | "upcoming" | "done">(statusTabs === "all" ? "all" : "upcoming");
+  const [statusTab, setStatusTab] = useState<"upcoming" | "done">("upcoming");
   const [prevTasks, setPrevTasks] = useState(tasks);
   const [openId, setOpenId] = useState<string | null>(null);
   // Раскрытие длинного хвоста списка LATER — единственная группа, которую прячем
@@ -842,7 +842,7 @@ export default function PriorityMatrix({
     };
   }, []);
 
-  const visibleItems = statusTabs && statusTab !== "all" ? items.filter((t) => statusBucket(t.status) === statusTab) : items;
+  const visibleItems = statusTabs ? items.filter((t) => statusBucket(t.status) === statusTab) : items;
 
   const groups: Record<PriorityLabel, MatrixTask[]> = { P0: [], P1: [], P2: [], P3: [], LATER: [] };
   for (const t of visibleItems) groups[computePriority(t).label].push(t);
@@ -1103,16 +1103,7 @@ export default function PriorityMatrix({
     <div className="space-y-6">
       {statusTabs && (
         <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
-          {statusTabs === "all" && (
-            <button type="button" onClick={() => setStatusTab("all")} className={tabBtn(statusTab === "all")}>
-              Все
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setStatusTab("upcoming")}
-            className={`${tabBtn(statusTab === "upcoming")} border-l border-neutral-300`}
-          >
+          <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
             Предстоит выполнить
           </button>
           <button
