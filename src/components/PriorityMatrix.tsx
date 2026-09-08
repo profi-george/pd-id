@@ -543,6 +543,7 @@ function TaskRow({
     flashTimer.current = setTimeout(() => setFlash(false), 1200);
   }
 
+
   // Отмена переноса — своё состояние: пока ждём ответ сервера, кнопка неактивна;
   // если копию уже успели изменить, отменить нельзя — показываем это тут же,
   // рядом с местом, где человек об этом узнаёт, а не в общем алерте.
@@ -809,6 +810,12 @@ export default function PriorityMatrix({
   // за "Показать ещё"; P0–P3 показываются целиком, одним стеком секций.
   const [laterExpanded, setLaterExpanded] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ tasks: MatrixTask[]; timer: ReturnType<typeof setTimeout> } | null>(null);
+  // Тост на уровне всего списка, а не строки — строка может в тот же момент
+  // пропасть с текущей вкладки (см. statusTabs), тогда подсказка внутри неё
+  // исчезла бы вместе с ней, не успев ничего объяснить.
+  const [completedHint, setCompletedHint] = useState(false);
+  const completedHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (completedHintTimer.current) clearTimeout(completedHintTimer.current); }, []);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [partialTaskId, setPartialTaskId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -977,6 +984,10 @@ export default function PriorityMatrix({
     patch(id, { status: "DONE" } as Partial<MatrixTask>);
     setOpenId(null);
     startTransition(() => { completeTask(id); });
+
+    setCompletedHint(true);
+    if (completedHintTimer.current) clearTimeout(completedHintTimer.current);
+    completedHintTimer.current = setTimeout(() => setCompletedHint(false), 4000);
   }
 
   function handleRevert(id: string) {
@@ -1324,6 +1335,17 @@ export default function PriorityMatrix({
           >
             Отменить
           </button>
+        </div>
+      )}
+
+      {completedHint && (
+        <div
+          className={`fixed left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-1.5 shadow-lg transition-[bottom] ${
+            pendingDelete ? "bottom-20" : "bottom-4"
+          }`}
+        >
+          <span>✓ Выполнено{statusTabs ? " · ушла в «Выполнено»" : ""}</span>
+          <span className="px-3 py-1 rounded-full text-white/50 text-xs">вернуть — через «⋯»</span>
         </div>
       )}
 

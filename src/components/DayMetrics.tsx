@@ -56,11 +56,19 @@ export default function DayMetrics({
   existingDay: { difficulty: number | null; mood: number | null; efficiency: number | null; worry: number | null } | null;
 }) {
   return (
-    <div className="grid gap-4 bg-white border border-neutral-200 rounded-lg p-3">
-      <h2 className="text-sm font-medium text-neutral-600">Метрики дня</h2>
-      {METRICS.map((m) => (
-        <MetricRow key={m.name} name={m.name} label={m.label} defaultValue={existingDay?.[m.name] ?? 5} />
-      ))}
-    </div>
+    // <details> вместо простого div — сворачивается без потери значений полей
+    // внутри (закрытая секция всё равно уходит в submit формы), форма короче
+    // на первый взгляд, когда задач в плане много.
+    <details className="group bg-white border border-neutral-200 rounded-lg" open>
+      <summary className="cursor-pointer select-none list-none flex items-center justify-between px-3 py-2.5">
+        <span className="text-sm font-medium text-neutral-600">Метрики дня</span>
+        <span className="text-neutral-400 text-xs transition-transform group-open:rotate-180">▾</span>
+      </summary>
+      <div className="grid gap-4 px-3 pb-3">
+        {METRICS.map((m) => (
+          <MetricRow key={m.name} name={m.name} label={m.label} defaultValue={existingDay?.[m.name] ?? 5} />
+        ))}
+      </div>
+    </details>
   );
 }

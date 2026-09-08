@@ -27,8 +27,15 @@ export default function DayContextFields({
   const [pms, setPms] = useState(hasPms === true);
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
-      <h2 className="text-sm font-medium text-neutral-600">Контекст дня</h2>
+    <details className="group bg-white border border-neutral-200 rounded-lg" open>
+      <summary className="cursor-pointer select-none list-none flex items-center justify-between px-3 py-2.5">
+        <span>
+          <span className="text-sm font-medium text-neutral-600">Контекст дня</span>
+          <span className="block text-[11px] text-neutral-400 mt-0.5">Видно только вам — в этом кабинете вы единственный пользователь.</span>
+        </span>
+        <span className="text-neutral-400 text-xs shrink-0 transition-transform group-open:rotate-180">▾</span>
+      </summary>
+      <div className="px-3 pb-3 space-y-3">
 
       <div>
         <label className="block text-xs text-neutral-500 mb-1">День цикла</label>
@@ -98,6 +105,7 @@ export default function DayContextFields({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </details>
   );
 }

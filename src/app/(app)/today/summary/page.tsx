@@ -168,37 +168,47 @@ export default async function EveningSummaryPage({
           conflictAbout={existingDay?.conflictAbout ?? null}
         />
 
-        <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
-          <h2 className="text-sm font-medium text-neutral-600">Почему так вышло</h2>
-          <div>
-            <label className="block text-xs text-neutral-500 mb-1">Что получилось и почему</label>
-            <textarea
-              name="whyWorked"
-              rows={2}
-              defaultValue={existingDay?.whyWorked ?? ""}
-              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-            />
+        <details className="group bg-white border border-neutral-200 rounded-lg" open>
+          <summary className="cursor-pointer select-none list-none flex items-center justify-between px-3 py-2.5">
+            <span className="text-sm font-medium text-neutral-600">Почему так вышло</span>
+            <span className="text-neutral-400 text-xs transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <div className="px-3 pb-3 space-y-3">
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Что получилось и почему</label>
+              <textarea
+                name="whyWorked"
+                rows={2}
+                defaultValue={existingDay?.whyWorked ?? ""}
+                className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Что не получилось и почему</label>
+              <textarea
+                name="whyNotWorked"
+                rows={2}
+                defaultValue={existingDay?.whyNotWorked ?? ""}
+                className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs text-neutral-500 mb-1">Что не получилось и почему</label>
-            <textarea
-              name="whyNotWorked"
-              rows={2}
-              defaultValue={existingDay?.whyNotWorked ?? ""}
-              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-            />
-          </div>
-        </div>
+        </details>
 
-        <div className="bg-white border border-neutral-200 rounded-lg p-3">
-          <label className="block text-sm font-medium mb-1">Вывод на завтра</label>
-          <textarea
-            name="conclusion"
-            rows={2}
-            defaultValue={existingDay?.conclusion ?? ""}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-          />
-        </div>
+        <details className="group bg-white border border-neutral-200 rounded-lg" open>
+          <summary className="cursor-pointer select-none list-none flex items-center justify-between px-3 py-2.5">
+            <span className="text-sm font-medium text-neutral-600">Вывод на завтра</span>
+            <span className="text-neutral-400 text-xs transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <div className="px-3 pb-3">
+            <textarea
+              name="conclusion"
+              rows={2}
+              defaultValue={existingDay?.conclusion ?? ""}
+              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            />
+          </div>
+        </details>
 
         <EveningSummaryCounter total={tasks.length} />
 

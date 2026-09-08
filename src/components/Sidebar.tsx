@@ -369,6 +369,9 @@ export default function Sidebar({
           <span>План дня</span>
           <span className="text-xs opacity-60">{totalCount}</span>
         </Link>
+        <Link href="/today/summary" className={rowClass(pathname === "/today/summary", false)}>
+          <span>Итог дня</span>
+        </Link>
         <Link href="/history" className={rowClass(pathname === "/history", false)}>
           <span>История</span>
         </Link>
