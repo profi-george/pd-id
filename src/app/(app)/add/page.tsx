@@ -6,8 +6,13 @@ import UnifiedTaskInput from "@/components/UnifiedTaskInput";
 
 export const dynamic = "force-dynamic";
 
-export default async function AddPage() {
+export default async function AddPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ text?: string }>;
+}) {
   const user = await requireUser();
+  const { text } = await searchParams;
   const projects = await prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } });
   const projectOptions = flattenProjectsForSelect(
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
@@ -21,7 +26,7 @@ export default async function AddPage() {
       </div>
 
       <div className="space-y-1.5">
-        <UnifiedTaskInput projects={projectOptions} />
+        <UnifiedTaskInput projects={projectOptions} initialText={text} />
         <Link href="/tasks/new" className="block text-xs text-neutral-400 hover:text-neutral-700 text-right">
           Добавить вручную, без AI →
         </Link>

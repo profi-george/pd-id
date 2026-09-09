@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { todayDate, sameDate, formatDateHumanFull, toDateInputValue, parseDateInputValue } from "@/lib/dates";
@@ -7,7 +8,7 @@ import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
 import DayDateNav from "@/components/DayDateNav";
 import { requireUser } from "@/lib/auth";
-import { getGoogleStatus, getCycleSettings } from "@/app/(app)/actions";
+import { getGoogleStatus, getCycleSettings, completeTask } from "@/app/(app)/actions";
 import { getCycleInfo, getCycleNote } from "@/lib/cycle";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +34,24 @@ function ViewToggle({ mode, date }: { mode: "day" | "all"; date: Date }) {
 export default async function TodayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; view?: string; project?: string; filter?: string }>;
+  searchParams: Promise<{ date?: string; view?: string; project?: string; filter?: string; complete?: string }>;
 }) {
   const user = await requireUser();
-  const { date: dateParam, view, project: projectFilter, filter } = await searchParams;
+  const { date: dateParam, view, project: projectFilter, filter, complete } = await searchParams;
+
+  // Диплинк из Дневника («Отметить задачу выполненной в ПД-ИД») — отмечаем и сразу
+  // убираем ?complete из адреса, чтобы обновление страницы не повторяло действие.
+  if (complete) {
+    await completeTask(complete);
+    const params = new URLSearchParams();
+    if (dateParam) params.set("date", dateParam);
+    if (view) params.set("view", view);
+    if (projectFilter) params.set("project", projectFilter);
+    if (filter) params.set("filter", filter);
+    const qs = params.toString();
+    redirect(qs ? `/today?${qs}` : "/today");
+  }
+
   const mode: "day" | "all" = view === "all" ? "all" : "day";
   const today = todayDate();
   const date = dateParam ? parseDateInputValue(dateParam) : today;

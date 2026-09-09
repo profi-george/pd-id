@@ -59,12 +59,18 @@ function useThinkingPhrase(active: boolean): string {
   return active ? THINKING_PHRASES[i] : THINKING_PHRASES[0];
 }
 
-export default function UnifiedTaskInput({ projects }: { projects: ProjectOption[] }) {
+export default function UnifiedTaskInput({
+  projects,
+  initialText,
+}: {
+  projects: ProjectOption[];
+  initialText?: string;
+}) {
   const router = useRouter();
   const isMobile = useSyncExternalStore(noSubscription, getIsMobile, () => false);
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialText ?? "");
   const [error, setError] = useState<string | null>(null);
   // Промежуточный шаг: AI закончил разбор (done=true), но это ещё не карточки для
   // редактирования — сначала показываем понятную сводку, чтобы можно было поправить

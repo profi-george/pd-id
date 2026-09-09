@@ -168,6 +168,8 @@ function QuickMenu({
   onScheduleDate,
   onPartialComplete,
   hideCheckToggle = false,
+  taskId,
+  taskText,
 }: {
   status?: string;
   scheduled: boolean;
@@ -181,6 +183,8 @@ function QuickMenu({
   // На hero-карточке ("Сейчас") отметка о выполнении уже есть отдельной крупной
   // кнопкой в теле карточки — второй маленький ✓ в этом меню был бы дублем.
   hideCheckToggle?: boolean;
+  taskId: string;
+  taskText: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -268,6 +272,15 @@ function QuickMenu({
                 Частично выполнено…
               </button>
             )}
+            <a
+              href={`https://dnevnik-gold.vercel.app/diary/bulk?text=${encodeURIComponent(taskText)}&taskId=${encodeURIComponent(taskId)}`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+              className="block w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+            >
+              Записать в Дневник →
+            </a>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
@@ -758,6 +771,8 @@ function TaskRow({
           onScheduleDate={(d) => { onScheduleDate(d); triggerFlash(); }}
           onPartialComplete={onPartialComplete}
           hideCheckToggle={hero}
+          taskId={task.id}
+          taskText={task.text}
         />
       </div>
     </div>
