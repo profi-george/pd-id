@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { assignTaskToProject, createProject, renameProject, deleteProject, setProjectPriority } from "@/app/(app)/actions";
+import { assignTaskToProject, createProject, renameProject, deleteProject, setProjectPriority, setProjectColor } from "@/app/(app)/actions";
 import { buildProjectTree, type ProjectNode } from "@/lib/projectTree";
 import { PRIORITY_LABEL_TEXT, type PriorityLabel } from "@/lib/priorityEngine";
+import { PROJECT_COLORS } from "@/lib/projectColors";
 
 const PROJECT_PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3"];
 const PROJECT_DOT_CLASS: Record<PriorityLabel, string> = {
@@ -80,6 +81,72 @@ function ProjectPriorityDot({
   );
 }
 
+// Цвет ярлыка проекта — свободный выбор из палитры, отдельно от приоритета
+// выше (тот влияет на расчёт, этот только маркирует проект визуально).
+// Квадратная форма, а не круглая — чтобы не путать с точкой приоритета рядом.
+function ProjectColorPicker({
+  color,
+  onPick,
+  dim,
+}: {
+  color: string | null;
+  onPick: (c: string | null) => void;
+  dim?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-3.5 h-3.5 rounded-full flex items-center justify-center"
+        title={color ? "Цвет ярлыка проекта" : "Цвет ярлыка не задан"}
+        aria-label="Цвет ярлыка проекта"
+      >
+        <span
+          className={`w-2 h-2 rounded-sm ${!color ? (dim ? "bg-white/30" : "bg-neutral-300") : ""}`}
+          style={color ? { backgroundColor: color } : undefined}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-5 z-30 w-40 bg-white border border-neutral-200 rounded-lg shadow-lg p-2">
+          <div className="grid grid-cols-5 gap-1.5">
+            {PROJECT_COLORS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => { setOpen(false); onPick(c.value); }}
+                title={c.name}
+                aria-label={c.name}
+                className={`w-5 h-5 rounded-full ${color === c.value ? "ring-2 ring-offset-1 ring-neutral-400" : ""}`}
+                style={{ backgroundColor: c.value }}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onPick(null); }}
+            className="w-full text-left px-1 py-1 mt-1.5 text-xs text-neutral-500 hover:text-neutral-800"
+          >
+            Без цвета
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
+
 // Переименовать/удалить — раньше были двумя отдельными значками, вместо
 // одного меню "⋯" (тот же язык, что и у меню строки задачи).
 function ProjectMenu({
@@ -143,6 +210,7 @@ function ProjectRow({
   count,
   active,
   priority,
+  color,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -150,6 +218,7 @@ function ProjectRow({
   onRenamed,
   onDeleted,
   onPriorityChanged,
+  onColorChanged,
   onAddChild,
 }: {
   id: string;
@@ -157,6 +226,7 @@ function ProjectRow({
   count: number;
   active: boolean;
   priority: string | null;
+  color: string | null;
   dragOver: boolean;
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: () => void;
@@ -164,6 +234,7 @@ function ProjectRow({
   onRenamed: (name: string) => void;
   onDeleted: () => void;
   onPriorityChanged: (p: string | null) => void;
+  onColorChanged: (c: string | null) => void;
   // Только у проектов верхнего уровня — вложенность у нас всего в один уровень.
   onAddChild?: () => void;
 }) {
@@ -175,6 +246,11 @@ function ProjectRow({
   function handlePriorityPick(p: PriorityLabel | null) {
     onPriorityChanged(p);
     startTransition(() => { setProjectPriority(id, p); });
+  }
+
+  function handleColorPick(c: string | null) {
+    onColorChanged(c);
+    startTransition(() => { setProjectColor(id, c); });
   }
 
   async function save() {
@@ -245,7 +321,10 @@ function ProjectRow({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <ProjectPriorityDot priority={priority} onPick={handlePriorityPick} dim={active} />
+      <span className="flex items-center gap-1 shrink-0">
+        <ProjectPriorityDot priority={priority} onPick={handlePriorityPick} dim={active} />
+        <ProjectColorPicker color={color} onPick={handleColorPick} dim={active} />
+      </span>
       <Link href={`/projects/${id}`} className="flex-1 min-w-0 flex items-center justify-between">
         <span className="truncate">{name}</span>
         <span
@@ -350,6 +429,10 @@ export default function Sidebar({
     setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, priority } : p)));
   }
 
+  function colorLocal(id: string, color: string | null) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, color } : p)));
+  }
+
   const rowClass = (active: boolean, dragOver: boolean) =>
     `flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm cursor-pointer ${
       dragOver
@@ -377,21 +460,9 @@ export default function Sidebar({
         </Link>
       </nav>
 
-      {/* Граница перед "Без проекта"/"Проекты" — иначе они визуально сливаются
-          с основной навигацией выше, хотя это разные по смыслу категории. */}
-      <div
-        className="pt-3 border-t border-neutral-200"
-        onDragOver={(e) => { e.preventDefault(); setDragOverKey("__none__"); }}
-        onDragLeave={() => setDragOverKey((k) => (k === "__none__" ? null : k))}
-        onDrop={handleDrop(null)}
-      >
-        <Link href="/today?view=all&project=none" className={rowClass(false, dragOverKey === "__none__")}>
-          <span>Без проекта</span>
-          <span className="text-xs opacity-60">{noProjectCount}</span>
-        </Link>
-      </div>
-
-      <div>
+      {/* Граница перед "Проекты" — иначе он визуально сливается с основной
+          навигацией выше, хотя это разные по смыслу категории. */}
+      <div className="pt-3 border-t border-neutral-200">
         <div className="flex items-center justify-between px-2">
           <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Проекты</p>
           <button
@@ -422,25 +493,28 @@ export default function Sidebar({
             const isCollapsed = collapsed.has(top.id);
             return (
               <div key={top.id}>
-                <div className="flex items-center gap-1">
-                  {top.children.length > 0 ? (
+                {/* Раскрывашка "▾/▸" наезжает в левый паддинг сайдбара (relative +
+                    absolute со сдвигом влево), а не занимает свою колонку в потоке —
+                    иначе точка/название проекта уезжали заметно правее, чем "Проекты"
+                    и остальные пункты навигации над ними. */}
+                <div className="relative">
+                  {top.children.length > 0 && (
                     <button
                       type="button"
                       onClick={() => toggleCollapsed(top.id)}
-                      className="shrink-0 w-3 text-xs opacity-60 hover:opacity-100"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-3 h-3 flex items-center justify-center text-[10px] text-neutral-400 hover:text-neutral-700"
+                      aria-label={isCollapsed ? "Развернуть проект" : "Свернуть проект"}
                     >
                       {isCollapsed ? "▸" : "▾"}
                     </button>
-                  ) : (
-                    <span className="shrink-0 w-3" />
                   )}
-                  <div className="flex-1 min-w-0">
-                    <ProjectRow
+                  <ProjectRow
                       id={top.id}
                       name={top.name}
                       count={counts[top.id] ?? 0}
                       active={pathname === `/projects/${top.id}`}
                       priority={top.priority ?? null}
+                      color={top.color ?? null}
                       dragOver={dragOverKey === top.id}
                       onDragOver={(e) => { e.preventDefault(); setDragOverKey(top.id); }}
                       onDragLeave={() => setDragOverKey((k) => (k === top.id ? null : k))}
@@ -448,9 +522,9 @@ export default function Sidebar({
                       onRenamed={(n) => renameLocal(top.id, n)}
                       onDeleted={() => deleteLocal(top.id)}
                       onPriorityChanged={(p) => priorityLocal(top.id, p)}
+                      onColorChanged={(c) => colorLocal(top.id, c)}
                       onAddChild={() => { setAddingSubTo(top.id); setName(""); }}
                     />
-                  </div>
                 </div>
                 {!isCollapsed && (top.children.length > 0 || addingSubTo === top.id) && (
                   // Тонкая линия слева — вложенность видна сама, без подписи "подпроект".
@@ -463,6 +537,7 @@ export default function Sidebar({
                         count={counts[sub.id] ?? 0}
                         active={pathname === `/projects/${sub.id}`}
                         priority={sub.priority ?? null}
+                        color={sub.color ?? null}
                         dragOver={dragOverKey === sub.id}
                         onDragOver={(e) => { e.preventDefault(); setDragOverKey(sub.id); }}
                         onDragLeave={() => setDragOverKey((k) => (k === sub.id ? null : k))}
@@ -470,6 +545,7 @@ export default function Sidebar({
                         onRenamed={(n) => renameLocal(sub.id, n)}
                         onDeleted={() => deleteLocal(sub.id)}
                         onPriorityChanged={(p) => priorityLocal(sub.id, p)}
+                        onColorChanged={(c) => colorLocal(sub.id, c)}
                       />
                     ))}
                     {addingSubTo === top.id && (
@@ -494,6 +570,17 @@ export default function Sidebar({
             );
           })}
         </div>
+      </div>
+
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOverKey("__none__"); }}
+        onDragLeave={() => setDragOverKey((k) => (k === "__none__" ? null : k))}
+        onDrop={handleDrop(null)}
+      >
+        <Link href="/today?view=all&project=none" className={rowClass(false, dragOverKey === "__none__")}>
+          <span>Без проекта</span>
+          <span className="text-xs opacity-60">{noProjectCount}</span>
+        </Link>
       </div>
     </aside>
   );

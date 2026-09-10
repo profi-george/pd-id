@@ -15,6 +15,7 @@ import {
   type ChatResult,
 } from "@/lib/ai";
 import { isPriorityLabel, computePriority, PRIORITY_LABEL_TEXT } from "@/lib/priorityEngine";
+import { isProjectColor } from "@/lib/projectColors";
 import {
   getGoogleConnectionStatus,
   disconnectGoogle,
@@ -156,6 +157,17 @@ export async function setProjectPriority(id: string, priority: string | null) {
   const user = await requireUser();
   if (priority !== null && !isPriorityLabel(priority)) return;
   await prisma.project.updateMany({ where: { id, userId: user.id }, data: { priority } });
+  revalidatePath("/projects");
+  revalidatePath("/backlog");
+  revalidatePath("/today");
+}
+
+// Цвет ярлыка проекта — чисто визуальная маркировка (в отличие от priority
+// выше, никак не влияет на расчёт приоритета задач).
+export async function setProjectColor(id: string, color: string | null) {
+  const user = await requireUser();
+  if (color !== null && !isProjectColor(color)) return;
+  await prisma.project.updateMany({ where: { id, userId: user.id }, data: { color } });
   revalidatePath("/projects");
   revalidatePath("/backlog");
   revalidatePath("/today");

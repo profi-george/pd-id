@@ -3,6 +3,7 @@ export type ProjectNode = {
   name: string;
   parentId: string | null;
   priority?: string | null;
+  color?: string | null;
 };
 
 export type ProjectTreeNode = ProjectNode & { children: ProjectTreeNode[] };
@@ -28,12 +29,12 @@ export function buildProjectTree(projects: ProjectNode[]): ProjectTreeNode[] {
 // Плоский список с отступами для использования в <select> — "Название" / "— Подпроект".
 export function flattenProjectsForSelect(
   projects: ProjectNode[]
-): { id: string; label: string }[] {
+): { id: string; label: string; color: string | null }[] {
   const tree = buildProjectTree(projects);
-  const out: { id: string; label: string }[] = [];
+  const out: { id: string; label: string; color: string | null }[] = [];
   function walk(nodes: ProjectTreeNode[], depth: number) {
     for (const n of nodes) {
-      out.push({ id: n.id, label: `${"— ".repeat(depth)}${n.name}` });
+      out.push({ id: n.id, label: `${"— ".repeat(depth)}${n.name}`, color: n.color ?? null });
       walk(n.children, depth + 1);
     }
   }

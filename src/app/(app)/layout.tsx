@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
+import { todayDate } from "@/lib/dates";
 import AppShell from "@/components/AppShell";
 
 const ACTIVE_STATUSES = [TaskStatus.BACKLOG, TaskStatus.PLANNED];
@@ -10,15 +11,19 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
 
-  const [projects, tasks] = await Promise.all([
+  const [projects, tasks, planTodayCount] = await Promise.all([
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.task.findMany({
       where: { userId: user.id, status: { in: ACTIVE_STATUSES } },
       select: { projectId: true, status: true },
     }),
+    // Бейдж у "План дня" в сайдбаре — сколько задач реально стоит в плане на
+    // сегодня, а не весь бэклог+запланированное по всем датам (это была
+    // путаница: цифра в сайдбаре не совпадала с тем, что видно на странице).
+    prisma.task.count({ where: { userId: user.id, date: todayDate(), status: TaskStatus.PLANNED } }),
   ]);
 
-  const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, priority: p.priority }));
+  const projectNodes = projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, priority: p.priority, color: p.color }));
   const byId = new Map(projectNodes.map((p) => [p.id, p]));
 
   // "Задачи" по умолчанию показывает весь активный объём (бэклог + то, что уже
@@ -47,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       projects={projectNodes}
       counts={counts}
       noProjectCount={noProjectCount}
-      totalCount={tasks.length}
+      totalCount={planTodayCount}
       cabinetName={user.name}
     >
       {children}

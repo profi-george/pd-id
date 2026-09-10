@@ -41,6 +41,7 @@ export type MatrixTask = TaskEvaluation & {
   status?: string;
   projectId: string | null;
   projectName: string | null;
+  projectColor?: string | null;
   date?: Date | null;
   movedToDate?: Date | null;
   subtasks?: SubtaskItem[];
@@ -347,12 +348,14 @@ function PriorityPicker({ label, onPick }: { label: PriorityLabel; onPick: (l: P
 function ProjectPicker({
   projectId,
   projectName,
+  projectColor,
   options,
   onPick,
 }: {
   projectId: string | null;
   projectName: string | null;
-  options: { id: string; label: string }[];
+  projectColor?: string | null;
+  options: { id: string; label: string; color?: string | null }[];
   onPick: (projectId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -372,8 +375,9 @@ function ProjectPicker({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className={`hover:underline hover:text-neutral-700 -my-1 py-1 ${projectName ? "" : "text-neutral-400"}`}
+        className={`inline-flex items-center gap-1 hover:underline hover:text-neutral-700 -my-1 py-1 ${projectName ? "" : "text-neutral-400"}`}
       >
+        {projectColor && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: projectColor }} />}
         {projectName ?? "+ проект"}
       </button>
       {open && (
@@ -390,11 +394,12 @@ function ProjectPicker({
               key={p.id}
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onPick(p.id); }}
-              className={`w-full text-left px-3 py-1.5 hover:bg-neutral-50 truncate ${
+              className={`w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-neutral-50 truncate ${
                 p.id === projectId ? "font-medium text-neutral-900" : "text-neutral-700"
               }`}
             >
-              {p.label}
+              {p.color && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />}
+              <span className="truncate">{p.label}</span>
             </button>
           ))}
         </div>
@@ -494,7 +499,7 @@ function TaskRow({
 }: {
   task: MatrixTask;
   color: PriorityLabel;
-  projectOptions: { id: string; label: string }[];
+  projectOptions: { id: string; label: string; color?: string | null }[];
   onOpen: () => void;
   onDropBefore: (draggedId: string, before: boolean) => void;
   onDelete: () => void;
@@ -662,6 +667,7 @@ function TaskRow({
           <ProjectPicker
             projectId={task.projectId}
             projectName={task.projectName}
+            projectColor={task.projectColor}
             options={projectOptions}
             onPick={(id) => { onAssignProject(id); triggerFlash(); }}
           />
@@ -797,7 +803,7 @@ export default function PriorityMatrix({
   statusTabs,
 }: {
   tasks: MatrixTask[];
-  projectOptions: { id: string; label: string }[];
+  projectOptions: { id: string; label: string; color?: string | null }[];
   googleConnected?: boolean;
   // true на странице "План дня": список — только задачи конкретной даты, поэтому
   // "убрать из плана" должно сразу убрать карточку из вида, а не просто снять дату.
@@ -894,9 +900,9 @@ export default function PriorityMatrix({
 
   // Смена проекта прямо в списке (не через карточку задачи).
   function handleAssignProject(id: string, projectId: string | null) {
-    const label = projectOptions.find((p) => p.id === projectId)?.label ?? null;
-    const projectName = label ? label.replace(/^(— )+/, "") : null;
-    patch(id, { projectId, projectName });
+    const found = projectOptions.find((p) => p.id === projectId);
+    const projectName = found ? found.label.replace(/^(— )+/, "") : null;
+    patch(id, { projectId, projectName, projectColor: found?.color ?? null });
     startTransition(() => { assignTaskToProject(id, projectId); });
   }
 
@@ -1216,8 +1222,8 @@ export default function PriorityMatrix({
         }}
         onChangeProject={(projectId) => {
           if (!openId) return;
-          const label = projectOptions.find((p) => p.id === projectId)?.label ?? null;
-          patch(openId, { projectId, projectName: label });
+          const found = projectOptions.find((p) => p.id === projectId);
+          patch(openId, { projectId, projectName: found?.label ?? null, projectColor: found?.color ?? null });
           startTransition(() => { updateTaskFields(openId, { projectId }); });
         }}
         onChangeField={(fieldPatch) => {

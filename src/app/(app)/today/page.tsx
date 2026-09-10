@@ -81,8 +81,11 @@ export default async function TodayPage({
       ...t,
       projectName: t.project?.name ?? null,
       projectPriority: t.project?.priority ?? null,
+      projectColor: t.project?.color ?? null,
     }));
-    const projectOptions = flattenProjectsForSelect(projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId })));
+    const projectOptions = flattenProjectsForSelect(
+      projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, color: p.color }))
+    );
 
     function hrefFor(filterMode: "all" | "undated") {
       const params = new URLSearchParams();
@@ -178,9 +181,10 @@ export default async function TodayPage({
     ...t,
     projectName: t.project?.name ?? null,
     projectPriority: t.project?.priority ?? null,
+    projectColor: t.project?.color ?? null,
   }));
   const projectOptions = flattenProjectsForSelect(
-    projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
+    projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, color: p.color }))
   );
 
   return (

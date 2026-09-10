@@ -29,11 +29,16 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const projectNodes = allProjects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }));
+  const projectNodes = allProjects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, color: p.color }));
   const scopeIds = projectAndDescendantIds(id, projectNodes);
   const scopedTasks = tasks
     .filter((t) => t.projectId && scopeIds.has(t.projectId))
-    .map((t) => ({ ...t, projectName: t.project?.name ?? null, projectPriority: t.project?.priority ?? null }));
+    .map((t) => ({
+      ...t,
+      projectName: t.project?.name ?? null,
+      projectPriority: t.project?.priority ?? null,
+      projectColor: t.project?.color ?? null,
+    }));
 
   const projectOptions = flattenProjectsForSelect(projectNodes);
 
@@ -42,19 +47,23 @@ export default async function ProjectDetailPage({
       {/* Переключатель между всеми проектами — текущий выделен тёмной пилюлей,
           остальные обычным текстом, клик сразу переходит на другой проект. */}
       <div className="flex items-center gap-1 flex-wrap">
-        {allProjects.map((p) => (
-          <Link
-            key={p.id}
-            href={`/projects/${p.id}`}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              p.id === project.id
-                ? "bg-neutral-900 text-white"
-                : "text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
-            }`}
-          >
-            {p.name}
-          </Link>
-        ))}
+        {allProjects.map((p) => {
+          const active = p.id === project.id;
+          return (
+            <Link
+              key={p.id}
+              href={`/projects/${p.id}`}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                active
+                  ? "text-white"
+                  : "text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
+              }`}
+              style={active ? { backgroundColor: p.color ?? "#171717" } : undefined}
+            >
+              {p.name}
+            </Link>
+          );
+        })}
       </div>
       <div>
         <h1 className="text-xl font-display font-bold">{project.name}</h1>
