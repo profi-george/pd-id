@@ -662,7 +662,7 @@ function TaskRow({
         } ${pressing ? "bg-ink-100" : ""}`}
       >
         <p
-          className={`${compact ? "text-sm truncate" : "text-[15px] leading-snug"} font-medium ${
+          className={`${compact ? "text-sm" : "text-[15px]"} leading-snug font-medium ${
             task.status === "MOVED"
               ? "line-through text-neutral-400"
               : task.status === "NOT_DONE"
