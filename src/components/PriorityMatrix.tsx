@@ -6,7 +6,6 @@ import {
   computePriority,
   formatEffort,
   PRIORITY_LABEL_TEXT,
-  PRIORITY_LABEL_HINT,
   LOW_CONFIDENCE_THRESHOLD,
   type PriorityLabel,
   type TaskEvaluation,
@@ -510,6 +509,7 @@ function TaskRow({
   onToggleSelect,
   onPartialComplete,
   hero = false,
+  compact = false,
 }: {
   task: MatrixTask;
   color: PriorityLabel;
@@ -535,6 +535,10 @@ function TaskRow({
   // Карточка "Сейчас" наверху экрана дня: крупная кнопка выполнения и балл
   // приоритета видны сразу, без похода в детали задачи.
   hero?: boolean;
+  // Квадрант матрицы: только чекбокс и название, без проекта/срока/статусных
+  // бейджей и точки приоритета (она и так очевидна из квадранта) — все
+  // пояснения по задаче остаются в карточке, открывается по клику.
+  compact?: boolean;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
   // Долгий тап по строке — вход в режим выбора нескольких задач (для массового
@@ -617,7 +621,7 @@ function TaskRow({
       } ${dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""}`}
     >
       <label
-        className="pt-4 pl-2 pr-0.5 shrink-0 self-start"
+        className={`${compact ? "pt-2.5" : "pt-4"} pl-2 pr-0.5 shrink-0 self-start`}
         onClick={(e) => e.stopPropagation()}
       >
         <input
@@ -632,7 +636,7 @@ function TaskRow({
           title={isDone ? "Выполнено — вернуть в план можно через меню действий (⋯)" : "Отметить выполненной"}
         />
       </label>
-      <PriorityPicker label={color} onPick={(l) => { onManualPriority(l); triggerFlash(); }} />
+      {!compact && <PriorityPicker label={color} onPick={(l) => { onManualPriority(l); triggerFlash(); }} />}
       <div
         role="button"
         tabIndex={0}
@@ -653,12 +657,12 @@ function TaskRow({
         onTouchStart={startLongPress}
         onTouchEnd={cancelLongPress}
         onTouchMove={cancelLongPress}
-        className={`flex-1 min-w-0 text-left pr-3.5 py-3 hover:bg-neutral-50 cursor-grab active:cursor-grabbing space-y-1 transition-colors duration-300 ${
-          pressing ? "bg-ink-100" : ""
-        }`}
+        className={`flex-1 min-w-0 text-left pr-3.5 hover:bg-neutral-50 cursor-grab active:cursor-grabbing transition-colors duration-300 ${
+          compact ? "py-2" : "py-3 space-y-1"
+        } ${pressing ? "bg-ink-100" : ""}`}
       >
         <p
-          className={`text-[15px] font-medium leading-snug ${
+          className={`${compact ? "text-sm truncate" : "text-[15px] leading-snug"} font-medium ${
             task.status === "MOVED"
               ? "line-through text-neutral-400"
               : task.status === "NOT_DONE"
@@ -668,92 +672,96 @@ function TaskRow({
         >
           {task.text}
         </p>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
-          {task.subtasks && task.subtasks.length > 0 && (
-            <span
-              className={`tabular-nums ${
-                task.subtasks.every((s) => s.done) ? "text-emerald-600" : ""
-              }`}
-            >
-              ☑ {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
-            </span>
-          )}
-          <ProjectPicker
-            projectId={task.projectId}
-            projectName={task.projectName}
-            projectColor={task.projectColor}
-            options={projectOptions}
-            onPick={(id) => { onAssignProject(id); triggerFlash(); }}
-          />
-          <span className={task.projectName ? "text-neutral-400" : ""}>≈ {formatEffort(task.effortMinutes)}</span>
-          {canReschedule ? (
-            <DatePicker
-              date={task.date}
-              onScheduleToday={() => { onScheduleToday(); triggerFlash(); }}
-              onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
-              onScheduleDate={(d) => { onScheduleDate(d); triggerFlash(); }}
-            />
-          ) : (
-            task.date && (
-              // Уже выполненную/перенесённую задачу нельзя перенести отсюда одним
-              // кликом — это молча сняло бы отметку. Дата видна, но не кликабельна.
-              <span className="text-neutral-400" title="Перенести можно после отмены выполнения">
-                · на {formatDateRelative(task.date)}
-              </span>
-            )
-          )}
-        </div>
-        {(task.status === "DONE" ||
-          task.status === "NOT_DONE" ||
-          task.status === "MOVED" ||
-          task.status === "PARTIAL" ||
-          task.confidence < LOW_CONFIDENCE_THRESHOLD ||
-          flash) && (
-          <div className="flex flex-wrap items-center gap-1 text-[11px]">
-            {task.status === "DONE" && (
-              <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">выполнена</span>
-            )}
-            {task.status === "PARTIAL" && (
-              <span className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                частично{task.movedToDate ? ` · продолжение → ${formatDateRelative(task.movedToDate)}` : ""}
-              </span>
-            )}
-            {task.status === "NOT_DONE" && (
-              <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500">не выполнена</span>
-            )}
-            {task.status === "MOVED" && undoMoveState !== "error" && (
-              <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500 inline-flex items-center gap-1">
-                перенесена{task.movedToDate ? ` → ${formatDateRelative(task.movedToDate)}` : ""}
-                <button
-                  type="button"
-                  disabled={undoMoveState === "pending"}
-                  onClick={(e) => { e.stopPropagation(); handleUndoMoveClick(); }}
-                  className="underline hover:text-neutral-700 disabled:opacity-50"
+        {!compact && (
+          <>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
+              {task.subtasks && task.subtasks.length > 0 && (
+                <span
+                  className={`tabular-nums ${
+                    task.subtasks.every((s) => s.done) ? "text-emerald-600" : ""
+                  }`}
                 >
-                  {undoMoveState === "pending" ? "отменяю…" : "отменить"}
-                </button>
-              </span>
+                  ☑ {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
+                </span>
+              )}
+              <ProjectPicker
+                projectId={task.projectId}
+                projectName={task.projectName}
+                projectColor={task.projectColor}
+                options={projectOptions}
+                onPick={(id) => { onAssignProject(id); triggerFlash(); }}
+              />
+              <span className={task.projectName ? "text-neutral-400" : ""}>≈ {formatEffort(task.effortMinutes)}</span>
+              {canReschedule ? (
+                <DatePicker
+                  date={task.date}
+                  onScheduleToday={() => { onScheduleToday(); triggerFlash(); }}
+                  onScheduleTomorrow={() => { onScheduleTomorrow(); triggerFlash(); }}
+                  onScheduleDate={(d) => { onScheduleDate(d); triggerFlash(); }}
+                />
+              ) : (
+                task.date && (
+                  // Уже выполненную/перенесённую задачу нельзя перенести отсюда одним
+                  // кликом — это молча сняло бы отметку. Дата видна, но не кликабельна.
+                  <span className="text-neutral-400" title="Перенести можно после отмены выполнения">
+                    · на {formatDateRelative(task.date)}
+                  </span>
+                )
+              )}
+            </div>
+            {(task.status === "DONE" ||
+              task.status === "NOT_DONE" ||
+              task.status === "MOVED" ||
+              task.status === "PARTIAL" ||
+              task.confidence < LOW_CONFIDENCE_THRESHOLD ||
+              flash) && (
+              <div className="flex flex-wrap items-center gap-1 text-[11px]">
+                {task.status === "DONE" && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">выполнена</span>
+                )}
+                {task.status === "PARTIAL" && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                    частично{task.movedToDate ? ` · продолжение → ${formatDateRelative(task.movedToDate)}` : ""}
+                  </span>
+                )}
+                {task.status === "NOT_DONE" && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500">не выполнена</span>
+                )}
+                {task.status === "MOVED" && undoMoveState !== "error" && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500 inline-flex items-center gap-1">
+                    перенесена{task.movedToDate ? ` → ${formatDateRelative(task.movedToDate)}` : ""}
+                    <button
+                      type="button"
+                      disabled={undoMoveState === "pending"}
+                      onClick={(e) => { e.stopPropagation(); handleUndoMoveClick(); }}
+                      className="underline hover:text-neutral-700 disabled:opacity-50"
+                    >
+                      {undoMoveState === "pending" ? "отменяю…" : "отменить"}
+                    </button>
+                  </span>
+                )}
+                {task.status === "MOVED" && undoMoveState === "error" && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                    перенос уже нельзя отменить — копия изменена
+                  </span>
+                )}
+                {task.confidence < LOW_CONFIDENCE_THRESHOLD && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">AI не уверен</span>
+                )}
+                {flash && <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">✓ Сохранено</span>}
+              </div>
             )}
-            {task.status === "MOVED" && undoMoveState === "error" && (
-              <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">
-                перенос уже нельзя отменить — копия изменена
-              </span>
+            {task.primaryReason && (
+              <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 leading-snug">
+                {task.primaryReason}
+              </p>
             )}
-            {task.confidence < LOW_CONFIDENCE_THRESHOLD && (
-              <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">AI не уверен</span>
+            {task.note && (
+              <p className="text-xs text-neutral-500 border-l border-neutral-300 pl-2 leading-snug">
+                {task.note}
+              </p>
             )}
-            {flash && <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">✓ Сохранено</span>}
-          </div>
-        )}
-        {task.primaryReason && (
-          <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 leading-snug">
-            {task.primaryReason}
-          </p>
-        )}
-        {task.note && (
-          <p className="text-xs text-neutral-500 border-l border-neutral-300 pl-2 leading-snug">
-            {task.note}
-          </p>
+          </>
         )}
         {hero && (task.status === "PLANNED" || task.status === undefined || task.status === "DONE" || task.status === "PARTIAL") && (
           <div className="pt-1.5" onClick={(e) => e.stopPropagation()}>
@@ -1100,13 +1108,14 @@ export default function PriorityMatrix({
 
   // Общий рендер строки — переиспользуется и для "Сейчас" наверху, и для обычных
   // групп ниже, чтобы вся логика строки (клики, drag, быстрые правки) жила в одном месте.
-  function renderRow(t: MatrixTask, label: PriorityLabel, hero = false) {
+  function renderRow(t: MatrixTask, label: PriorityLabel, hero = false, compact = false) {
     return (
       <TaskRow
         key={t.id}
         task={t}
         color={label}
         hero={hero}
+        compact={compact}
         onOpen={() => setOpenId(t.id)}
         onDropBefore={(draggedId, before) => moveTask(label, t.id, before, draggedId)}
         onDelete={() => handleDeleteRequest(t.id)}
@@ -1135,14 +1144,11 @@ export default function PriorityMatrix({
   function renderQuadrant(label: "P0" | "P1" | "P2" | "P3") {
     const list = groups[label];
     return (
-      <div key={label} className={`rounded-xl border p-3 flex flex-col ${QUADRANT_CLASS[label]}`}>
-        <div className="mb-2">
-          <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
-            <p className="text-sm font-semibold text-neutral-700">{PRIORITY_LABEL_TEXT[label]}</p>
-            <span className="text-xs font-semibold text-neutral-500 tabular-nums">{list.length}</span>
-          </div>
-          <p className="text-[11px] text-neutral-500 mt-0.5">{PRIORITY_LABEL_HINT[label]}</p>
+      <div key={label} className={`rounded-xl border p-2.5 flex flex-col ${QUADRANT_CLASS[label]}`}>
+        <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
+          <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
+          <p className="text-sm font-semibold text-neutral-700">{PRIORITY_LABEL_TEXT[label]}</p>
+          <span className="text-xs font-semibold text-neutral-500 tabular-nums">{list.length}</span>
         </div>
         <div
           onDragOver={(e) => e.preventDefault()}
@@ -1151,17 +1157,17 @@ export default function PriorityMatrix({
             const draggedId = e.dataTransfer.getData("text/plain");
             if (draggedId) moveTask(label, null, false, draggedId);
           }}
-          className="bg-white rounded-lg border border-neutral-200 divide-y divide-neutral-200 flex-1 min-h-[72px]"
+          className="bg-white rounded-lg border border-neutral-200 divide-y divide-neutral-200 flex-1 min-h-[64px]"
         >
           {list.length === 0 ? (
             <p className="text-xs text-neutral-400 text-center py-6 px-2">Перетащите задачу сюда</p>
           ) : (
-            list.map((t) => renderRow(t, label))
+            list.map((t) => renderRow(t, label, false, true))
           )}
         </div>
         <Link
           href={`/tasks/new?priority=${label}`}
-          className="text-xs text-neutral-400 hover:text-neutral-700 mt-2"
+          className="text-xs text-neutral-400 hover:text-neutral-700 mt-1.5"
         >
           + Добавить задачу
         </Link>
