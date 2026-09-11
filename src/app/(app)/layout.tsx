@@ -11,6 +11,16 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
 
+  // Автоперенос: задача, которую не отметили выполненной/невыполненной, молча
+  // остаётся в статусе PLANNED на своей исходной дате. Без крона в проекте нет —
+  // ловим это здесь, при первом заходе в кабинет за день: любая такая задача из
+  // прошлого переезжает на сегодня и будет переезжать так каждый день дальше,
+  // пока её не отметят выполненной (или явно не решат её судьбу в "Итоге дня").
+  await prisma.task.updateMany({
+    where: { userId: user.id, status: TaskStatus.PLANNED, date: { lt: todayDate() } },
+    data: { date: todayDate() },
+  });
+
   const [projects, tasks, planTodayCount] = await Promise.all([
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.task.findMany({

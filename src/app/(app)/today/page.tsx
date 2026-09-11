@@ -34,10 +34,10 @@ function ViewToggle({ mode, date }: { mode: "day" | "all"; date: Date }) {
 export default async function TodayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; view?: string; project?: string; filter?: string; complete?: string }>;
+  searchParams: Promise<{ date?: string; view?: string; project?: string; complete?: string }>;
 }) {
   const user = await requireUser();
-  const { date: dateParam, view, project: projectFilter, filter, complete } = await searchParams;
+  const { date: dateParam, view, project: projectFilter, complete } = await searchParams;
 
   // Диплинк из Дневника («Отметить задачу выполненной в ПД-ИД») — отмечаем и сразу
   // убираем ?complete из адреса, чтобы обновление страницы не повторяло действие.
@@ -47,7 +47,6 @@ export default async function TodayPage({
     if (dateParam) params.set("date", dateParam);
     if (view) params.set("view", view);
     if (projectFilter) params.set("project", projectFilter);
-    if (filter) params.set("filter", filter);
     const qs = params.toString();
     redirect(qs ? `/today?${qs}` : "/today");
   }
@@ -57,18 +56,12 @@ export default async function TodayPage({
   const date = dateParam ? parseDateInputValue(dateParam) : today;
 
   if (mode === "all") {
-    const undatedOnly = filter === "undated";
     const [tasks, projects, googleStatus] = await Promise.all([
-      // «Все задачи» — весь объём, вкладки Все/Предстоит/Выполнено фильтруют
-      // на клиенте (см. statusTabs в PriorityMatrix), поэтому статус здесь не
-      // ограничиваем. «Только нераспределённые» — про отсутствие даты, а не
-      // про статус: выполненная задача дату получает всегда, так что этот
-      // фильтр и раньше по факту не пересекался с "готово".
+      // «Все задачи» — весь объём, вкладки Предстоит/Выполнено фильтруют на
+      // клиенте (см. statusTabs в PriorityMatrix), поэтому статус здесь не
+      // ограничиваем.
       prisma.task.findMany({
-        where: {
-          userId: user.id,
-          ...(undatedOnly ? { date: null } : {}),
-        },
+        where: { userId: user.id },
         include: { project: true, subtasks: { orderBy: { order: "asc" } } },
         orderBy: { createdAt: "asc" },
       }),
@@ -87,14 +80,6 @@ export default async function TodayPage({
       projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, color: p.color }))
     );
 
-    function hrefFor(filterMode: "all" | "undated") {
-      const params = new URLSearchParams();
-      params.set("view", "all");
-      if (projectFilter) params.set("project", projectFilter);
-      if (filterMode === "undated") params.set("filter", "undated");
-      return `/today?${params.toString()}`;
-    }
-
     return (
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-2">
@@ -103,28 +88,13 @@ export default async function TodayPage({
               {projectFilter === "none" ? "Без проекта" : "Все задачи"}
             </h1>
             <p className="text-sm text-neutral-500">
-              {matrixTasks.length} {tasksWord(matrixTasks.length)}
-              {undatedOnly ? " · нераспределённые" : ""} · отсортированы по приоритету
+              {matrixTasks.length} {tasksWord(matrixTasks.length)} · отсортированы по приоритету
             </p>
           </div>
           <ViewToggle mode="all" date={today} />
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs">
-            <Link
-              href={hrefFor("all")}
-              className={`px-2.5 py-1 ${undatedOnly ? "text-neutral-500 hover:bg-neutral-50" : "bg-neutral-800 text-white"}`}
-            >
-              Все
-            </Link>
-            <Link
-              href={hrefFor("undated")}
-              className={`px-2.5 py-1 border-l border-neutral-300 ${undatedOnly ? "bg-neutral-800 text-white" : "text-neutral-500 hover:bg-neutral-50"}`}
-            >
-              Нераспределённые
-            </Link>
-          </div>
           <Link href="/add" className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50">
             + Добавить задачу
           </Link>
@@ -134,12 +104,9 @@ export default async function TodayPage({
           tasks={matrixTasks}
           projectOptions={projectOptions}
           googleConnected={googleStatus.connected}
-          removeOnSchedule={undatedOnly}
           statusTabs
           emptyMessage={
-            undatedOnly
-              ? "Все задачи уже привязаны к дате."
-              : projectFilter === "none"
+            projectFilter === "none"
               ? "В задачах без проекта пока пусто."
               : "Пока нет незапланированных задач — опишите новую мысль в «Добавить AI»."
           }

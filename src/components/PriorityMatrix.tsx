@@ -797,7 +797,6 @@ export default function PriorityMatrix({
   projectOptions,
   googleConnected = false,
   planView = false,
-  removeOnSchedule = false,
   emptyMessage = "Здесь пока пусто.",
   showTopPick = false,
   statusTabs,
@@ -808,9 +807,6 @@ export default function PriorityMatrix({
   // true на странице "План дня": список — только задачи конкретной даты, поэтому
   // "убрать из плана" должно сразу убрать карточку из вида, а не просто снять дату.
   planView?: boolean;
-  // true на «Задачах» (Бэклог): список — только нераспределённые (без даты), поэтому
-  // назначение ЛЮБОЙ даты уводит задачу из этого списка в «План дня» той даты.
-  removeOnSchedule?: boolean;
   // Пустое состояние разное по смыслу на разных экранах (план дня / задачи /
   // проект) — общее "Здесь пока пусто" не объясняет, что делать дальше.
   emptyMessage?: string;
@@ -973,7 +969,7 @@ export default function PriorityMatrix({
   // даты уводит задачу с этой страницы. В общем списке (Все задачи/проект) она
   // остаётся видна — просто со сменившейся датой, которую подтянет ревалидация.
   function handleSchedule(id: string, target: "today" | "tomorrow") {
-    if (planView || removeOnSchedule) {
+    if (planView) {
       setItems((prev) => prev.filter((t) => t.id !== id));
       setOpenId(null);
     }
@@ -981,7 +977,7 @@ export default function PriorityMatrix({
   }
 
   function handleScheduleDate(id: string, dateISO: string) {
-    if (planView || removeOnSchedule) {
+    if (planView) {
       setItems((prev) => prev.filter((t) => t.id !== id));
       setOpenId(null);
     }
