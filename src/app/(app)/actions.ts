@@ -215,6 +215,10 @@ export async function createTask(formData: FormData) {
   const projectId = projectIdRaw ? projectIdRaw : null;
   const resultText = str(formData, "resultText");
   const dateOption = str(formData, "dateOption"); // backlog | today | tomorrow
+  // Задача, созданная кнопкой "+ Добавить задачу" внутри квадранта матрицы —
+  // сразу попадает в него, а не туда, куда её бы поставил расчёт по умолчанию.
+  const priorityRaw = str(formData, "priority");
+  const manualPriority = priorityRaw && isPriorityLabel(priorityRaw) ? priorityRaw : null;
 
   const evaluation = evaluationFromForm(formData);
 
@@ -239,6 +243,7 @@ export async function createTask(formData: FormData) {
       projectId,
       userId: user.id,
       ...evaluation,
+      manualPriority,
       date,
       status,
       order,

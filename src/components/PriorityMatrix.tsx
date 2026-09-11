@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   computePriority,
   formatEffort,
   PRIORITY_LABEL_TEXT,
+  PRIORITY_LABEL_HINT,
   LOW_CONFIDENCE_THRESHOLD,
   type PriorityLabel,
   type TaskEvaluation,
@@ -61,7 +63,7 @@ export type MatrixTask = TaskEvaluation & {
   aiReasoningEffort?: string | null;
 };
 
-const COLUMN_ORDER: PriorityLabel[] = ["P0", "P1", "P2", "P3"];
+const COLUMN_ORDER: ("P0" | "P1" | "P2" | "P3")[] = ["P0", "P1", "P2", "P3"];
 
 const DOT_CLASS: Record<PriorityLabel, string> = {
   P0: "bg-red-500",
@@ -91,6 +93,18 @@ const HERO_RING_CLASS: Record<PriorityLabel, string> = {
 };
 
 const GROUP_PREVIEW = 3;
+
+// Матрица 2×2 — та же шкала приоритета (P0–P3), что и в обычном списке, просто
+// разложена по квадрантам вместо секций друг под другом. Фон квадранта — очень
+// светлый тон того же акцента, что и точка/рамка приоритета в списке, чтобы
+// матрица не вводила свою отдельную цветовую систему; карточки внутри остаются
+// белыми (см. п.18-19 ТЗ — цвет для ориентации по сетке, а не для украшения).
+const QUADRANT_CLASS: Record<"P0" | "P1" | "P2" | "P3", string> = {
+  P0: "bg-red-50/70 border-red-100",
+  P1: "bg-amber-50/70 border-amber-100",
+  P2: "bg-blue-50/70 border-blue-100",
+  P3: "bg-neutral-100/70 border-neutral-200",
+};
 
 // Раньше клик по этой иконке сразу переносил задачу на завтра — молча, без
 // возможности передумать или выбрать другой день. Перенос это решение не менее
@@ -821,6 +835,9 @@ export default function PriorityMatrix({
 }) {
   const [items, setItems] = useState(tasks);
   const [statusTab, setStatusTab] = useState<"upcoming" | "done">("upcoming");
+  // Список/Матрица — только раскладка одних и тех же задач, без похода на
+  // сервер и без отдельного набора данных (см. п.16 ТЗ).
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [prevTasks, setPrevTasks] = useState(tasks);
   const [openId, setOpenId] = useState<string | null>(null);
   // Раскрытие длинного хвоста списка LATER — единственная группа, которую прячем
@@ -875,8 +892,10 @@ export default function PriorityMatrix({
   // "Сейчас" — первая ещё активная задача по уже посчитанному порядку (тому же,
   // что определяет группы выше). LATER сознательно не участвует — эти задачи не
   // должны попадать в фокус только потому, что больше ничего активного не осталось.
+  // В "Матрице" задача остаётся в своём квадранте целиком — вынос "Сейчас"
+  // отдельным блоком имеет смысл только в обычном списке.
   let topTask: MatrixTask | null = null;
-  if (showTopPick) {
+  if (showTopPick && viewMode === "list") {
     for (const label of COLUMN_ORDER) {
       const found = groups[label].find((t) => t.status === "PLANNED" || t.status === undefined);
       if (found) { topTask = found; break; }
@@ -1109,6 +1128,47 @@ export default function PriorityMatrix({
     );
   }
 
+  // Квадрант матрицы — та же секция группы, что и в списке (та же группа задач,
+  // тот же moveTask/renderRow), только оформлена как отдельная плашка с белым
+  // "лотком" карточек внутри и своей зоной вставки (вся площадь, а не только
+  // список — пустой квадрант тоже принимает drop).
+  function renderQuadrant(label: "P0" | "P1" | "P2" | "P3") {
+    const list = groups[label];
+    return (
+      <div key={label} className={`rounded-xl border p-3 flex flex-col ${QUADRANT_CLASS[label]}`}>
+        <div className="mb-2">
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
+            <p className="text-sm font-semibold text-neutral-700">{PRIORITY_LABEL_TEXT[label]}</p>
+            <span className="text-xs font-semibold text-neutral-500 tabular-nums">{list.length}</span>
+          </div>
+          <p className="text-[11px] text-neutral-500 mt-0.5">{PRIORITY_LABEL_HINT[label]}</p>
+        </div>
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const draggedId = e.dataTransfer.getData("text/plain");
+            if (draggedId) moveTask(label, null, false, draggedId);
+          }}
+          className="bg-white rounded-lg border border-neutral-200 divide-y divide-neutral-200 flex-1 min-h-[72px]"
+        >
+          {list.length === 0 ? (
+            <p className="text-xs text-neutral-400 text-center py-6 px-2">Перетащите задачу сюда</p>
+          ) : (
+            list.map((t) => renderRow(t, label))
+          )}
+        </div>
+        <Link
+          href={`/tasks/new?priority=${label}`}
+          className="text-xs text-neutral-400 hover:text-neutral-700 mt-2"
+        >
+          + Добавить задачу
+        </Link>
+      </div>
+    );
+  }
+
   if (!statusTabs && items.length === 0) {
     return <p className="text-sm text-neutral-400 px-1">{emptyMessage}</p>;
   }
@@ -1118,20 +1178,36 @@ export default function PriorityMatrix({
 
   return (
     <div className="space-y-6">
-      {statusTabs && (
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        {statusTabs ? (
+          <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
+            <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
+              Предстоит выполнить
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusTab("done")}
+              className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
+            >
+              Выполнено
+            </button>
+          </div>
+        ) : (
+          <span />
+        )}
         <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
-          <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
-            Предстоит выполнить
+          <button type="button" onClick={() => setViewMode("list")} className={tabBtn(viewMode === "list")}>
+            Список
           </button>
           <button
             type="button"
-            onClick={() => setStatusTab("done")}
-            className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
+            onClick={() => setViewMode("grid")}
+            className={`${tabBtn(viewMode === "grid")} border-l border-neutral-300`}
           >
-            Выполнено
+            Матрица
           </button>
         </div>
-      )}
+      </div>
 
       {visibleItems.length === 0 ? (
         <p className="text-sm text-neutral-400 px-1">
@@ -1151,27 +1227,33 @@ export default function PriorityMatrix({
             );
           })()}
 
-          {COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
-            <div key={label}>
-              <div className="flex items-center gap-1.5 px-1 mb-1.5">
-                <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
-                <p className="text-xs font-semibold text-neutral-600">
-                  {PRIORITY_LABEL_TEXT[label]} · {groups[label].filter((t) => t.id !== topTask?.id).length}
-                </p>
-              </div>
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const draggedId = e.dataTransfer.getData("text/plain");
-                  if (draggedId) moveTask(label, null, false, draggedId);
-                }}
-                className="divide-y divide-neutral-200"
-              >
-                {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
-              </div>
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {COLUMN_ORDER.map((label) => renderQuadrant(label))}
             </div>
-          ))}
+          ) : (
+            COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
+              <div key={label}>
+                <div className="flex items-center gap-1.5 px-1 mb-1.5">
+                  <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
+                  <p className="text-xs font-semibold text-neutral-600">
+                    {PRIORITY_LABEL_TEXT[label]} · {groups[label].filter((t) => t.id !== topTask?.id).length}
+                  </p>
+                </div>
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const draggedId = e.dataTransfer.getData("text/plain");
+                    if (draggedId) moveTask(label, null, false, draggedId);
+                  }}
+                  className="divide-y divide-neutral-200"
+                >
+                  {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
+                </div>
+              </div>
+            ))
+          )}
 
           {groups.LATER.length > 0 && (
             <div>

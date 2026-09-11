@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createTask } from "@/app/(app)/actions";
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { CRITERIA_INFO } from "@/lib/criteriaInfo";
+import { PRIORITY_LABEL_TEXT, isPriorityLabel } from "@/lib/priorityEngine";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +13,12 @@ const SCALE = [1, 2, 3, 4, 5];
 export default async function NewTaskPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; projectId?: string }>;
+  searchParams: Promise<{ date?: string; projectId?: string; priority?: string }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
   const dateOption = params.date === "today" || params.date === "tomorrow" ? params.date : "backlog";
+  const presetPriority = isPriorityLabel(params.priority) ? params.priority : null;
   const projects = await prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } });
   const projectOptions = flattenProjectsForSelect(
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId }))
@@ -44,6 +46,14 @@ export default async function NewTaskPage({
       </p>
 
       <form action={createTask} className="space-y-4 bg-white border border-neutral-200 rounded-lg p-4">
+        {presetPriority && (
+          <>
+            <input type="hidden" name="priority" value={presetPriority} />
+            <p className="text-xs text-ink-700 bg-ink-50 border border-ink-100 rounded px-2 py-1.5">
+              Задача попадёт в группу приоритета «{PRIORITY_LABEL_TEXT[presetPriority]}» — как в квадранте матрицы, откуда вы её добавляете.
+            </p>
+          </>
+        )}
         <div>
           <label className="block text-sm font-medium mb-1">Формулировка задачи</label>
           <textarea
