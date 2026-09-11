@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import PriorityMatrix from "@/components/PriorityMatrix";
+import LayoutToggle from "@/components/LayoutToggle";
 import { getGoogleStatus } from "@/app/(app)/actions";
 import { flattenProjectsForSelect, projectAndDescendantIds } from "@/lib/projectTree";
 import { requireUser } from "@/lib/auth";
@@ -11,11 +12,15 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ layout?: string }>;
 }) {
   const user = await requireUser();
   const { id } = await params;
+  const { layout: layoutParam } = await searchParams;
+  const layout: "list" | "grid" = layoutParam === "grid" ? "grid" : "list";
 
   const [project, allProjects, tasks, googleStatus] = await Promise.all([
     prisma.project.findFirst({ where: { id, userId: user.id } }),
@@ -65,14 +70,21 @@ export default async function ProjectDetailPage({
           );
         })}
       </div>
-      <div>
-        <h1 className="text-xl font-display font-bold">{project.name}</h1>
-        <p className="text-sm text-neutral-500">{scopedTasks.length} задач</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-display font-bold">{project.name}</h1>
+          <p className="text-sm text-neutral-500">{scopedTasks.length} задач</p>
+        </div>
+        <LayoutToggle
+          layout={layout}
+          hrefFor={(l) => (l === "grid" ? `/projects/${id}?layout=grid` : `/projects/${id}`)}
+        />
       </div>
       <PriorityMatrix
         tasks={scopedTasks}
         projectOptions={projectOptions}
         googleConnected={googleStatus.connected}
+        viewMode={layout}
         emptyMessage="В этом проекте пока нет задач."
       />
     </div>

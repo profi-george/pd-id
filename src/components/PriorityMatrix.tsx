@@ -822,6 +822,7 @@ export default function PriorityMatrix({
   emptyMessage = "Здесь пока пусто.",
   showTopPick = false,
   statusTabs,
+  viewMode = "list",
 }: {
   tasks: MatrixTask[];
   projectOptions: { id: string; label: string; color?: string | null }[];
@@ -840,12 +841,14 @@ export default function PriorityMatrix({
   // клиентская, на уже загруженных данных — переключение ощущается
   // мгновенно, без сервера.
   statusTabs?: boolean;
+  // Список/Матрица — управляется страницей через ?layout=grid (та же ссылка,
+  // что и другие переключатели видов в приложении), а не своим состоянием:
+  // так переключатель можно вынести в верхний правый угол экрана, к остальным
+  // ссылкам-переключателям, одинаково на всех страницах со списком задач.
+  viewMode?: "list" | "grid";
 }) {
   const [items, setItems] = useState(tasks);
   const [statusTab, setStatusTab] = useState<"upcoming" | "done">("upcoming");
-  // Список/Матрица — только раскладка одних и тех же задач, без похода на
-  // сервер и без отдельного набора данных (см. п.16 ТЗ).
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [prevTasks, setPrevTasks] = useState(tasks);
   const [openId, setOpenId] = useState<string | null>(null);
   // Раскрытие длинного хвоста списка LATER — единственная группа, которую прячем
@@ -1184,36 +1187,20 @@ export default function PriorityMatrix({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        {statusTabs ? (
-          <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
-            <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
-              Предстоит выполнить
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusTab("done")}
-              className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
-            >
-              Выполнено
-            </button>
-          </div>
-        ) : (
-          <span />
-        )}
+      {statusTabs && (
         <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
-          <button type="button" onClick={() => setViewMode("list")} className={tabBtn(viewMode === "list")}>
-            Список
+          <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
+            Предстоит выполнить
           </button>
           <button
             type="button"
-            onClick={() => setViewMode("grid")}
-            className={`${tabBtn(viewMode === "grid")} border-l border-neutral-300`}
+            onClick={() => setStatusTab("done")}
+            className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
           >
-            Матрица
+            Выполнено
           </button>
         </div>
-      </div>
+      )}
 
       {visibleItems.length === 0 ? (
         <p className="text-sm text-neutral-400 px-1">

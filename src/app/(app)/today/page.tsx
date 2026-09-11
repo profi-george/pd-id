@@ -6,6 +6,7 @@ import { todayDate, sameDate, formatDateHumanFull, toDateInputValue, parseDateIn
 import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
+import LayoutToggle from "@/components/LayoutToggle";
 import DayDateNav from "@/components/DayDateNav";
 import { requireUser } from "@/lib/auth";
 import { getGoogleStatus, getCycleSettings, completeTask } from "@/app/(app)/actions";
@@ -34,10 +35,11 @@ function ViewToggle({ mode, date }: { mode: "day" | "all"; date: Date }) {
 export default async function TodayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; view?: string; project?: string; complete?: string }>;
+  searchParams: Promise<{ date?: string; view?: string; project?: string; complete?: string; layout?: string }>;
 }) {
   const user = await requireUser();
-  const { date: dateParam, view, project: projectFilter, complete } = await searchParams;
+  const { date: dateParam, view, project: projectFilter, complete, layout: layoutParam } = await searchParams;
+  const layout: "list" | "grid" = layoutParam === "grid" ? "grid" : "list";
 
   // Диплинк из Дневника («Отметить задачу выполненной в ПД-ИД») — отмечаем и сразу
   // убираем ?complete из адреса, чтобы обновление страницы не повторяло действие.
@@ -47,6 +49,7 @@ export default async function TodayPage({
     if (dateParam) params.set("date", dateParam);
     if (view) params.set("view", view);
     if (projectFilter) params.set("project", projectFilter);
+    if (layoutParam) params.set("layout", layoutParam);
     const qs = params.toString();
     redirect(qs ? `/today?${qs}` : "/today");
   }
@@ -80,6 +83,14 @@ export default async function TodayPage({
       projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, color: p.color }))
     );
 
+    function allLayoutHref(l: "list" | "grid") {
+      const params = new URLSearchParams();
+      params.set("view", "all");
+      if (projectFilter) params.set("project", projectFilter);
+      if (l === "grid") params.set("layout", "grid");
+      return `/today?${params.toString()}`;
+    }
+
     return (
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-2">
@@ -91,7 +102,10 @@ export default async function TodayPage({
               {matrixTasks.length} {tasksWord(matrixTasks.length)} · отсортированы по приоритету
             </p>
           </div>
-          <ViewToggle mode="all" date={today} />
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <ViewToggle mode="all" date={today} />
+            <LayoutToggle layout={layout} hrefFor={allLayoutHref} />
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -105,6 +119,7 @@ export default async function TodayPage({
           projectOptions={projectOptions}
           googleConnected={googleStatus.connected}
           statusTabs
+          viewMode={layout}
           emptyMessage={
             projectFilter === "none"
               ? "В задачах без проекта пока пусто."
@@ -154,6 +169,14 @@ export default async function TodayPage({
     projects.map((p) => ({ id: p.id, name: p.name, parentId: p.parentId, color: p.color }))
   );
 
+  function dayLayoutHref(l: "list" | "grid") {
+    const params = new URLSearchParams();
+    if (dateParam) params.set("date", dateParam);
+    if (l === "grid") params.set("layout", "grid");
+    const qs = params.toString();
+    return qs ? `/today?${qs}` : "/today";
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-2">
@@ -172,6 +195,7 @@ export default async function TodayPage({
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <ViewToggle mode="day" date={date} />
+          <LayoutToggle layout={layout} hrefFor={dayLayoutHref} />
           <DayDateNav date={date} isToday={isToday} todayISO={toDateInputValue(today)} />
           {cycleInfo && (
             <div className="max-w-[13rem] rounded-lg bg-rose-50 border border-rose-100 px-2.5 py-2 text-right">
@@ -241,6 +265,7 @@ export default async function TodayPage({
         planView
         showTopPick={!isPast}
         statusTabs
+        viewMode={layout}
         emptyMessage={
           isToday
             ? "На сегодня пока пусто — хороший повод решить, что сделать в первую очередь."
