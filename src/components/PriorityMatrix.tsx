@@ -10,7 +10,7 @@ import {
   type PriorityLabel,
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
-import { formatDateRelative, parseDateInputValue, todayDate, toDateInputValue, nextMonday } from "@/lib/dates";
+import { formatDateRelative, parseDateInputValue, todayDate, toDateInputValue, nextMonday, sameDate } from "@/lib/dates";
 import { tasksWord } from "@/lib/pluralize";
 import {
   deleteTask,
@@ -493,11 +493,15 @@ function DatePicker({
 // "Выполнено"/"Удалить" не помещались в один ряд тулбара выбранных задач.
 // Раскрывается вверх — тулбар сам прижат к низу экрана.
 function BulkMovePicker({
+  showToday,
   onToday,
   onTomorrow,
   onMonday,
   onDate,
 }: {
+  // Скрыта, когда у всех выбранных и так уже сегодняшняя дата — перенос "на
+  // сегодня" в этом случае ничего не делает и выглядит бессмысленной кнопкой.
+  showToday: boolean;
   onToday: () => void;
   onTomorrow: () => void;
   onMonday: () => void;
@@ -526,9 +530,11 @@ function BulkMovePicker({
       </button>
       {open && (
         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 text-sm text-neutral-700 space-y-1">
-          <button type="button" onClick={() => { setOpen(false); onToday(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
-            Сегодня
-          </button>
+          {showToday && (
+            <button type="button" onClick={() => { setOpen(false); onToday(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
+              Сегодня
+            </button>
+          )}
           <button type="button" onClick={() => { setOpen(false); onTomorrow(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
             Завтра
           </button>
@@ -1143,6 +1149,9 @@ export default function PriorityMatrix({
   const selectedTasks = items.filter((t) => selectedIds.has(t.id));
   const canBulkComplete = selectedTasks.some((t) => t.status !== "DONE");
   const canBulkReschedule = selectedTasks.some((t) => t.status !== "DONE" && t.status !== "MOVED");
+  // "Сегодня" бессмысленна, если у всех выбранных и так уже сегодняшняя дата
+  // (типичный случай — выделение в "Плане дня" за сегодня).
+  const canBulkToday = selectedTasks.some((t) => !t.date || !sameDate(t.date, todayDate()));
 
   const laterVisible = laterExpanded ? groups.LATER : groups.LATER.slice(0, GROUP_PREVIEW);
 
@@ -1424,6 +1433,7 @@ export default function PriorityMatrix({
           )}
           {canBulkReschedule && (
             <BulkMovePicker
+              showToday={canBulkToday}
               onToday={() => bulkSchedule("today")}
               onTomorrow={() => bulkSchedule("tomorrow")}
               onMonday={() => bulkScheduleDate(toDateInputValue(nextMonday(todayDate())))}
