@@ -10,7 +10,7 @@ import {
   type PriorityLabel,
   type TaskEvaluation,
 } from "@/lib/priorityEngine";
-import { formatDateRelative, parseDateInputValue } from "@/lib/dates";
+import { formatDateRelative, parseDateInputValue, todayDate, toDateInputValue, nextMonday } from "@/lib/dates";
 import { tasksWord } from "@/lib/pluralize";
 import {
   deleteTask,
@@ -857,10 +857,24 @@ export default function PriorityMatrix({
   const [pendingDelete, setPendingDelete] = useState<{ tasks: MatrixTask[]; timer: ReturnType<typeof setTimeout> } | null>(null);
   // Тост на уровне всего списка, а не строки — строка может в тот же момент
   // пропасть с текущей вкладки (см. statusTabs), тогда подсказка внутри неё
-  // исчезла бы вместе с ней, не успев ничего объяснить.
-  const [completedHint, setCompletedHint] = useState(false);
+  // исчезла бы вместе с ней, не успев ничего объяснить. Хранит id только что
+  // выполненных задач (одной или сразу нескольких через массовое действие),
+  // чтобы "Отменить" в тосте реально знал, что возвращать.
+  const [completedHint, setCompletedHint] = useState<string[] | null>(null);
   const completedHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (completedHintTimer.current) clearTimeout(completedHintTimer.current); }, []);
+  function triggerCompletedHint(ids: string[]) {
+    setCompletedHint(ids);
+    if (completedHintTimer.current) clearTimeout(completedHintTimer.current);
+    completedHintTimer.current = setTimeout(() => setCompletedHint(null), 5000);
+  }
+  function undoCompletedHint() {
+    const ids = completedHint;
+    if (!ids) return;
+    if (completedHintTimer.current) clearTimeout(completedHintTimer.current);
+    setCompletedHint(null);
+    ids.forEach((id) => handleRevert(id));
+  }
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [partialTaskId, setPartialTaskId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -1031,10 +1045,7 @@ export default function PriorityMatrix({
     patch(id, { status: "DONE" } as Partial<MatrixTask>);
     setOpenId(null);
     startTransition(() => { completeTask(id); });
-
-    setCompletedHint(true);
-    if (completedHintTimer.current) clearTimeout(completedHintTimer.current);
-    completedHintTimer.current = setTimeout(() => setCompletedHint(false), 4000);
+    triggerCompletedHint([id]);
   }
 
   function handleRevert(id: string) {
@@ -1083,11 +1094,18 @@ export default function PriorityMatrix({
     setItems((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, status: "DONE" } : t)));
     startTransition(() => { ids.forEach((id) => completeTask(id)); });
     setSelectedIds(new Set());
+    triggerCompletedHint(ids);
   }
 
   function bulkSchedule(target: "today" | "tomorrow") {
     const ids = Array.from(selectedIds);
     ids.forEach((id) => handleSchedule(id, target));
+    setSelectedIds(new Set());
+  }
+
+  function bulkScheduleDate(dateISO: string) {
+    const ids = Array.from(selectedIds);
+    ids.forEach((id) => handleScheduleDate(id, dateISO));
     setSelectedIds(new Set());
   }
 
@@ -1393,6 +1411,21 @@ export default function PriorityMatrix({
               <button type="button" onClick={() => bulkSchedule("tomorrow")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
                 Завтра
               </button>
+              <button
+                type="button"
+                onClick={() => bulkScheduleDate(toDateInputValue(nextMonday(todayDate())))}
+                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20"
+              >
+                Понедельник
+              </button>
+              <label className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 cursor-pointer">
+                На дату
+                <input
+                  type="date"
+                  onChange={(e) => { if (e.target.value) bulkScheduleDate(e.target.value); }}
+                  className="sr-only"
+                />
+              </label>
             </>
           )}
           <button type="button" onClick={bulkDelete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/80">
@@ -1423,12 +1456,22 @@ export default function PriorityMatrix({
 
       {completedHint && (
         <div
-          className={`fixed left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-1.5 shadow-lg transition-[bottom] ${
+          className={`fixed left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg transition-[bottom] ${
             pendingDelete ? "bottom-20" : "bottom-4"
           }`}
         >
-          <span>✓ Выполнено{statusTabs ? " · ушла в «Выполнено»" : ""}</span>
-          <span className="px-3 py-1 rounded-full text-white/50 text-xs">вернуть — через «⋯»</span>
+          <span>
+            {completedHint.length === 1
+              ? `✓ Выполнено${statusTabs ? " · ушла в «Выполнено»" : ""}`
+              : `✓ Выполнено: ${completedHint.length} ${tasksWord(completedHint.length)}`}
+          </span>
+          <button
+            type="button"
+            onClick={undoCompletedHint}
+            className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 font-medium"
+          >
+            Отменить
+          </button>
         </div>
       )}
 

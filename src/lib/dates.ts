@@ -46,6 +46,15 @@ export function nextWeekday(d: Date): Date {
   return d;
 }
 
+// Ближайший понедельник СТРОГО в будущем — если сегодня уже понедельник,
+// это понедельник через неделю, а не сегодня (перенос "на понедельник" всегда
+// означает "на следующую неделю", иначе кнопка была бы бессмысленна по средам).
+export function nextMonday(d: Date): Date {
+  const day = d.getUTCDay(); // 0 = вс, 1 = пн, ... 6 = сб
+  const daysUntil = ((1 - day + 7) % 7) || 7;
+  return addDays(d, daysUntil);
+}
+
 export function sameDate(a: Date, b: Date): boolean {
   return a.getTime() === b.getTime();
 }
