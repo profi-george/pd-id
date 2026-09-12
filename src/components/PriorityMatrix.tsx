@@ -541,31 +541,6 @@ function TaskRow({
   compact?: boolean;
 }) {
   const [dragOver, setDragOver] = useState<"top" | "bottom" | null>(null);
-  // Долгий тап по строке — вход в режим выбора нескольких задач (для массового
-  // переноса/удаления), без отдельного чекбокса, который теперь занят отметкой
-  // выполнения. Таймер отменяется при отпускании/уходе курсора/начале drag —
-  // случайное долгое нажатие не должно молча выбрать задачу.
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressFired = useRef(false);
-  // Заметно на глаз, что нажатие вообще регистрируется — иначе 450мс без
-  // единого отклика на экране легко принять за "не работает".
-  const [pressing, setPressing] = useState(false);
-  function startLongPress() {
-    longPressFired.current = false;
-    setPressing(true);
-    longPressTimer.current = setTimeout(() => {
-      longPressFired.current = true;
-      setPressing(false);
-      onToggleSelect();
-    }, 450);
-  }
-  function cancelLongPress() {
-    setPressing(false);
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }
   // Быстрые правки прямо в списке (приоритет/проект/дата) иначе проходят молча —
   // секундная сетевая заминка выглядела бы точно как сбой. Короткая вспышка "✓"
   // подтверждает, что тап действительно принят, тем же языком, что уже есть
@@ -590,10 +565,6 @@ function TaskRow({
     setUndoMoveState(ok ? "idle" : "error");
   }
 
-  // Тот же критерий, что и в QuickMenu — для "не выполнена"/"перенесена" отметка
-  // выполнения не предлагается тут же однокликово (см. комментарий в QuickMenu).
-  const canToggleDone = task.status === "PLANNED" || task.status === "DONE" || task.status === "PARTIAL" || task.status === undefined;
-  const isDone = task.status === "DONE" || task.status === "PARTIAL";
   // DONE/MOVED не должны молча терять отметку о выполнении через перенос —
   // тот же критерий, что и MovePicker в QuickMenu.
   const canReschedule = task.status === "PLANNED" || task.status === undefined;
@@ -601,7 +572,7 @@ function TaskRow({
   return (
     <div
       draggable
-      onDragStart={(e) => { cancelLongPress(); e.dataTransfer.setData("text/plain", task.id); }}
+      onDragStart={(e) => { e.dataTransfer.setData("text/plain", task.id); }}
       onDragOver={(e) => {
         e.preventDefault();
         const rect = e.currentTarget.getBoundingClientRect();
@@ -626,14 +597,11 @@ function TaskRow({
       >
         <input
           type="checkbox"
-          checked={isDone}
-          disabled={!canToggleDone || isDone}
-          onChange={() => { if (!isDone) onComplete(); }}
-          className={`accent-ink-500 transition-opacity ${
-            canToggleDone ? "opacity-60 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100" : "opacity-20"
-          }`}
-          aria-label={isDone ? "Выполнено — чтобы вернуть в план, используйте меню действий" : "Отметить выполненной"}
-          title={isDone ? "Выполнено — вернуть в план можно через меню действий (⋯)" : "Отметить выполненной"}
+          checked={selected}
+          onChange={() => onToggleSelect()}
+          className="accent-ink-500 opacity-60 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          aria-label={selected ? "Убрать из выделения" : "Выделить для массового действия"}
+          title={selected ? "Убрать из выделения" : "Выделить для массового действия"}
         />
       </label>
       {!compact && <PriorityPicker label={color} onPick={(l) => { onManualPriority(l); triggerFlash(); }} />}
@@ -641,7 +609,6 @@ function TaskRow({
         role="button"
         tabIndex={0}
         onClick={() => {
-          if (longPressFired.current) { longPressFired.current = false; return; }
           if (selectionActive) onToggleSelect();
           else onOpen();
         }}
@@ -651,15 +618,9 @@ function TaskRow({
             onOpen();
           }
         }}
-        onMouseDown={startLongPress}
-        onMouseUp={cancelLongPress}
-        onMouseLeave={cancelLongPress}
-        onTouchStart={startLongPress}
-        onTouchEnd={cancelLongPress}
-        onTouchMove={cancelLongPress}
         className={`flex-1 min-w-0 text-left pr-3.5 hover:bg-neutral-50 cursor-grab active:cursor-grabbing transition-colors duration-300 ${
           compact ? "py-2" : "py-3 space-y-1"
-        } ${pressing ? "bg-ink-100" : ""}`}
+        }`}
       >
         <p
           className={`${compact ? "text-sm" : "text-[15px]"} leading-snug font-medium ${
