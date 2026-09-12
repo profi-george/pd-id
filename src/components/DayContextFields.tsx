@@ -2,29 +2,24 @@
 
 import { useState } from "react";
 
-// Поля "были ли" и "с кем/из-за чего" — конфликт заполняется только если он
-// реально был, поэтому переключатель живёт здесь, на клиенте, а не как
-// отдельная серверная форма.
+// ПМС и день цикла — только чтение, считаются из настроек цикла (см. Настройки),
+// а не спрашиваются заново каждый вечер. Конфликт — единственное, что реально
+// нужно вводить руками здесь, и то условно: поля появляются только при "Да".
 export default function DayContextFields({
-  cycleDay,
   cyclePhaseLabel,
-  hasPms,
+  isPms,
   hadConflict,
   conflictWith,
   conflictAbout,
 }: {
-  cycleDay: number | null;
-  // Если для этого дня цикл ещё не сохранён вручную — сюда приходит
-  // расчёт из src/lib/cycle.ts (по дате начала из настроек), чтобы не
-  // считать день цикла в уме каждый вечер.
+  // Если дата начала цикла не задана в настройках — null, ничего не показываем.
   cyclePhaseLabel: string | null;
-  hasPms: boolean | null;
+  isPms: boolean;
   hadConflict: boolean | null;
   conflictWith: string | null;
   conflictAbout: string | null;
 }) {
   const [conflict, setConflict] = useState(hadConflict === true);
-  const [pms, setPms] = useState(hasPms === true);
 
   return (
     <details className="group bg-white border border-neutral-200 rounded-lg" open>
@@ -37,37 +32,13 @@ export default function DayContextFields({
       </summary>
       <div className="px-3 pb-3 space-y-3">
 
-      <div>
-        <label className="block text-xs text-neutral-500 mb-1">День цикла</label>
-        <input
-          type="number"
-          name="cycleDay"
-          min={1}
-          max={45}
-          defaultValue={cycleDay ?? ""}
-          placeholder="необязательно"
-          className="w-24 border border-neutral-300 rounded px-2 py-1 text-sm"
-        />
-        {cyclePhaseLabel && (
-          <span className="block text-xs text-neutral-400 mt-1">
-            Расчётно по настройкам: {cyclePhaseLabel}
-          </span>
-        )}
-      </div>
-
-      <div>
-        <span className="block text-xs text-neutral-500 mb-1.5">Есть ПМС?</span>
-        <div className="flex gap-3">
-          <label className="flex items-center gap-1.5 text-sm">
-            <input type="radio" name="hasPms" value="no" checked={!pms} onChange={() => setPms(false)} />
-            Нет
-          </label>
-          <label className="flex items-center gap-1.5 text-sm">
-            <input type="radio" name="hasPms" value="yes" checked={pms} onChange={() => setPms(true)} />
-            Да
-          </label>
-        </div>
-      </div>
+      {cyclePhaseLabel && (
+        <p className="text-sm">
+          <span className="text-neutral-500">ПМС: </span>
+          <span className="font-medium">{isPms ? "да" : "нет"}</span>
+          <span className="text-xs text-neutral-400"> · {cyclePhaseLabel}</span>
+        </p>
+      )}
 
       <div>
         <span className="block text-xs text-neutral-500 mb-1.5">Были конфликты?</span>

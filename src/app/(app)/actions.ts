@@ -1,14 +1,16 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { TaskStatus } from "@/generated/prisma/client";
-import { todayDate, tomorrowDate, nextWeekday, parseDateInputValue, toDateInputValue, sameDate } from "@/lib/dates";
+import { TaskStatus, type Task } from "@/generated/prisma/client";
+import { todayDate, tomorrowDate, addDays, nextWeekday, parseDateInputValue, toDateInputValue, sameDate } from "@/lib/dates";
 import { initialOrderKey } from "@/lib/priority";
 import { requireUser } from "@/lib/auth";
+import { getCycleInfo } from "@/lib/cycle";
 import {
   chatWithAI,
   explainPriorityChange,
   answerConfidenceQuestion as aiAnswerConfidenceQuestion,
+  evaluateTaskOutcome,
   friendlyAiError,
   type AiTaskEvaluation,
   type ChatMessage,
@@ -981,38 +983,92 @@ export async function assignTaskToProject(taskId: string, projectId: string | nu
 
 // ---------- Итог дня ----------
 
+// Копия задачи-продолжения — общий кусок для "перенесена" (не выполнена +
+// перенос) и "частично" (остаток продолжается отдельной записью). Меняется
+// только itemId/дата, остальные критерии и AI-объяснения переезжают как есть.
+function continuationTaskData(task: Task, userId: string, newDate: Date) {
+  return {
+    text: task.text,
+    resultText: task.resultText,
+    motivationText: task.motivationText,
+    projectId: task.projectId,
+    userId,
+    value: task.value,
+    costOfDelay: task.costOfDelay,
+    urgency: task.urgency,
+    timeSensitivity: task.timeSensitivity,
+    goalAlignment: task.goalAlignment,
+    effortMinutes: task.effortMinutes,
+    alternativeQuality: task.alternativeQuality,
+    confidence: task.confidence,
+    deadline: task.deadline,
+    financialConsequence: task.financialConsequence,
+    primaryReason: task.primaryReason,
+    riskText: task.riskText,
+    aiValue: task.aiValue,
+    aiCostOfDelay: task.aiCostOfDelay,
+    aiUrgency: task.aiUrgency,
+    aiTimeSensitivity: task.aiTimeSensitivity,
+    aiEffortMinutes: task.aiEffortMinutes,
+    aiReasoningValue: task.aiReasoningValue,
+    aiReasoningCostOfDelay: task.aiReasoningCostOfDelay,
+    aiReasoningUrgency: task.aiReasoningUrgency,
+    aiReasoningTimeSensitivity: task.aiReasoningTimeSensitivity,
+    aiReasoningEffort: task.aiReasoningEffort,
+    manualPriority: task.manualPriority,
+    date: newDate,
+    status: TaskStatus.PLANNED,
+    order: initialOrderKey(task),
+    score: null,
+    movedFromTaskId: task.id,
+  };
+}
+
 export async function submitEveningForm(formData: FormData) {
   const user = await requireUser();
   const dateISO = str(formData, "date");
   const date = parseDateInputValue(dateISO);
-  const tomorrow = new Date(date);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  // Автоматический перенос вперёд не должен молча попадать на выходные —
+  // "завтра" с пятницы едет сразу на понедельник. Это касается только
+  // автоматической подстановки даты (тут и ниже), а не явного выбора
+  // конкретного дня пользователем где-либо ещё в приложении.
+  const tomorrow = nextWeekday(addDays(date, 1));
 
   const conclusion = str(formData, "conclusion");
   const difficulty = num(formData, "difficulty");
   const mood = num(formData, "mood");
   const efficiency = num(formData, "efficiency");
   const worry = num(formData, "worry");
-  const whyWorked = str(formData, "whyWorked") || null;
-  const whyNotWorked = str(formData, "whyNotWorked") || null;
+  // "Что заберу из этого дня?" — одно поле вместо "что получилось/не получилось
+  // по дню в целом" (для задач "почему" осталось на уровне каждой задачи).
+  const takeaway = str(formData, "takeaway") || null;
 
-  const cycleDayRaw = str(formData, "cycleDay");
-  const cycleDay = cycleDayRaw === "" ? null : Number(cycleDayRaw);
-  const hasPms = str(formData, "hasPms") === "yes";
   const hadConflict = str(formData, "hadConflict") === "yes";
   // "С кем"/"из-за чего" заполняются только при hadConflict=true — при "Нет"
   // не сохраняем их, даже если в скрытых полях что-то осталось от прошлого раза.
   const conflictWith = hadConflict ? str(formData, "conflictWith") || null : null;
   const conflictAbout = hadConflict ? str(formData, "conflictAbout") || null : null;
 
+  // ПМС/день цикла в "Итоге дня" больше не спрашиваем — это готовый контекст
+  // из настроек цикла (см. lib/cycle.ts), а не решение, которое принимают
+  // каждый вечер заново.
+  const cycleSettings = await getCycleSettings();
+  const cycleInfo = cycleSettings.cycleStartDate
+    ? getCycleInfo(cycleSettings.cycleStartDate, date, cycleSettings.cycleLengthDays ?? undefined, cycleSettings.periodLengthDays ?? undefined)
+    : null;
+  const cycleDay = cycleInfo?.day ?? null;
+  const hasPms = cycleInfo?.phase === "pms";
+
   await prisma.day.upsert({
     where: { userId_date: { userId: user.id, date } },
     create: {
-      userId: user.id, date, conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked,
+      userId: user.id, date, conclusion, difficulty, mood, efficiency, worry,
+      whyWorked: takeaway, whyNotWorked: null,
       cycleDay, hasPms, hadConflict, conflictWith, conflictAbout,
     },
     update: {
-      conclusion, difficulty, mood, efficiency, worry, whyWorked, whyNotWorked,
+      conclusion, difficulty, mood, efficiency, worry,
+      whyWorked: takeaway, whyNotWorked: null,
       cycleDay, hasPms, hadConflict, conflictWith, conflictAbout,
     },
   });
@@ -1024,83 +1080,95 @@ export async function submitEveningForm(formData: FormData) {
   });
 
   for (const task of plannedTasks) {
-    const done = formData.get(`done_${task.id}`) === "on";
-    const scoreRaw = str(formData, `score_${task.id}`);
-    const score = scoreRaw === "" ? null : Math.max(0, Math.min(10, Number(scoreRaw)));
-    const whySucceeded = str(formData, `whySucceeded_${task.id}`) || null;
-    const whyFailed = str(formData, `whyFailed_${task.id}`) || null;
+    const outcomeRaw = str(formData, `outcome_${task.id}`);
+    const outcome: "done" | "partial" | "not_done" =
+      outcomeRaw === "done" || outcomeRaw === "partial" ? outcomeRaw : "not_done";
+    const reason = str(formData, `reason_${task.id}`) || "";
+    const overrideRaw = str(formData, `scoreOverride_${task.id}`);
 
-    if (done) {
+    // Оценку 0-10 считает AI по исходу+причине — если пользователь явно
+    // поправил цифру вручную (см. "✎" в EveningTaskRow), её не перебиваем.
+    let score: number | null;
+    let scoreReasoning: string | null;
+    if (overrideRaw !== "") {
+      score = Math.max(0, Math.min(10, Number(overrideRaw)));
+      scoreReasoning = null;
+    } else {
+      try {
+        const evaluated = await evaluateTaskOutcome({
+          text: task.text,
+          outcome,
+          reason,
+          value: task.value,
+          costOfDelay: task.costOfDelay,
+          effortMinutes: task.effortMinutes,
+        });
+        score = evaluated.score;
+        scoreReasoning = evaluated.reasoning;
+      } catch {
+        // AI недоступен — сохраняем остальной "Итог дня" всё равно, просто без оценки.
+        score = null;
+        scoreReasoning = null;
+      }
+    }
+
+    if (outcome === "done") {
       await prisma.task.update({
         where: { id: task.id },
-        data: { status: TaskStatus.DONE, score, whySucceeded, whyFailed: null },
+        data: { status: TaskStatus.DONE, score, scoreReasoning, whySucceeded: reason || null, whyFailed: null },
       });
-    } else {
-      const reschedule = formData.get(`reschedule_${task.id}`) === "on";
+      continue;
+    }
 
+    if (outcome === "partial") {
       if (task.googleEventId) {
-        // Задача не сделана в этот день — событие в календаре больше не отражает
-        // реальность (перенесена или просто не случилась). Не оставляем висеть
-        // напоминание о том, чего уже не будет.
         await deleteCalendarEvent(user.id, task.googleEventId).catch(() => {});
       }
-
       await prisma.task.update({
         where: { id: task.id },
         data: {
-          status: reschedule ? TaskStatus.MOVED : TaskStatus.NOT_DONE,
-          // При переносе фиксируем, куда именно — иначе "Итог дня"/список задач
-          // того дня показывали бы "перенесена"/"убрана из плана" без даты, и
-          // "отменить перенос" не смог бы найти копию обратно (см. movedFromTaskId
-          // на созданной ниже копии).
-          movedToDate: reschedule ? tomorrow : null,
-          score,
-          whyFailed,
-          whySucceeded: null,
+          status: TaskStatus.PARTIAL,
+          score, scoreReasoning,
+          whySucceeded: reason || null,
+          whyFailed: null,
+          movedToDate: tomorrow,
           googleEventId: null,
           googleEventUrl: null,
         },
       });
-      if (!reschedule) continue;
-
-      await prisma.task.create({
-        data: {
-          text: task.text,
-          resultText: task.resultText,
-          motivationText: task.motivationText,
-          projectId: task.projectId,
-          userId: user.id,
-          value: task.value,
-          costOfDelay: task.costOfDelay,
-          urgency: task.urgency,
-          timeSensitivity: task.timeSensitivity,
-          goalAlignment: task.goalAlignment,
-          effortMinutes: task.effortMinutes,
-          alternativeQuality: task.alternativeQuality,
-          confidence: task.confidence,
-          deadline: task.deadline,
-          financialConsequence: task.financialConsequence,
-          primaryReason: task.primaryReason,
-          riskText: task.riskText,
-          aiValue: task.aiValue,
-          aiCostOfDelay: task.aiCostOfDelay,
-          aiUrgency: task.aiUrgency,
-          aiTimeSensitivity: task.aiTimeSensitivity,
-          aiEffortMinutes: task.aiEffortMinutes,
-          aiReasoningValue: task.aiReasoningValue,
-          aiReasoningCostOfDelay: task.aiReasoningCostOfDelay,
-          aiReasoningUrgency: task.aiReasoningUrgency,
-          aiReasoningTimeSensitivity: task.aiReasoningTimeSensitivity,
-          aiReasoningEffort: task.aiReasoningEffort,
-          manualPriority: task.manualPriority,
-          date: tomorrow,
-          status: TaskStatus.PLANNED,
-          order: initialOrderKey(task),
-          score: null,
-          movedFromTaskId: task.id,
-        },
-      });
+      await prisma.task.create({ data: continuationTaskData(task, user.id, tomorrow) });
+      continue;
     }
+
+    // outcome === "not_done"
+    const reschedule = formData.get(`reschedule_${task.id}`) === "on";
+
+    if (task.googleEventId) {
+      // Задача не сделана в этот день — событие в календаре больше не отражает
+      // реальность (перенесена или просто не случилась). Не оставляем висеть
+      // напоминание о том, чего уже не будет.
+      await deleteCalendarEvent(user.id, task.googleEventId).catch(() => {});
+    }
+
+    await prisma.task.update({
+      where: { id: task.id },
+      data: {
+        status: reschedule ? TaskStatus.MOVED : TaskStatus.NOT_DONE,
+        // При переносе фиксируем, куда именно — иначе "Итог дня"/список задач
+        // того дня показывали бы "перенесена"/"убрана из плана" без даты, и
+        // "отменить перенос" не смог бы найти копию обратно (см. movedFromTaskId
+        // на созданной ниже копии).
+        movedToDate: reschedule ? tomorrow : null,
+        score, scoreReasoning,
+        whyFailed: reason || null,
+        whySucceeded: null,
+        googleEventId: null,
+        googleEventUrl: null,
+      },
+    });
+    if (!reschedule) continue;
+
+    await prisma.task.create({ data: continuationTaskData(task, user.id, tomorrow) });
   }
 
   revalidatePath("/today");

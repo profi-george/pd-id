@@ -160,9 +160,8 @@ export default async function EveningSummaryPage({
         />
 
         <DayContextFields
-          cycleDay={existingDay?.cycleDay ?? cycleInfo?.day ?? null}
           cyclePhaseLabel={cycleInfo ? `день ${cycleInfo.day} · ${cycleInfo.phaseLabel}` : null}
-          hasPms={existingDay?.hasPms ?? null}
+          isPms={cycleInfo?.phase === "pms"}
           hadConflict={existingDay?.hadConflict ?? null}
           conflictWith={existingDay?.conflictWith ?? null}
           conflictAbout={existingDay?.conflictAbout ?? null}
@@ -170,28 +169,19 @@ export default async function EveningSummaryPage({
 
         <details className="group bg-white border border-neutral-200 rounded-lg" open>
           <summary className="cursor-pointer select-none list-none flex items-center justify-between px-3 py-2.5">
-            <span className="text-sm font-medium text-neutral-600">Почему так вышло</span>
+            <span className="text-sm font-medium text-neutral-600">Что заберу из этого дня?</span>
             <span className="text-neutral-400 text-xs transition-transform group-open:rotate-180">▾</span>
           </summary>
-          <div className="px-3 pb-3 space-y-3">
-            <div>
-              <label className="block text-xs text-neutral-500 mb-1">Что получилось и почему</label>
-              <textarea
-                name="whyWorked"
-                rows={2}
-                defaultValue={existingDay?.whyWorked ?? ""}
-                className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-neutral-500 mb-1">Что не получилось и почему</label>
-              <textarea
-                name="whyNotWorked"
-                rows={2}
-                defaultValue={existingDay?.whyNotWorked ?? ""}
-                className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
-              />
-            </div>
+          <div className="px-3 pb-3">
+            <p className="text-[11px] text-neutral-400 mb-1">
+              Что было интересного, важного, полезного, за что благодарна или что хочется запомнить.
+            </p>
+            <textarea
+              name="takeaway"
+              rows={2}
+              defaultValue={existingDay?.whyWorked ?? ""}
+              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            />
           </div>
         </details>
 
@@ -201,6 +191,9 @@ export default async function EveningSummaryPage({
             <span className="text-neutral-400 text-xs transition-transform group-open:rotate-180">▾</span>
           </summary>
           <div className="px-3 pb-3">
+            <p className="text-[11px] text-neutral-400 mb-1">
+              Не план на завтра — одна короткая рекомендация себе.
+            </p>
             <textarea
               name="conclusion"
               rows={2}

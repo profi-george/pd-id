@@ -218,11 +218,9 @@ export default async function TodayPage({
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
           Итог дня подведён. Трудность {day.difficulty} · настроение {day.mood} · эффективность{" "}
           {day.efficiency} · переживания {day.worry}
-          {day.cycleDay != null && <span> · день цикла {day.cycleDay}</span>}
           {day.hasPms && <span> · ПМС</span>}
           {day.hadConflict && <span> · был конфликт</span>}
-          {day.whyWorked && <p className="mt-1 text-emerald-900">Что получилось: {day.whyWorked}</p>}
-          {day.whyNotWorked && <p className="mt-1 text-emerald-900">Что не получилось: {day.whyNotWorked}</p>}
+          {day.whyWorked && <p className="mt-1 text-emerald-900">Заберу из дня: {day.whyWorked}</p>}
           {day.conclusion ? <p className="mt-1 text-emerald-900">Вывод на завтра: {day.conclusion}</p> : null}
           <Link href={`/today/summary?date=${toDateInputValue(date)}`} className="inline-block mt-1.5 underline hover:text-emerald-900">
             Изменить итог →

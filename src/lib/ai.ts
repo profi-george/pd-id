@@ -375,3 +375,50 @@ ${CRITERIA_GUIDE}
   const validProjectIds = new Set((context?.projects ?? []).map((p) => p.id));
   return normalizeEvaluation(parsed, validProjectIds);
 }
+
+// ---------- Оценка выполнения задачи в "Итоге дня" ----------
+// Пользователь в "Итоге дня" только отмечает исход (выполнена/частично/не
+// выполнена) и коротко пишет почему — сам балл 0-10 считает AI, чтобы вечером
+// не превращать разбор дня в ещё одну анкету с цифрами. Ручная правка через
+// "✎" в интерфейсе просто перезаписывает результат этого вызова.
+
+export async function evaluateTaskOutcome(input: {
+  text: string;
+  outcome: "done" | "partial" | "not_done";
+  reason: string;
+  value: number;
+  costOfDelay: number;
+  effortMinutes: number;
+}): Promise<{ score: number; reasoning: string }> {
+  const outcomeLabel = {
+    done: "выполнена полностью",
+    partial: "выполнена частично",
+    not_done: "не выполнена",
+  }[input.outcome];
+
+  const prompt = `Задача: "${input.text}"
+Изначальная важность задачи: ценность результата ${input.value}/5, цена промедления ${input.costOfDelay}/5, затраты ≈${input.effortMinutes} мин.
+
+Итог дня: задача ${outcomeLabel}.
+${input.reason ? `Комментарий пользователя: "${input.reason}"` : "Пользователь не оставил комментария."}
+
+Оцени именно КАЧЕСТВО ВЫПОЛНЕНИЯ этой конкретной задачи по шкале 0-10 (0 — совсем не сделано или не то, 10 — сделано полностью и хорошо). Не путай с изначальной важностью задачи — она тут не при чём. Ориентир: "не выполнена" обычно 0-2, "частично" обычно 3-6 в зависимости от объёма сделанного по комментарию, "выполнена" обычно 7-10 в зависимости от качества по комментарию.
+
+Кратко (не больше 15 слов, по-человечески) объясни оценку.
+
+Отвечай СТРОГО JSON: {"score": число 0-10, "reasoning": строка}`;
+
+  const parsed = await callGemini(prompt, {
+    type: "OBJECT",
+    properties: {
+      score: { type: "NUMBER" },
+      reasoning: { type: "STRING" },
+    },
+    required: ["score", "reasoning"],
+  });
+
+  const rawScore = Number((parsed as Record<string, unknown>)?.score);
+  const score = Number.isFinite(rawScore) ? Math.max(0, Math.min(10, Math.round(rawScore))) : 5;
+  const reasoning = String((parsed as Record<string, unknown>)?.reasoning ?? "").trim();
+  return { score, reasoning: reasoning || "Оценено автоматически." };
+}

@@ -4,11 +4,11 @@ import { useState } from "react";
 
 const SCALE = Array.from({ length: 10 }, (_, i) => i + 1);
 
-const METRICS: { name: "difficulty" | "mood" | "efficiency" | "worry"; label: string }[] = [
-  { name: "difficulty", label: "Трудность" },
-  { name: "mood", label: "Настроение" },
-  { name: "efficiency", label: "Эффективность" },
-  { name: "worry", label: "Переживания" },
+const METRICS: { name: "difficulty" | "mood" | "efficiency" | "worry"; label: string; hint: string }[] = [
+  { name: "difficulty", label: "Трудность", hint: "Насколько тяжёлым и требовательным был этот день?" },
+  { name: "mood", label: "Настроение", hint: "Каким было твоё эмоциональное состояние в течение дня?" },
+  { name: "efficiency", label: "Эффективность", hint: "Насколько хорошо получилось использовать день для достижения результатов?" },
+  { name: "worry", label: "Переживания", hint: "Насколько сильно ты тревожилась, напрягалась или переживала из-за происходящего?" },
 ];
 
 // Кликабельные пилюли вместо голых <select> — тот же язык выбора, что уже
@@ -17,10 +17,12 @@ const METRICS: { name: "difficulty" | "mood" | "efficiency" | "worry"; label: st
 function MetricRow({
   name,
   label,
+  hint,
   defaultValue,
 }: {
   name: string;
   label: string;
+  hint: string;
   defaultValue: number;
 }) {
   const [value, setValue] = useState(defaultValue);
@@ -28,8 +30,11 @@ function MetricRow({
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <label className="text-sm font-medium">{label}</label>
-        <span className="text-xs text-neutral-400 tabular-nums">{value}/10</span>
+        <div>
+          <label className="text-sm font-medium">{label}</label>
+          <p className="text-[11px] text-neutral-400 leading-snug">{hint}</p>
+        </div>
+        <span className="text-xs text-neutral-400 tabular-nums shrink-0 pl-2">{value}/10</span>
       </div>
       <input type="hidden" name={name} value={value} />
       <div className="flex flex-wrap gap-1">
@@ -66,7 +71,7 @@ export default function DayMetrics({
       </summary>
       <div className="grid gap-4 px-3 pb-3">
         {METRICS.map((m) => (
-          <MetricRow key={m.name} name={m.name} label={m.label} defaultValue={existingDay?.[m.name] ?? 5} />
+          <MetricRow key={m.name} name={m.name} label={m.label} hint={m.hint} defaultValue={existingDay?.[m.name] ?? 5} />
         ))}
       </div>
     </details>
