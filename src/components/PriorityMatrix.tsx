@@ -488,6 +488,64 @@ function DatePicker({
   );
 }
 
+// Тот же принцип, что и MovePicker выше — один "Перенести" вместо четырёх
+// отдельных кнопок (Сегодня/Завтра/Понедельник/На дату), которые вместе с
+// "Выполнено"/"Удалить" не помещались в один ряд тулбара выбранных задач.
+// Раскрывается вверх — тулбар сам прижат к низу экрана.
+function BulkMovePicker({
+  onToday,
+  onTomorrow,
+  onMonday,
+  onDate,
+}: {
+  onToday: () => void;
+  onTomorrow: () => void;
+  onMonday: () => void;
+  onDate: (dateISO: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20"
+      >
+        Перенести
+      </button>
+      {open && (
+        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 text-sm text-neutral-700 space-y-1">
+          <button type="button" onClick={() => { setOpen(false); onToday(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
+            Сегодня
+          </button>
+          <button type="button" onClick={() => { setOpen(false); onTomorrow(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
+            Завтра
+          </button>
+          <button type="button" onClick={() => { setOpen(false); onMonday(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
+            Понедельник
+          </button>
+          <input
+            type="date"
+            onChange={(e) => { if (e.target.value) { setOpen(false); onDate(e.target.value); } }}
+            className="w-full border border-neutral-300 rounded px-2 py-1 text-xs"
+          />
+        </div>
+      )}
+    </span>
+  );
+}
+
 function TaskRow({
   task,
   color,
@@ -1365,29 +1423,12 @@ export default function PriorityMatrix({
             </button>
           )}
           {canBulkReschedule && (
-            <>
-              <button type="button" onClick={() => bulkSchedule("today")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
-                Сегодня
-              </button>
-              <button type="button" onClick={() => bulkSchedule("tomorrow")} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
-                Завтра
-              </button>
-              <button
-                type="button"
-                onClick={() => bulkScheduleDate(toDateInputValue(nextMonday(todayDate())))}
-                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20"
-              >
-                Понедельник
-              </button>
-              <label className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 cursor-pointer">
-                На дату
-                <input
-                  type="date"
-                  onChange={(e) => { if (e.target.value) bulkScheduleDate(e.target.value); }}
-                  className="sr-only"
-                />
-              </label>
-            </>
+            <BulkMovePicker
+              onToday={() => bulkSchedule("today")}
+              onTomorrow={() => bulkSchedule("tomorrow")}
+              onMonday={() => bulkScheduleDate(toDateInputValue(nextMonday(todayDate())))}
+              onDate={(dateISO) => bulkScheduleDate(dateISO)}
+            />
           )}
           <button type="button" onClick={bulkDelete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/80">
             Удалить
