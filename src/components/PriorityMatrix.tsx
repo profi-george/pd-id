@@ -1114,6 +1114,14 @@ export default function PriorityMatrix({
     setSelectedIds(new Set());
   }
 
+  // "Выбрать все" работает по текущей отфильтрованной вкладке (Предстоит/
+  // Выполнено), а не только по видимому на экране куску LATER — это массовое
+  // действие над данными, а не над тем, что дорисовано на странице.
+  const allVisibleSelected = visibleItems.length > 0 && visibleItems.every((t) => selectedIds.has(t.id));
+  function toggleSelectAll() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleItems.map((t) => t.id)));
+  }
+
   function bulkComplete() {
     const ids = Array.from(selectedIds);
     setItems((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, status: "DONE" } : t)));
@@ -1233,18 +1241,35 @@ export default function PriorityMatrix({
 
   return (
     <div className="space-y-6">
-      {statusTabs && (
-        <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
-          <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
-            Предстоит выполнить
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusTab("done")}
-            className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
-          >
-            Выполнено
-          </button>
+      {(statusTabs || visibleItems.length > 0) && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {statusTabs ? (
+            <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
+              <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
+                Предстоит выполнить
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("done")}
+                className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
+              >
+                Выполнено
+              </button>
+            </div>
+          ) : (
+            <span />
+          )}
+          {visibleItems.length > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAll}
+                className="accent-ink-500"
+              />
+              Выбрать все
+            </label>
+          )}
         </div>
       )}
 
