@@ -25,6 +25,11 @@ function outcomeFromStatus(status?: string): Outcome {
   return "not_done";
 }
 
+// Записываем в дневник ведения рекламных правок именно причину исхода, а не
+// исходную формулировку задачи — "почему не получилось"/"что успели" уже
+// готовый текст для строки журнала, вводить его туда заново не нужно.
+const DNEVNIK_URL = "https://dnevnik-gold.vercel.app";
+
 export default function EveningTaskRow({ task }: { task: EveningTask }) {
   const [outcome, setOutcome] = useState<Outcome>(outcomeFromStatus(task.status));
   // Сворачивание разобранной задачи — при 5+ задачах форма иначе ощущается
@@ -40,6 +45,10 @@ export default function EveningTaskRow({ task }: { task: EveningTask }) {
   const reasonLabel =
     outcome === "done" ? "Почему получилось?" : outcome === "partial" ? "Что успели сделать?" : "Почему не получилось?";
   const reasonDefault = outcome === "not_done" ? task.whyFailed ?? "" : task.whySucceeded ?? "";
+  // Textarea ниже остаётся неконтролируемой (defaultValue+key, см. форму
+  // целиком) — это отдельная копия того же текста, только чтобы ссылка в
+  // Дневник обновлялась по мере ввода, не завязываясь на состояние формы.
+  const [reasonLive, setReasonLive] = useState(reasonDefault);
 
   return (
     <div className="bg-white border border-neutral-200 rounded-lg px-3 py-2 space-y-2">
@@ -78,7 +87,10 @@ export default function EveningTaskRow({ task }: { task: EveningTask }) {
                 name={`outcome_${task.id}`}
                 value={value}
                 checked={outcome === value}
-                onChange={() => setOutcome(value)}
+                onChange={() => {
+                  setOutcome(value);
+                  setReasonLive(value === "not_done" ? task.whyFailed ?? "" : task.whySucceeded ?? "");
+                }}
               />
               {label}
             </label>
@@ -92,6 +104,7 @@ export default function EveningTaskRow({ task }: { task: EveningTask }) {
             name={`reason_${task.id}`}
             rows={2}
             defaultValue={reasonDefault}
+            onChange={(e) => setReasonLive(e.target.value)}
             className="mt-0.5 w-full border border-neutral-300 rounded px-2 py-1 text-sm"
           />
         </label>
@@ -111,6 +124,17 @@ export default function EveningTaskRow({ task }: { task: EveningTask }) {
         )}
         {outcome === "partial" && (
           <p className="text-xs text-neutral-400">Оставшееся автоматически продолжится на ближайший будний день.</p>
+        )}
+
+        {(outcome === "partial" || outcome === "not_done") && (
+          <a
+            href={`${DNEVNIK_URL}/diary/bulk?text=${encodeURIComponent(reasonLive.trim() || task.text)}&taskId=${encodeURIComponent(task.id)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-block text-xs text-ink-600 hover:underline"
+          >
+            Записать в Дневник →
+          </a>
         )}
 
         <div className="flex items-center gap-2 text-xs text-neutral-500">
