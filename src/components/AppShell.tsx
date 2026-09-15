@@ -49,7 +49,13 @@ export default function AppShell({
           <Link href="/add" className="font-display font-bold text-neutral-800 tracking-tight hover:text-ink-600">
             ПД-ИД
           </Link>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
+            <Link
+              href="/add"
+              className="text-xs sm:text-sm px-3 py-1.5 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 font-medium"
+            >
+              Добавить AI
+            </Link>
             <KeyboardShortcuts />
             <AccountMenu cabinetName={cabinetName} />
           </div>

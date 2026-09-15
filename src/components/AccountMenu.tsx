@@ -23,6 +23,7 @@ export default function AccountMenu({ cabinetName }: { cabinetName: string }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
+        title={"Горячие клавиши:\nN — Добавить AI\nP — План дня\nZ — Все задачи\nH — История\n(не работают в полях ввода)"}
       >
         <span className="w-6 h-6 shrink-0 rounded-full bg-ink-50 text-ink-600 flex items-center justify-center text-xs font-semibold">
           {cabinetName.slice(0, 1).toUpperCase()}
