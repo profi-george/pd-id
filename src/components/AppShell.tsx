@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AccountMenu from "@/components/AccountMenu";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import { IconMenu, IconSparkles, IconX } from "@/components/icons";
 import type { ProjectNode } from "@/lib/projectTree";
 
 export default function AppShell({
@@ -34,45 +35,68 @@ export default function AppShell({
 
   return (
     <>
-      <header className="border-b border-neutral-200 bg-neutral-50 shrink-0">
-        <nav className="flex items-center gap-4 sm:gap-6 px-4 py-3">
+      {/* Шапка полупрозрачная с размытием: под ней прокручивается содержимое
+          и должно читаться как подложка, а не исчезать за глухой плашкой.
+          Снизу — волосок, а не полноценная граница: разделение поверхностей
+          нужно обозначить, но не прочертить по экрану линию. */}
+      <header className="sticky top-0 z-30 shrink-0 border-b border-neutral-200/80 bg-neutral-50/80 backdrop-blur-xl backdrop-saturate-150">
+        <nav className="flex items-center gap-3 px-4 sm:px-5 h-14">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="md:hidden text-neutral-600 hover:text-neutral-900 -ml-1 p-1"
+            className="icon-btn md:hidden -ml-1.5"
             aria-label="Открыть меню"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-              <path d="M3 5.5h14M3 10h14M3 14.5h14" />
-            </svg>
+            <IconMenu size={18} />
           </button>
-          <Link href="/add" className="font-display font-bold text-neutral-800 tracking-tight hover:text-ink-600">
-            ПД-ИД
+
+          {/* Знак + название вместо одного текстового логотипа: «ПД-ИД» —
+              аббревиатура, без якоря она читается как случайные буквы. */}
+          <Link href="/add" className="group flex items-center gap-2.5 shrink-0" aria-label="ПД-ИД — на главную">
+            <span className="w-7 h-7 rounded-lg bg-ink-600 text-white flex items-center justify-center shadow-xs transition-colors group-hover:bg-ink-500">
+              <span className="font-display text-[11px] font-extrabold leading-none tracking-tight">ПД</span>
+            </span>
+            <span className="hidden sm:flex flex-col leading-none">
+              <span className="font-display text-[13px] font-bold text-neutral-900 tracking-tight">ПД-ИД</span>
+              <span className="text-[10px] text-neutral-500 mt-0.5">План дня · Итог дня</span>
+            </span>
           </Link>
-          <div className="ml-auto flex items-center gap-3">
-            <Link
-              href="/add"
-              className="text-xs sm:text-sm px-3 py-1.5 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 font-medium"
-            >
-              Добавить AI
+
+          <div className="ml-auto flex items-center gap-2">
+            <Link href="/add" className="btn btn-primary">
+              <IconSparkles size={14} className="shrink-0" />
+              Добавить<span className="hidden sm:inline">&nbsp;AI</span>
             </Link>
             <KeyboardShortcuts />
             <AccountMenu cabinetName={cabinetName} />
           </div>
         </nav>
       </header>
+
       <div className="flex flex-1 min-h-0">
         {mobileOpen && (
           <div
-            className="fixed inset-0 bg-black/30 z-40 md:hidden"
+            className="fixed inset-0 bg-neutral-950/35 backdrop-blur-[2px] z-40 md:hidden animate-fade-in"
             onClick={() => setMobileOpen(false)}
           />
         )}
         <div
           className={`${
-            mobileOpen ? "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw]" : "hidden"
-          } md:static md:block md:z-auto md:w-auto md:max-w-none`}
+            mobileOpen
+              ? "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] shadow-xl animate-fade-in"
+              : "hidden"
+          } md:static md:block md:z-auto md:w-auto md:max-w-none md:shadow-none`}
         >
+          {mobileOpen && (
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Закрыть меню"
+              className="icon-btn absolute right-2 top-2 z-10 md:hidden"
+            >
+              <IconX size={18} />
+            </button>
+          )}
           <Sidebar
             projects={projects}
             counts={counts}
@@ -80,7 +104,9 @@ export default function AppShell({
             totalCount={totalCount}
           />
         </div>
-        <main className="flex-1 min-w-0 max-w-4xl mx-auto w-full px-4 py-6 overflow-y-auto">{children}</main>
+        <main className="flex-1 min-w-0 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 pb-24 overflow-y-auto">
+          {children}
+        </main>
       </div>
     </>
   );

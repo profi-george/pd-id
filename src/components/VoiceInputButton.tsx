@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { IconMic } from "@/components/icons";
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -109,30 +110,35 @@ export default function VoiceInputButton({
         title={status === "idle" ? "Надиктовать" : "Остановить диктовку"}
         className={
           className ??
-          `w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-base border transition-colors ${
+          // Во время записи — красное «дышащее» кольцо вокруг кнопки вместо
+          // мигания самой кнопки: мигающий орган управления выглядит сломанным,
+          // а пульсирующее кольцо читается как «идёт запись».
+          `relative w-9 h-9 shrink-0 rounded-full flex items-center justify-center ring-1 transition-colors ${
             status !== "idle"
-              ? "border-red-400 bg-red-50 text-red-600 animate-pulse"
-              : "border-neutral-300 text-neutral-500 hover:border-ink-500 hover:text-ink-600"
+              ? "ring-red-300 bg-red-50 text-red-600"
+              : "ring-neutral-200 bg-white text-neutral-500 hover:ring-ink-300 hover:text-ink-600 shadow-2xs"
           }`
         }
       >
+        {status !== "idle" && (
+          <span
+            aria-hidden
+            className="absolute inset-0 rounded-full ring-2 ring-red-400/60 animate-ping"
+          />
+        )}
         {status !== "idle" ? (
-          "◼"
+          <span className="w-3 h-3 rounded-sm bg-current" aria-hidden />
         ) : (
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
-            <path d="M3 8a5 5 0 0 0 10 0" />
-            <path d="M8 13v1.5" />
-          </svg>
+          <IconMic size={16} />
         )}
       </button>
       {status === "listening" && (
-        <span className="ml-2 text-xs text-red-600">Слушаю…</span>
+        <span className="ml-2.5 text-xs font-medium text-red-600">Слушаю…</span>
       )}
       {status === "processing" && (
-        <span className="ml-2 text-xs text-neutral-500">Распознаю…</span>
+        <span className="ml-2.5 text-xs text-neutral-500">Распознаю…</span>
       )}
-      {error && <span className="ml-2 text-xs text-red-600">{error}</span>}
+      {error && <span className="ml-2.5 text-xs text-red-600">{error}</span>}
     </span>
   );
 }

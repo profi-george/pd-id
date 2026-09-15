@@ -28,11 +28,29 @@ export default function EveningSummaryCounter({ total }: { total: number }) {
 
   if (!counts || total === 0) return null;
 
+  // Три числа-«счётчика» вместо строки текста: перед необратимым сохранением
+  // взгляд должен цепляться за цифры, а не вычитывать фразу.
+  const cells: { label: string; value: number; tone: string }[] = [
+    { label: "Выполнено", value: counts.done, tone: "text-emerald-600" },
+    { label: "Частично", value: counts.partial, tone: "text-blue-600" },
+    { label: "Не выполнено", value: counts.notDone, tone: "text-neutral-700" },
+  ];
+
   return (
-    <p className="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
-      Выполнено {counts.done} {tasksWord(counts.done)}
-      {counts.partial > 0 ? `, частично — ${counts.partial}` : ""}
-      {counts.notDone > 0 ? `, не выполнено — ${counts.notDone}` : ""}.
-    </p>
+    <div className="surface flex items-stretch divide-x divide-neutral-100 overflow-hidden">
+      {cells.map((c) => (
+        <div key={c.label} className="flex-1 px-3 py-2.5 text-center">
+          <p className={`text-xl font-semibold tabular-nums leading-none ${c.value > 0 ? c.tone : "text-neutral-300"}`}>
+            {c.value}
+          </p>
+          <p className="text-[10px] uppercase tracking-[0.06em] text-neutral-500 mt-1.5">{c.label}</p>
+        </div>
+      ))}
+      <span className="sr-only">
+        Выполнено {counts.done} {tasksWord(counts.done)}
+        {counts.partial > 0 ? `, частично — ${counts.partial}` : ""}
+        {counts.notDone > 0 ? `, не выполнено — ${counts.notDone}` : ""}.
+      </span>
+    </div>
   );
 }

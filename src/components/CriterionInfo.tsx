@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { IconHelp } from "@/components/icons";
 
 export default function CriterionInfo({
   title,
@@ -33,28 +34,29 @@ export default function CriterionInfo({
         className="group inline-flex items-center justify-center p-1.5 -m-1.5 align-middle"
         aria-label={`Подробнее: ${title}`}
       >
-        <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full border border-neutral-300 text-[9px] leading-none text-neutral-400 group-hover:border-ink-500 group-hover:text-ink-600">
-          ?
-        </span>
+        <IconHelp size={14} className="text-neutral-400 group-hover:text-ink-600 transition-colors" />
       </button>
       {open && (
-        <div className="absolute z-50 left-0 top-5 w-72 max-w-[85vw] bg-white border border-neutral-200 rounded-lg shadow-lg p-3 text-xs space-y-2">
-          <p className="font-medium text-neutral-800">{title}</p>
-          <p className="text-neutral-600">{definition}</p>
+        <div className="menu-panel absolute z-50 left-0 top-6 w-72 max-w-[85vw] p-3 text-xs space-y-2.5">
+          <p className="font-semibold text-neutral-900 text-[13px]">{title}</p>
+          <p className="text-neutral-600 leading-relaxed">{definition}</p>
 
           {reasoning && (
-            <div className="border-l-2 border-ink-500/30 pl-2 py-0.5">
-              <p className="text-neutral-500 font-medium mb-0.5">Почему AI поставил такую оценку:</p>
-              <p className="italic text-ink-600">{reasoning}</p>
+            <div className="ai-note py-0.5">
+              <p className="text-neutral-500 font-medium mb-0.5 not-italic">Почему AI поставил такую оценку:</p>
+              <p className="leading-relaxed">{reasoning}</p>
             </div>
           )}
 
           {scale && scale.length > 0 && (
-            <div className="pt-1 border-t border-neutral-100">
-              <p className="text-neutral-500 font-medium mb-0.5">Шкала:</p>
-              <ul className="space-y-0.5 text-neutral-500">
+            <div className="pt-2 border-t border-neutral-100">
+              <p className="text-neutral-500 font-medium mb-1">Шкала:</p>
+              <ul className="space-y-1 text-neutral-500">
                 {scale.map((s, i) => (
-                  <li key={i}>{i + 1} — {s}</li>
+                  <li key={i} className="flex gap-1.5">
+                    <span className="tabular-nums font-medium text-neutral-400 shrink-0">{i + 1}</span>
+                    <span>{s}</span>
+                  </li>
                 ))}
               </ul>
             </div>

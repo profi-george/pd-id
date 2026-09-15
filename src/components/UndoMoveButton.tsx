@@ -29,7 +29,7 @@ export default function UndoMoveButton({ taskId }: { taskId: string }) {
       type="button"
       disabled={state === "pending"}
       onClick={handleClick}
-      className="underline text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
+      className="underline underline-offset-2 text-neutral-500 hover:text-neutral-900 disabled:opacity-50 transition-colors"
     >
       {state === "pending" ? "отменяю…" : "отменить"}
     </button>

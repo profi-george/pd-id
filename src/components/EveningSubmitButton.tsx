@@ -14,12 +14,12 @@ export default function EveningSubmitButton({ firstSave }: { firstSave: boolean 
   }
 
   return (
-    <button
-      type="submit"
-      onClick={handleClick}
-      className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
-    >
-      {firstSave ? "Сохранить итог и перенести незавершённое дальше" : "Сохранить изменения"}
-    </button>
+    // Прижата к низу области прокрутки: форма длинная, и «сохранить» не должно
+    // теряться где-то ниже сгиба — это единственное завершающее действие экрана.
+    <div className="sticky bottom-4 z-10">
+      <button type="submit" onClick={handleClick} className="btn btn-primary btn-lg w-full shadow-lg">
+        {firstSave ? "Сохранить итог и перенести незавершённое дальше" : "Сохранить изменения"}
+      </button>
+    </div>
   );
 }

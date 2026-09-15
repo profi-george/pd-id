@@ -35,6 +35,16 @@ import {
 } from "@/app/(app)/actions";
 import TaskDrawer, { type DrawerTask, type SubtaskItem } from "@/components/TaskDrawer";
 import PartialCompleteDialog from "@/components/PartialCompleteDialog";
+import {
+  IconCalendarArrow,
+  IconCheck,
+  IconMore,
+  IconPlus,
+  IconChevronDown,
+  IconArrowRight,
+  IconBookOpen,
+  IconListChecks,
+} from "@/components/icons";
 
 export type MatrixTask = TaskEvaluation & {
   id: string;
@@ -72,23 +82,36 @@ const DOT_CLASS: Record<PriorityLabel, string> = {
   LATER: "bg-neutral-300",
 };
 
-const BORDER_CLASS: Record<PriorityLabel, string> = {
-  P0: "border-l-red-400",
-  P1: "border-l-amber-400",
-  P2: "border-l-blue-300",
-  P3: "border-l-neutral-300",
-  LATER: "border-l-neutral-200",
+// Вертикальная «рельса» приоритета слева от строки задачи. Раньше это была
+// border-l-2 на всю высоту строки — при плотном списке она сливалась
+// в одну сплошную полосу вдоль экрана и переставала читаться как маркер
+// конкретной задачи. Теперь это отдельная короткая скруглённая полоска
+// с отступом сверху/снизу: каждая задача видна как своя единица.
+const RAIL_CLASS: Record<PriorityLabel, string> = {
+  P0: "bg-red-400",
+  P1: "bg-amber-400",
+  P2: "bg-blue-300",
+  P3: "bg-neutral-300",
+  LATER: "bg-neutral-200",
 };
 
 // Рамка hero-карточки "Сейчас" берёт цвет из приоритета САМОЙ задачи вместо
 // фиксированного индиго — точка приоритета и обводка карточки говорят одно
 // и то же, а не спорят двумя разными акцентами.
 const HERO_RING_CLASS: Record<PriorityLabel, string> = {
-  P0: "border-red-400 bg-red-50/50",
-  P1: "border-amber-400 bg-amber-50/50",
-  P2: "border-blue-300 bg-blue-50/50",
-  P3: "border-neutral-300 bg-neutral-50",
-  LATER: "border-neutral-300 bg-neutral-50",
+  P0: "ring-red-200 bg-gradient-to-b from-red-50/80 to-white",
+  P1: "ring-amber-200 bg-gradient-to-b from-amber-50/80 to-white",
+  P2: "ring-blue-200 bg-gradient-to-b from-blue-50/80 to-white",
+  P3: "ring-neutral-200 bg-gradient-to-b from-neutral-50 to-white",
+  LATER: "ring-neutral-200 bg-gradient-to-b from-neutral-50 to-white",
+};
+
+const HERO_SCORE_CLASS: Record<PriorityLabel, string> = {
+  P0: "border-red-200 text-red-700 bg-white",
+  P1: "border-amber-200 text-amber-700 bg-white",
+  P2: "border-blue-200 text-blue-700 bg-white",
+  P3: "border-neutral-200 text-neutral-700 bg-white",
+  LATER: "border-neutral-200 text-neutral-600 bg-white",
 };
 
 const GROUP_PREVIEW = 3;
@@ -99,10 +122,10 @@ const GROUP_PREVIEW = 3;
 // матрица не вводила свою отдельную цветовую систему; карточки внутри остаются
 // белыми (см. п.18-19 ТЗ — цвет для ориентации по сетке, а не для украшения).
 const QUADRANT_CLASS: Record<"P0" | "P1" | "P2" | "P3", string> = {
-  P0: "bg-red-50/70 border-red-100",
-  P1: "bg-amber-50/70 border-amber-100",
-  P2: "bg-blue-50/70 border-blue-100",
-  P3: "bg-neutral-100/70 border-neutral-200",
+  P0: "bg-red-50/60 ring-red-100",
+  P1: "bg-amber-50/60 ring-amber-100",
+  P2: "bg-blue-50/60 ring-blue-100",
+  P3: "bg-neutral-100/60 ring-neutral-200",
 };
 
 // Раньше клик по этой иконке сразу переносил задачу на завтра — молча, без
@@ -133,38 +156,37 @@ function MovePicker({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-ink-600 hover:bg-neutral-100"
+        className="icon-btn hover:text-ink-600"
         aria-label="Перенести"
         title="Перенести"
       >
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="1.5" y="3" width="9.5" height="9.5" rx="1.5" />
-          <path d="M1.5 6h9.5M4.25 1.5v3" />
-          <path d="M11 8.5l3 2-3 2" />
-        </svg>
+        <IconCalendarArrow size={15} />
       </button>
       {open && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-8 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 text-sm space-y-1.5"
+          className="menu-panel absolute right-0 top-8 z-20 w-44 space-y-1"
         >
           <button
             type="button"
             onClick={() => { setOpen(false); onScheduleTomorrow(); }}
-            className="w-full text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 text-left"
+            className="menu-item"
           >
             Завтра
           </button>
-          <input
-            type="date"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              if (!e.target.value) return;
-              setOpen(false);
-              onScheduleDate(e.target.value);
-            }}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-xs"
-          />
+          <div className="px-1 pb-0.5">
+            <input
+              type="date"
+              aria-label="Перенести на дату"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setOpen(false);
+                onScheduleDate(e.target.value);
+              }}
+              className="field field-sm"
+            />
+          </div>
         </div>
       )}
     </span>
@@ -229,20 +251,20 @@ function QuickMenu({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onComplete(); }}
-          className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50"
+          className="icon-btn hover:!text-emerald-600 hover:!bg-emerald-50"
           aria-label="Выполнено"
           title="Отметить выполненной"
         >
-          ✓
+          <IconCheck size={15} />
         </button>
       )}
       {canToggle && !hideCheckToggle && isDone && (
         <span
-          className="w-7 h-7 flex items-center justify-center rounded text-emerald-600"
+          className="w-7 h-7 flex items-center justify-center rounded-md text-emerald-600"
           aria-hidden
           title="Выполнено"
         >
-          ✓
+          <IconCheck size={15} />
         </span>
       )}
       {canReschedule && onScheduleTomorrow && onScheduleDate && (
@@ -252,18 +274,18 @@ function QuickMenu({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-          className="w-7 h-7 flex items-center justify-center rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
+          className="icon-btn"
           aria-label="Действия"
         >
-          ⋯
+          <IconMore size={15} />
         </button>
         {open && (
-          <div className="absolute right-0 top-8 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+          <div className="menu-panel absolute right-0 top-8 z-20 w-48">
             {scheduled && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setOpen(false); onUnschedule(); }}
-                className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+                className="menu-item"
               >
                 Убрать из плана
               </button>
@@ -272,7 +294,7 @@ function QuickMenu({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setOpen(false); onRevert(); }}
-                className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+                className="menu-item"
               >
                 Вернуть в план
               </button>
@@ -281,7 +303,7 @@ function QuickMenu({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setOpen(false); onPartialComplete(); }}
-                className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+                className="menu-item"
               >
                 Частично выполнено…
               </button>
@@ -291,14 +313,19 @@ function QuickMenu({
               target="_blank"
               rel="noreferrer"
               onClick={(e) => { e.stopPropagation(); setOpen(false); }}
-              className="block w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
+              className="menu-item justify-between"
             >
-              Записать в Дневник →
+              <span className="flex items-center gap-2">
+                <IconBookOpen size={14} className="text-neutral-400 shrink-0" />
+                Записать в Дневник
+              </span>
+              <IconArrowRight size={13} className="text-neutral-400 shrink-0" />
             </a>
+            <div className="my-1 border-t border-neutral-100" />
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }}
-              className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-red-600"
+              className="menu-item menu-item-danger"
             >
               Удалить
             </button>
@@ -326,29 +353,31 @@ function PriorityPicker({ label, onPick }: { label: PriorityLabel; onPick: (l: P
   }, [open]);
 
   return (
-    <span ref={ref} className="relative shrink-0 pl-2 pt-3">
+    <span ref={ref} className="relative shrink-0 pl-1.5 pt-3">
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-neutral-100"
+        className="group/dot flex items-center justify-center w-7 h-7 rounded-full hover:bg-neutral-100 transition-colors"
         aria-label={`Приоритет: ${PRIORITY_LABEL_TEXT[label]}. Изменить`}
         title={`Приоритет: ${PRIORITY_LABEL_TEXT[label]}`}
       >
-        <span className={`w-2.5 h-2.5 rounded-full ${DOT_CLASS[label]}`} />
+        {/* Кольцо вокруг точки появляется только под курсором — в покое это
+            чистый маркер, под курсором — очевидно кликабельный орган. */}
+        <span className={`w-2.5 h-2.5 rounded-full ring-0 ring-neutral-300 group-hover/dot:ring-4 transition-all ${DOT_CLASS[label]}`} />
       </button>
       {open && (
-        <div className="absolute left-0 top-7 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+        <div className="menu-panel absolute left-0 top-8 z-20 w-44">
           {PRIORITY_OPTIONS.map((l) => (
             <button
               key={l}
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onPick(l); }}
-              className={`w-full flex items-center gap-2 text-left px-3 py-1.5 hover:bg-neutral-50 ${
-                l === label ? "font-medium text-neutral-900" : "text-neutral-700"
-              }`}
+              className="menu-item"
+              data-active={l === label}
             >
-              <span className={`w-2 h-2 rounded-full ${DOT_CLASS[l]}`} />
+              <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_CLASS[l]}`} />
               {PRIORITY_LABEL_TEXT[l]}
+              {l === label && <IconCheck size={13} className="ml-auto text-ink-600" />}
             </button>
           ))}
         </div>
@@ -388,17 +417,20 @@ function ProjectPicker({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className={`inline-flex items-center gap-1 hover:underline hover:text-neutral-700 -my-1 py-1 ${projectName ? "" : "text-neutral-400"}`}
+        className={`inline-flex items-center gap-1.5 rounded-md -mx-1 px-1 -my-0.5 py-0.5 transition-colors hover:bg-neutral-100 hover:text-neutral-800 ${
+          projectName ? "" : "text-neutral-400"
+        }`}
       >
         {projectColor && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: projectColor }} />}
         {projectName ?? "+ проект"}
       </button>
       {open && (
-        <div className="absolute left-0 top-6 z-20 w-48 max-h-64 overflow-y-auto bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+        <div className="menu-panel absolute left-0 top-6 z-20 w-52 max-h-64 overflow-y-auto">
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setOpen(false); onPick(null); }}
-            className={`w-full text-left px-3 py-1.5 hover:bg-neutral-50 ${!projectId ? "font-medium text-neutral-900" : "text-neutral-700"}`}
+            className="menu-item"
+            data-active={!projectId}
           >
             Без проекта
           </button>
@@ -407,9 +439,8 @@ function ProjectPicker({
               key={p.id}
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onPick(p.id); }}
-              className={`w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-neutral-50 truncate ${
-                p.id === projectId ? "font-medium text-neutral-900" : "text-neutral-700"
-              }`}
+              className="menu-item"
+              data-active={p.id === projectId}
             >
               {p.color && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />}
               <span className="truncate">{p.label}</span>
@@ -450,38 +481,43 @@ function DatePicker({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className={`hover:underline hover:text-neutral-700 -my-1 py-1 ${date ? "text-ink-600" : "text-neutral-400"}`}
+        className={`rounded-md -mx-1 px-1 -my-0.5 py-0.5 transition-colors hover:bg-neutral-100 ${
+          date ? "text-ink-600 hover:text-ink-700" : "text-neutral-400 hover:text-neutral-700"
+        }`}
       >
-        {date ? `· на ${formatDateRelative(date)}` : "+ дата"}
+        {date ? `на ${formatDateRelative(date)}` : "+ дата"}
       </button>
       {open && (
-        <div className="absolute left-0 top-6 z-20 w-48 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 text-sm space-y-1.5">
-          <div className="flex gap-1.5">
+        <div className="menu-panel absolute left-0 top-6 z-20 w-52 space-y-1">
+          <div className="flex gap-1 p-0.5">
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onScheduleToday(); }}
-              className="flex-1 text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm flex-1"
             >
               Сегодня
             </button>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onScheduleTomorrow(); }}
-              className="flex-1 text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm flex-1"
             >
               Завтра
             </button>
           </div>
-          <input
-            type="date"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              if (!e.target.value) return;
-              setOpen(false);
-              onScheduleDate(e.target.value);
-            }}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-xs"
-          />
+          <div className="px-0.5 pb-0.5">
+            <input
+              type="date"
+              aria-label="Выбрать дату"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setOpen(false);
+                onScheduleDate(e.target.value);
+              }}
+              className="field field-sm"
+            />
+          </div>
         </div>
       )}
     </span>
@@ -521,31 +557,30 @@ function BulkMovePicker({
 
   return (
     <span ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20"
-      >
+      <button type="button" onClick={() => setOpen((v) => !v)} className="toast-btn">
         Перенести
       </button>
       {open && (
-        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 text-sm text-neutral-700 space-y-1">
+        <div className="menu-panel menu-panel-up absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-44">
           {showToday && (
-            <button type="button" onClick={() => { setOpen(false); onToday(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
+            <button type="button" onClick={() => { setOpen(false); onToday(); }} className="menu-item">
               Сегодня
             </button>
           )}
-          <button type="button" onClick={() => { setOpen(false); onTomorrow(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
+          <button type="button" onClick={() => { setOpen(false); onTomorrow(); }} className="menu-item">
             Завтра
           </button>
-          <button type="button" onClick={() => { setOpen(false); onMonday(); }} className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-50">
+          <button type="button" onClick={() => { setOpen(false); onMonday(); }} className="menu-item">
             Понедельник
           </button>
-          <input
-            type="date"
-            onChange={(e) => { if (e.target.value) { setOpen(false); onDate(e.target.value); } }}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-xs"
-          />
+          <div className="px-1 pt-1 pb-0.5">
+            <input
+              type="date"
+              aria-label="Перенести на дату"
+              onChange={(e) => { if (e.target.value) { setOpen(false); onDate(e.target.value); } }}
+              className="field field-sm"
+            />
+          </div>
         </div>
       )}
     </span>
@@ -651,19 +686,46 @@ function TaskRow({
         setDragOver(null);
         if (draggedId) onDropBefore(draggedId, before);
       }}
-      className={`group relative border-l-2 ${hero ? "border-l-transparent" : BORDER_CLASS[color]} flex items-start ${
-        selected ? "bg-ink-50" : ""
-      } ${dragOver === "top" ? "border-t-2 border-t-ink-500" : dragOver === "bottom" ? "border-b-2 border-b-ink-500" : ""}`}
+      className={`group relative flex items-start rounded-lg transition-colors ${
+        selected ? "bg-ink-50/70" : "hover:bg-neutral-50"
+      }`}
     >
+      {/* Маркер вставки при перетаскивании — абсолютная линия, а не border:
+          border добавлял высоту и весь список дёргался на 2px под курсором. */}
+      {dragOver && (
+        <span
+          aria-hidden
+          // pointer-events-none обязательно: иначе полоска попадает под курсор
+          // во время перетаскивания, перехватывает dragover у самой строки,
+          // и маркер начинает мигать между «вставить сверху» и «снизу».
+          className={`pointer-events-none absolute left-0 right-0 h-0.5 bg-ink-500 rounded-full z-10 ${
+            dragOver === "top" ? "-top-px" : "-bottom-px"
+          }`}
+        >
+          <span className="absolute -left-0.5 -top-[3px] w-2 h-2 rounded-full bg-ink-500" />
+        </span>
+      )}
+
+      {/* Рельса приоритета. Её нет у hero-карточки (там цвет приоритета несёт
+          вся карточка целиком) и в компактном режиме матрицы — там приоритет
+          и так задан квадрантом, полоска была бы третьим повтором одного
+          и того же. */}
+      {!hero && !compact && (
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full ${RAIL_CLASS[color]}`}
+        />
+      )}
+
       <label
-        className={`${compact ? "pt-2.5" : "pt-4"} pl-2 pr-0.5 shrink-0 self-start`}
+        className={`${compact ? "pt-2.5" : "pt-4"} pl-2.5 pr-0.5 shrink-0 self-start`}
         onClick={(e) => e.stopPropagation()}
       >
         <input
           type="checkbox"
           checked={selected}
           onChange={() => onToggleSelect()}
-          className="accent-ink-500 opacity-60 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          className="opacity-0 checked:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           aria-label={selected ? "Убрать из выделения" : "Выделить для массового действия"}
           title={selected ? "Убрать из выделения" : "Выделить для массового действия"}
         />
@@ -682,12 +744,12 @@ function TaskRow({
             onOpen();
           }
         }}
-        className={`flex-1 min-w-0 text-left pr-3.5 hover:bg-neutral-50 cursor-grab active:cursor-grabbing transition-colors duration-300 ${
-          compact ? "py-2" : "py-3 space-y-1"
+        className={`flex-1 min-w-0 text-left pr-3 cursor-grab active:cursor-grabbing ${
+          compact ? "py-2 pl-1" : "py-3 space-y-1.5"
         }`}
       >
         <p
-          className={`${compact ? "text-sm" : "text-[15px]"} leading-snug font-medium ${
+          className={`${compact ? "text-[13px]" : "text-[15px]"} leading-snug font-medium tracking-[-0.01em] ${
             task.status === "MOVED"
               ? "line-through text-neutral-400"
               : task.status === "NOT_DONE"
@@ -699,14 +761,15 @@ function TaskRow({
         </p>
         {!compact && (
           <>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-neutral-500">
               {task.subtasks && task.subtasks.length > 0 && (
                 <span
-                  className={`tabular-nums ${
+                  className={`inline-flex items-center gap-1 tabular-nums ${
                     task.subtasks.every((s) => s.done) ? "text-emerald-600" : ""
                   }`}
                 >
-                  ☑ {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
+                  <IconListChecks size={13} className="shrink-0" />
+                  {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
                 </span>
               )}
               <ProjectPicker
@@ -716,7 +779,7 @@ function TaskRow({
                 options={projectOptions}
                 onPick={(id) => { onAssignProject(id); triggerFlash(); }}
               />
-              <span className={task.projectName ? "text-neutral-400" : ""}>≈ {formatEffort(task.effortMinutes)}</span>
+              <span className="text-neutral-400 tabular-nums">≈&nbsp;{formatEffort(task.effortMinutes)}</span>
               {canReschedule ? (
                 <DatePicker
                   date={task.date}
@@ -729,7 +792,7 @@ function TaskRow({
                   // Уже выполненную/перенесённую задачу нельзя перенести отсюда одним
                   // кликом — это молча сняло бы отметку. Дата видна, но не кликабельна.
                   <span className="text-neutral-400" title="Перенести можно после отмены выполнения">
-                    · на {formatDateRelative(task.date)}
+                    на {formatDateRelative(task.date)}
                   </span>
                 )
               )}
@@ -740,77 +803,99 @@ function TaskRow({
               task.status === "PARTIAL" ||
               task.confidence < LOW_CONFIDENCE_THRESHOLD ||
               flash) && (
-              <div className="flex flex-wrap items-center gap-1 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {task.status === "DONE" && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">выполнена</span>
+                  <span className="chip bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    <IconCheck size={11} className="shrink-0" />
+                    выполнена
+                  </span>
                 )}
                 {task.status === "PARTIAL" && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                  <span className="chip bg-blue-50 text-blue-700 ring-1 ring-blue-100">
                     частично{task.movedToDate ? ` · продолжение → ${formatDateRelative(task.movedToDate)}` : ""}
                   </span>
                 )}
                 {task.status === "NOT_DONE" && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500">не выполнена</span>
+                  <span className="chip bg-neutral-100 text-neutral-500 ring-1 ring-neutral-200">не выполнена</span>
                 )}
                 {task.status === "MOVED" && undoMoveState !== "error" && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-neutral-100 text-neutral-500 inline-flex items-center gap-1">
+                  <span className="chip bg-neutral-100 text-neutral-500 ring-1 ring-neutral-200">
                     перенесена{task.movedToDate ? ` → ${formatDateRelative(task.movedToDate)}` : ""}
                     <button
                       type="button"
                       disabled={undoMoveState === "pending"}
                       onClick={(e) => { e.stopPropagation(); handleUndoMoveClick(); }}
-                      className="underline hover:text-neutral-700 disabled:opacity-50"
+                      className="underline underline-offset-2 hover:text-neutral-800 disabled:opacity-50 transition-colors"
                     >
                       {undoMoveState === "pending" ? "отменяю…" : "отменить"}
                     </button>
                   </span>
                 )}
                 {task.status === "MOVED" && undoMoveState === "error" && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                  <span className="chip bg-amber-50 text-amber-700 ring-1 ring-amber-100">
                     перенос уже нельзя отменить — копия изменена
                   </span>
                 )}
                 {task.confidence < LOW_CONFIDENCE_THRESHOLD && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700">AI не уверен</span>
+                  <span className="chip bg-amber-50 text-amber-700 ring-1 ring-amber-100">AI не уверен</span>
                 )}
-                {flash && <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">✓ Сохранено</span>}
+                {flash && (
+                  <span className="chip bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 animate-fade-in">
+                    <IconCheck size={11} className="shrink-0" />
+                    Сохранено
+                  </span>
+                )}
               </div>
             )}
             {task.primaryReason && (
-              <p className="text-xs italic text-ink-600/70 border-l border-ink-500/25 pl-2 leading-snug">
-                {task.primaryReason}
-              </p>
+              <p className="ai-note text-xs leading-snug">{task.primaryReason}</p>
             )}
             {task.note && (
-              <p className="text-xs text-neutral-500 border-l border-neutral-300 pl-2 leading-snug">
+              <p className="text-xs text-neutral-500 border-l-2 border-neutral-200 pl-2 leading-snug">
                 {task.note}
               </p>
             )}
           </>
         )}
         {hero && (task.status === "PLANNED" || task.status === undefined || task.status === "DONE" || task.status === "PARTIAL") && (
-          <div className="pt-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="pt-2" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => { if (task.status === "DONE" || task.status === "PARTIAL") onRevert(); else onComplete(); }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`btn btn-lg ${
                 task.status === "DONE" || task.status === "PARTIAL"
-                  ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                  : "bg-neutral-900 text-white hover:bg-neutral-800"
+                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                  : "btn-primary"
               }`}
             >
-              {task.status === "DONE" || task.status === "PARTIAL" ? "✓ Выполнено — вернуть в план" : "Выполнить"}
+              {task.status === "DONE" || task.status === "PARTIAL" ? (
+                <>
+                  <IconCheck size={15} className="shrink-0" />
+                  Выполнено — вернуть в план
+                </>
+              ) : (
+                <>
+                  <IconCheck size={15} className="shrink-0" />
+                  Выполнить
+                </>
+              )}
             </button>
           </div>
         )}
       </div>
-      <div className="pt-1.5 pr-1.5 flex items-center gap-1">
+      {/* Ряд действий приглушён в покое и становится полностью контрастным под
+          курсором/при фокусе с клавиатуры — иконки не должны спорить с текстом
+          задачи, но и прятаться совсем им нельзя: это ежедневный инструмент,
+          действия ищут глазами, а не наводят мышь наугад. */}
+      <div
+        className={`${hero ? "pt-3 pr-3" : "pt-1.5 pr-1.5"} flex items-center gap-0.5 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity`}
+      >
         {hero && (
           <span
-            className="mr-0.5 w-9 h-9 rounded-full border-2 border-ink-400 bg-white flex items-center justify-center text-ink-700 shrink-0 tabular-nums"
+            className={`mr-1 w-10 h-10 rounded-full border shadow-xs flex items-center justify-center shrink-0 tabular-nums ${HERO_SCORE_CLASS[color]}`}
             title="Приоритетный балл"
           >
-            <span className="text-xs font-bold leading-none">{computePriority(task).scorePercent}</span>
+            <span className="text-[13px] font-bold leading-none">{computePriority(task).scorePercent}</span>
           </span>
         )}
         <QuickMenu
@@ -1201,11 +1286,13 @@ export default function PriorityMatrix({
   function renderQuadrant(label: "P0" | "P1" | "P2" | "P3") {
     const list = groups[label];
     return (
-      <div key={label} className={`rounded-xl border p-2.5 flex flex-col ${QUADRANT_CLASS[label]}`}>
-        <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
-          <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
-          <p className="text-sm font-semibold text-neutral-700">{PRIORITY_LABEL_TEXT[label]}</p>
-          <span className="text-xs font-semibold text-neutral-500 tabular-nums">{list.length}</span>
+      <div key={label} className={`rounded-2xl ring-1 p-2.5 flex flex-col ${QUADRANT_CLASS[label]}`}>
+        <div className="flex items-center gap-2 mb-2 px-1 pt-0.5">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_CLASS[label]}`} />
+          <p className="text-[13px] font-semibold text-neutral-800 tracking-[-0.01em]">{PRIORITY_LABEL_TEXT[label]}</p>
+          <span className="ml-auto text-[11px] font-semibold text-neutral-500 tabular-nums bg-white/70 rounded-md px-1.5 py-0.5">
+            {list.length}
+          </span>
         </div>
         <div
           onDragOver={(e) => e.preventDefault()}
@@ -1214,44 +1301,60 @@ export default function PriorityMatrix({
             const draggedId = e.dataTransfer.getData("text/plain");
             if (draggedId) moveTask(label, null, false, draggedId);
           }}
-          className="bg-white rounded-lg border border-neutral-200 divide-y divide-neutral-200 flex-1 min-h-[64px]"
+          className="bg-white rounded-xl ring-1 ring-neutral-200 shadow-xs divide-y divide-neutral-100 flex-1 min-h-[64px] overflow-hidden"
         >
           {list.length === 0 ? (
-            <p className="text-xs text-neutral-400 text-center py-6 px-2">Перетащите задачу сюда</p>
+            // Пунктир вместо простого текста — зона приёма видна как зона,
+            // а не как подпись, которая случайно оказалась в пустом блоке.
+            <p className="m-2 rounded-lg border border-dashed border-neutral-300 text-[11px] text-neutral-400 text-center py-5 px-2">
+              Перетащите задачу сюда
+            </p>
           ) : (
             list.map((t) => renderRow(t, label, false, true))
           )}
         </div>
         <Link
           href={`/tasks/new?priority=${label}`}
-          className="text-xs text-neutral-400 hover:text-neutral-700 mt-1.5"
+          className="inline-flex items-center gap-1 self-start text-[11px] text-neutral-500 hover:text-neutral-900 mt-2 px-1 py-0.5 rounded-md transition-colors"
         >
-          + Добавить задачу
+          <IconPlus size={12} className="shrink-0" />
+          Добавить задачу
         </Link>
       </div>
     );
   }
 
+  // Пустое состояние — не строчка серым в пустоте, а явная пунктирная рамка:
+  // видно, что это место для задач, а не что экран не догрузился.
+  const emptyState = (message: string) => (
+    <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50/60 px-4 py-10 text-center">
+      <p className="text-sm text-neutral-500 max-w-sm mx-auto leading-relaxed">{message}</p>
+    </div>
+  );
+
   if (!statusTabs && items.length === 0) {
-    return <p className="text-sm text-neutral-400 px-1">{emptyMessage}</p>;
+    return emptyState(emptyMessage);
   }
 
-  const tabBtn = (active: boolean) =>
-    `px-2.5 py-1.5 ${active ? "bg-neutral-800 text-white" : "text-neutral-500 hover:bg-neutral-50"}`;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {(statusTabs || visibleItems.length > 0) && (
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {statusTabs ? (
-            <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs w-fit">
-              <button type="button" onClick={() => setStatusTab("upcoming")} className={tabBtn(statusTab === "upcoming")}>
+            <div className="segmented">
+              <button
+                type="button"
+                onClick={() => setStatusTab("upcoming")}
+                className="segment"
+                data-active={statusTab === "upcoming"}
+              >
                 Предстоит выполнить
               </button>
               <button
                 type="button"
                 onClick={() => setStatusTab("done")}
-                className={`${tabBtn(statusTab === "done")} border-l border-neutral-300`}
+                className="segment"
+                data-active={statusTab === "done"}
               >
                 Выполнено
               </button>
@@ -1260,13 +1363,8 @@ export default function PriorityMatrix({
             <span />
           )}
           {visibleItems.length > 0 && (
-            <label className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={allVisibleSelected}
-                onChange={toggleSelectAll}
-                className="accent-ink-500"
-              />
+            <label className="flex items-center gap-2 text-xs text-neutral-500 hover:text-neutral-800 transition-colors">
+              <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} />
               Выбрать все
             </label>
           )}
@@ -1274,17 +1372,21 @@ export default function PriorityMatrix({
       )}
 
       {visibleItems.length === 0 ? (
-        <p className="text-sm text-neutral-400 px-1">
-          {statusTab === "done" ? "Пока ничего не выполнено." : emptyMessage}
-        </p>
+        emptyState(statusTab === "done" ? "Пока ничего не выполнено." : emptyMessage)
       ) : (
         <>
           {topTask && (() => {
             const topLabel = computePriority(topTask).label;
             return (
               <div>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1 mb-1.5">Сейчас</p>
-                <div className={`border-2 rounded-xl overflow-hidden ${HERO_RING_CLASS[topLabel]}`}>
+                <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.1em] px-1 mb-2">
+                  Сейчас
+                </p>
+                {/* Единственная задача, на которую нужно смотреть прямо сейчас,
+                    поэтому она — единственная приподнятая поверхность на экране:
+                    мягкий градиент в цвет приоритета, кольцо вместо рамки,
+                    тень. Остальной список остаётся плоским. */}
+                <div className={`ring-1 rounded-2xl overflow-hidden shadow-sm ${HERO_RING_CLASS[topLabel]}`}>
                   {renderRow(topTask, topLabel, true)}
                 </div>
               </div>
@@ -1298,11 +1400,19 @@ export default function PriorityMatrix({
           ) : (
             COLUMN_ORDER.filter((label) => groups[label].some((t) => t.id !== topTask?.id)).map((label) => (
               <div key={label}>
-                <div className="flex items-center gap-1.5 px-1 mb-1.5">
-                  <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
-                  <p className="text-xs font-semibold text-neutral-600">
-                    {PRIORITY_LABEL_TEXT[label]} · {groups[label].filter((t) => t.id !== topTask?.id).length}
+                {/* Заголовок группы: название слева, счётчик прижат вправо
+                    и выровнен с правым краем списка — при беглом просмотре
+                    видно распределение нагрузки по приоритетам одним столбцом
+                    цифр, а не россыпью «· 3» посреди строки. */}
+                <div className="flex items-center gap-2 px-1 mb-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_CLASS[label]}`} />
+                  <p className="text-[11px] font-semibold text-neutral-600 uppercase tracking-[0.06em]">
+                    {PRIORITY_LABEL_TEXT[label]}
                   </p>
+                  <span className="flex-1 h-px bg-neutral-200" />
+                  <span className="text-[11px] font-semibold text-neutral-400 tabular-nums">
+                    {groups[label].filter((t) => t.id !== topTask?.id).length}
+                  </span>
                 </div>
                 <div
                   onDragOver={(e) => e.preventDefault()}
@@ -1311,7 +1421,7 @@ export default function PriorityMatrix({
                     const draggedId = e.dataTransfer.getData("text/plain");
                     if (draggedId) moveTask(label, null, false, draggedId);
                   }}
-                  className="divide-y divide-neutral-200"
+                  className="divide-y divide-neutral-100"
                 >
                   {groups[label].filter((t) => t.id !== topTask?.id).map((t) => renderRow(t, label))}
                 </div>
@@ -1321,11 +1431,13 @@ export default function PriorityMatrix({
 
           {groups.LATER.length > 0 && (
             <div>
-              <div className="flex items-center gap-1.5 px-1 mb-1.5">
-                <span className={`w-2 h-2 rounded-full ${DOT_CLASS.LATER}`} />
-                <p className="text-xs font-semibold text-neutral-500">
-                  {PRIORITY_LABEL_TEXT.LATER} · {groups.LATER.length}
+              <div className="flex items-center gap-2 px-1 mb-2">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_CLASS.LATER}`} />
+                <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.06em]">
+                  {PRIORITY_LABEL_TEXT.LATER}
                 </p>
+                <span className="flex-1 h-px bg-neutral-200" />
+                <span className="text-[11px] font-semibold text-neutral-400 tabular-nums">{groups.LATER.length}</span>
               </div>
               <div
                 onDragOver={(e) => e.preventDefault()}
@@ -1334,7 +1446,7 @@ export default function PriorityMatrix({
                   const draggedId = e.dataTransfer.getData("text/plain");
                   if (draggedId) moveTask("LATER", null, false, draggedId);
                 }}
-                className="divide-y divide-neutral-200"
+                className="divide-y divide-neutral-100"
               >
                 {laterVisible.map((t) => renderRow(t, "LATER"))}
               </div>
@@ -1342,9 +1454,19 @@ export default function PriorityMatrix({
                 <button
                   type="button"
                   onClick={() => setLaterExpanded((v) => !v)}
-                  className="text-xs text-neutral-400 hover:text-neutral-700 px-1 mt-1"
+                  className="inline-flex items-center gap-1 text-[11px] text-neutral-500 hover:text-neutral-900 px-1 mt-2 py-0.5 rounded-md transition-colors"
                 >
-                  {laterExpanded ? "Свернуть" : `Показать ещё ${groups.LATER.length - GROUP_PREVIEW} →`}
+                  {laterExpanded ? (
+                    <>
+                      <IconChevronDown size={12} className="rotate-180 shrink-0" />
+                      Свернуть
+                    </>
+                  ) : (
+                    <>
+                      <IconChevronDown size={12} className="shrink-0" />
+                      Показать ещё {groups.LATER.length - GROUP_PREVIEW}
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -1446,13 +1568,16 @@ export default function PriorityMatrix({
 
       {selectedIds.size > 0 && (
         <div
-          className={`fixed left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-1.5 shadow-lg flex-wrap justify-center max-w-[calc(100vw-2rem)] transition-[bottom] ${
-            pendingDelete ? "bottom-20" : "bottom-4"
+          className={`toast fixed left-1/2 z-50 flex-wrap justify-center max-w-[calc(100vw-2rem)] transition-[bottom] duration-300 ${
+            pendingDelete ? "bottom-20" : "bottom-5"
           }`}
         >
-          <span className="pr-1.5">{selectedIds.size} {tasksWord(selectedIds.size)}</span>
+          <span className="pr-1 tabular-nums font-medium">
+            {selectedIds.size} {tasksWord(selectedIds.size)}
+          </span>
+          <span className="w-px h-4 bg-white/15" aria-hidden />
           {canBulkComplete && (
-            <button type="button" onClick={bulkComplete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20">
+            <button type="button" onClick={bulkComplete} className="toast-btn">
               Выполнено
             </button>
           )}
@@ -1465,27 +1590,31 @@ export default function PriorityMatrix({
               onDate={(dateISO) => bulkScheduleDate(dateISO)}
             />
           )}
-          <button type="button" onClick={bulkDelete} className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-red-500/80">
+          <button
+            type="button"
+            onClick={bulkDelete}
+            className="toast-btn hover:!bg-red-500/80"
+          >
             Удалить
           </button>
-          <button type="button" onClick={clearSelection} className="px-2.5 py-1 rounded-full hover:bg-white/10 text-white/60">
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="px-2.5 py-1 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+          >
             Отмена
           </button>
         </div>
       )}
 
       {pendingDelete && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg">
+        <div className="toast fixed bottom-5 left-1/2 z-50">
           <span>
             {pendingDelete.tasks.length === 1
               ? "Задача удалена"
               : `${pendingDelete.tasks.length} ${tasksWord(pendingDelete.tasks.length)} удалены`}
           </span>
-          <button
-            type="button"
-            onClick={undoDelete}
-            className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 font-medium"
-          >
+          <button type="button" onClick={undoDelete} className="toast-btn ml-1">
             Отменить
           </button>
         </div>
@@ -1493,20 +1622,17 @@ export default function PriorityMatrix({
 
       {completedHint && (
         <div
-          className={`fixed left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white text-sm rounded-full pl-4 pr-2 py-2 flex items-center gap-3 shadow-lg transition-[bottom] ${
-            pendingDelete ? "bottom-20" : "bottom-4"
+          className={`toast fixed left-1/2 z-50 transition-[bottom] duration-300 ${
+            pendingDelete ? "bottom-20" : "bottom-5"
           }`}
         >
+          <IconCheck size={15} className="text-emerald-400 shrink-0" />
           <span>
             {completedHint.length === 1
-              ? `✓ Выполнено${statusTabs ? " · ушла в «Выполнено»" : ""}`
-              : `✓ Выполнено: ${completedHint.length} ${tasksWord(completedHint.length)}`}
+              ? `Выполнено${statusTabs ? " · ушла в «Выполнено»" : ""}`
+              : `Выполнено: ${completedHint.length} ${tasksWord(completedHint.length)}`}
           </span>
-          <button
-            type="button"
-            onClick={undoCompletedHint}
-            className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 font-medium"
-          >
+          <button type="button" onClick={undoCompletedHint} className="toast-btn ml-1">
             Отменить
           </button>
         </div>

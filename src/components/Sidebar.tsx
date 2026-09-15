@@ -7,6 +7,17 @@ import { assignTaskToProject, createProject, renameProject, deleteProject, setPr
 import { buildProjectTree, type ProjectNode } from "@/lib/projectTree";
 import { PRIORITY_LABEL_TEXT, type PriorityLabel } from "@/lib/priorityEngine";
 import { PROJECT_COLORS } from "@/lib/projectColors";
+import {
+  IconArrowLeft,
+  IconChevronDown,
+  IconChevronRight,
+  IconHistory,
+  IconInbox,
+  IconMoon,
+  IconMore,
+  IconPlus,
+  IconSun,
+} from "@/components/icons";
 
 const PROJECT_PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3"];
 const PROJECT_DOT_CLASS: Record<PriorityLabel, string> = {
@@ -17,7 +28,7 @@ const PROJECT_DOT_CLASS: Record<PriorityLabel, string> = {
   LATER: "bg-neutral-300",
 };
 // Те же акценты, что и в PROJECT_DOT_CLASS выше, но как hex — для заливки
-// всей строки проекта полупрозрачным цветом (см. projectRowStyle ниже),
+// всей строки проекта полупрозрачным цветом (см. projectRowTint ниже),
 // а не только маленькой точки.
 const PRIORITY_HEX: Record<PriorityLabel, string> = {
   P0: "#ef4444",
@@ -32,6 +43,11 @@ const PRIORITY_HEX: Record<PriorityLabel, string> = {
 // а сила заливки растёт с числом задач внутри (пусто — почти незаметно,
 // много задач — заметно ярче). Без приоритета — нейтральный серый, тоже от
 // количества задач, а не совсем без реакции.
+//
+// Формула прозрачности не менялась — это откалиброванный сигнал, а не
+// оформление. Изменилось только то, что заливка дополнена вертикальным
+// маркером слева (см. ниже): на светлой заливке при одной-двух задачах цвет
+// почти не читался, а тонкая насыщенная полоска видна при любой плотности.
 function projectRowTint(priority: string | null, count: number): React.CSSProperties {
   const valid: PriorityLabel | null =
     priority && PROJECT_PRIORITY_OPTIONS.includes(priority as PriorityLabel) ? (priority as PriorityLabel) : null;
@@ -42,12 +58,17 @@ function projectRowTint(priority: string | null, count: number): React.CSSProper
   return { backgroundColor: `${hex}${alphaHex}` };
 }
 
+function projectRailColor(priority: string | null): string | null {
+  const valid: PriorityLabel | null =
+    priority && PROJECT_PRIORITY_OPTIONS.includes(priority as PriorityLabel) ? (priority as PriorityLabel) : null;
+  return valid ? PRIORITY_HEX[valid] : null;
+}
+
 // Приоритет/цвет/переименовать/удалить — одно меню "⋯" вместо точек-триггеров
 // рядом с названием (те заливают теперь всю строку, см. projectRowTint) и
 // отдельного меню на каждое действие. "Назад" переключает между тремя видами
 // одного и того же попапа, а не открывает вложенные меню друг над другом.
 function ProjectMenu({
-  dim,
   priority,
   color,
   onRename,
@@ -55,7 +76,6 @@ function ProjectMenu({
   onPriorityChanged,
   onColorChanged,
 }: {
-  dim?: boolean;
   priority: string | null;
   color: string | null;
   onRename: () => void;
@@ -89,42 +109,49 @@ function ProjectMenu({
       <button
         type="button"
         onClick={() => { setOpen((v) => !v); setView("main"); }}
-        className={`w-5 h-5 flex items-center justify-center rounded text-xs ${
-          dim ? "text-white/70 hover:text-white hover:bg-white/10" : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200"
-        }`}
+        className="w-6 h-6 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-800 hover:bg-neutral-200/70 transition-colors"
         aria-label="Действия с проектом"
       >
-        ⋯
+        <IconMore size={15} />
       </button>
       {open && view === "main" && (
-        <div className="absolute right-0 top-6 z-30 w-40 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-xs">
-          <button type="button" onClick={() => setView("priority")} className="w-full flex items-center justify-between text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700">
+        <div className="menu-panel absolute right-0 top-7 z-30 w-44">
+          <button type="button" onClick={() => setView("priority")} className="menu-item justify-between">
             <span>Приоритет</span>
-            <span className="text-neutral-400">{validPriority ? PRIORITY_LABEL_TEXT[validPriority] : "—"}</span>
+            <span className="flex items-center gap-1.5 text-neutral-500">
+              {validPriority && <span className={`w-1.5 h-1.5 rounded-full ${PROJECT_DOT_CLASS[validPriority]}`} />}
+              {validPriority ? PRIORITY_LABEL_TEXT[validPriority] : "—"}
+            </span>
           </button>
-          <button type="button" onClick={() => setView("color")} className="w-full flex items-center justify-between text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700">
+          <button type="button" onClick={() => setView("color")} className="menu-item justify-between">
             <span>Цвет ярлыка</span>
-            <span className="w-3 h-3 rounded-full border border-neutral-200" style={color ? { backgroundColor: color } : undefined} />
+            <span
+              className="w-3.5 h-3.5 rounded-full border border-neutral-200 shrink-0"
+              style={color ? { backgroundColor: color } : undefined}
+            />
           </button>
           <div className="my-1 border-t border-neutral-100" />
-          <button type="button" onClick={() => { close(); onRename(); }} className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-700">
+          <button type="button" onClick={() => { close(); onRename(); }} className="menu-item">
             Переименовать
           </button>
-          <button type="button" onClick={() => { close(); onDelete(); }} className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-red-600">
+          <button type="button" onClick={() => { close(); onDelete(); }} className="menu-item menu-item-danger">
             Удалить
           </button>
         </div>
       )}
       {open && view === "priority" && (
-        <div className="absolute right-0 top-6 z-30 w-40 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-xs text-neutral-700">
-          <button type="button" onClick={() => setView("main")} className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-neutral-400">
-            ← Назад
+        <div className="menu-panel absolute right-0 top-7 z-30 w-44">
+          <button type="button" onClick={() => setView("main")} className="menu-item text-neutral-500">
+            <IconArrowLeft size={13} /> Назад
           </button>
+          <div className="my-1 border-t border-neutral-100" />
           <button
             type="button"
             onClick={() => { onPriorityChanged(null); close(); }}
-            className={`w-full text-left px-3 py-1.5 hover:bg-neutral-50 ${!validPriority ? "font-medium text-neutral-900" : ""}`}
+            className="menu-item"
+            data-active={!validPriority}
           >
+            <span className="w-1.5 h-1.5 rounded-full border border-neutral-300" />
             Не задан
           </button>
           {PROJECT_PRIORITY_OPTIONS.map((l) => (
@@ -132,20 +159,22 @@ function ProjectMenu({
               key={l}
               type="button"
               onClick={() => { onPriorityChanged(l); close(); }}
-              className={`w-full flex items-center gap-2 text-left px-3 py-1.5 hover:bg-neutral-50 ${validPriority === l ? "font-medium text-neutral-900" : ""}`}
+              className="menu-item"
+              data-active={validPriority === l}
             >
-              <span className={`w-2 h-2 rounded-full ${PROJECT_DOT_CLASS[l]}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${PROJECT_DOT_CLASS[l]}`} />
               {PRIORITY_LABEL_TEXT[l]}
             </button>
           ))}
         </div>
       )}
       {open && view === "color" && (
-        <div className="absolute right-0 top-6 z-30 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg p-2 text-xs text-neutral-700">
-          <button type="button" onClick={() => setView("main")} className="w-full text-left px-1 py-1 mb-1 hover:text-neutral-900 text-neutral-400">
-            ← Назад
+        <div className="menu-panel absolute right-0 top-7 z-30 w-48">
+          <button type="button" onClick={() => setView("main")} className="menu-item text-neutral-500">
+            <IconArrowLeft size={13} /> Назад
           </button>
-          <div className="grid grid-cols-5 gap-1.5 px-1">
+          <div className="my-1 border-t border-neutral-100" />
+          <div className="grid grid-cols-5 gap-1.5 px-1.5 py-1">
             {PROJECT_COLORS.map((c) => (
               <button
                 key={c.value}
@@ -153,12 +182,14 @@ function ProjectMenu({
                 onClick={() => { onColorChanged(c.value); close(); }}
                 title={c.name}
                 aria-label={c.name}
-                className={`w-5 h-5 rounded-full ${color === c.value ? "ring-2 ring-offset-1 ring-neutral-400" : ""}`}
+                className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${
+                  color === c.value ? "ring-2 ring-offset-2 ring-neutral-400" : ""
+                }`}
                 style={{ backgroundColor: c.value }}
               />
             ))}
           </div>
-          <button type="button" onClick={() => { onColorChanged(null); close(); }} className="w-full text-left px-1 py-1 mt-1.5 text-neutral-500 hover:text-neutral-800">
+          <button type="button" onClick={() => { onColorChanged(null); close(); }} className="menu-item text-neutral-500">
             Без цвета
           </button>
         </div>
@@ -237,19 +268,19 @@ function ProjectRow({
 
   if (confirmingDelete) {
     return (
-      <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs bg-red-50 rounded">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs bg-red-50 border border-red-100 rounded-lg animate-fade-in">
         <span className="flex-1 truncate text-red-700">Удалить «{name}»?</span>
         <button
           type="button"
           onClick={() => setConfirmingDelete(false)}
-          className="px-1.5 py-0.5 rounded border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-600 shrink-0"
+          className="btn btn-secondary btn-sm shrink-0"
         >
           Отмена
         </button>
         <button
           type="button"
           onClick={remove}
-          className="px-1.5 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 shrink-0"
+          className="btn btn-sm bg-red-600 text-white hover:bg-red-700 shrink-0"
         >
           Удалить
         </button>
@@ -259,7 +290,7 @@ function ProjectRow({
 
   if (editing) {
     return (
-      <div className="px-1.5 py-0.5">
+      <div className="px-0.5 py-0.5">
         <input
           autoFocus
           value={value}
@@ -269,48 +300,67 @@ function ProjectRow({
             if (e.key === "Enter") save();
             if (e.key === "Escape") { setValue(name); setEditing(false); }
           }}
-          className="w-full border border-neutral-300 rounded px-1.5 py-1 text-sm"
+          className="field field-sm"
         />
       </div>
     );
   }
 
+  const rail = projectRailColor(priority);
+
   return (
     <div
-      className={`group flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
-        dragOver ? "bg-neutral-200" : active ? "bg-neutral-800 text-white" : "text-neutral-700 hover:bg-neutral-100"
+      className={`group relative flex items-center gap-1 rounded-lg pl-2.5 pr-1 py-1.5 text-[13px] overflow-hidden transition-colors ${
+        dragOver
+          ? "bg-ink-50 ring-1 ring-ink-300"
+          : active
+          ? "bg-white text-neutral-900 font-medium shadow-xs ring-1 ring-neutral-200"
+          : "text-neutral-700 hover:bg-neutral-200/50"
       }`}
       style={!dragOver && !active ? projectRowTint(priority, count) : undefined}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <Link href={`/projects/${id}`} className="flex-1 min-w-0 flex items-center justify-between">
-        <span className="truncate">{name}</span>
+      {/* Вертикальный маркер приоритета: заливка строки говорит «сколько тут
+          задач», полоска — «какой это приоритет». На пустом проекте заливки
+          почти нет, и без полоски приоритет был не виден вовсе. */}
+      {rail && (
         <span
-          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums ml-1 shrink-0 ${
-            active ? "bg-white/20 text-white" : "bg-ink-100 text-ink-700"
-          }`}
-        >
-          {count}
-        </span>
+          aria-hidden
+          className="absolute left-0 inset-y-1 w-[3px] rounded-full"
+          style={{ backgroundColor: rail }}
+        />
+      )}
+      <Link href={`/projects/${id}`} className="flex-1 min-w-0 flex items-center justify-between gap-2 py-0.5">
+        <span className="truncate">{name}</span>
+        {count > 0 && (
+          <span
+            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums shrink-0 transition-opacity group-hover:opacity-0 ${
+              active ? "bg-ink-50 text-ink-700" : "bg-neutral-900/5 text-neutral-500"
+            }`}
+          >
+            {count}
+          </span>
+        )}
       </Link>
-      <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+      {/* Действия проявляются на месте счётчика, а не раздвигают строку —
+          раньше при наведении название дёргалось влево. pointer-events-none
+          в покое обязателен: невидимый слой поверх правого края строки иначе
+          съедал бы клики по самой ссылке проекта. */}
+      <span className="absolute right-1 flex items-center gap-0.5 shrink-0 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity">
         {onAddChild && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onAddChild(); }}
-            className={`w-5 h-5 flex items-center justify-center rounded text-sm leading-none ${
-              active ? "text-white/70 hover:text-white hover:bg-white/10" : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200"
-            }`}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-800 hover:bg-neutral-200/70 transition-colors"
             title="Новый проект"
             aria-label="Добавить проект внутри"
           >
-            +
+            <IconPlus size={14} />
           </button>
         )}
         <ProjectMenu
-          dim={active}
           priority={priority}
           color={color}
           onRename={() => setEditing(true)}
@@ -401,99 +451,119 @@ export default function Sidebar({
     setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, color } : p)));
   }
 
-  const rowClass = (active: boolean, dragOver: boolean) =>
-    `flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm cursor-pointer ${
+  // Активный пункт — приподнятая белая карточка, а не чёрная заливка.
+  // Тёмный блок в сайдбаре перетягивал внимание на навигацию, хотя смотреть
+  // надо в список задач справа.
+  const navRow = (active: boolean, dragOver: boolean) =>
+    `group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors ${
       dragOver
-        ? "bg-neutral-200"
+        ? "bg-ink-50 ring-1 ring-ink-300 text-ink-700"
         : active
-        ? "bg-neutral-800 text-white"
-        : "text-neutral-700 hover:bg-neutral-100"
+        ? "bg-white text-neutral-900 font-medium shadow-xs ring-1 ring-neutral-200"
+        : "text-neutral-600 hover:bg-neutral-200/50 hover:text-neutral-900"
     }`;
 
+  const navIcon = (active: boolean) => (active ? "text-ink-600 shrink-0" : "text-neutral-400 shrink-0 group-hover:text-neutral-600 transition-colors");
+
+  const planActive = pathname === "/today";
+  const summaryActive = pathname === "/today/summary";
+  const historyActive = pathname === "/history";
+
   return (
-    <aside className="w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-3 space-y-4 overflow-y-auto h-full">
+    <aside className="w-60 shrink-0 border-r border-neutral-200 bg-neutral-50 h-full overflow-y-auto flex flex-col gap-5 px-2.5 py-4">
       <nav className="space-y-0.5">
-        <Link href="/today" className={rowClass(pathname === "/today", false)}>
-          <span>План дня</span>
-          <span className="text-xs opacity-60">{totalCount}</span>
+        <Link href="/today" className={navRow(planActive, false)}>
+          <IconSun size={16} className={navIcon(planActive)} />
+          <span className="flex-1">План дня</span>
+          {totalCount > 0 && (
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums ${planActive ? "bg-ink-50 text-ink-700" : "bg-neutral-900/5 text-neutral-500"}`}>
+              {totalCount}
+            </span>
+          )}
         </Link>
-        <Link href="/today/summary" className={rowClass(pathname === "/today/summary", false)}>
-          <span>Итог дня</span>
+        <Link href="/today/summary" className={navRow(summaryActive, false)}>
+          <IconMoon size={16} className={navIcon(summaryActive)} />
+          <span className="flex-1">Итог дня</span>
         </Link>
-        <Link href="/history" className={rowClass(pathname === "/history", false)}>
-          <span>История</span>
+        <Link href="/history" className={navRow(historyActive, false)}>
+          <IconHistory size={16} className={navIcon(historyActive)} />
+          <span className="flex-1">История</span>
         </Link>
       </nav>
 
       {/* Граница перед "Проекты" — иначе он визуально сливается с основной
           навигацией выше, хотя это разные по смыслу категории. */}
-      <div className="pt-3 border-t border-neutral-200">
-        <div className="flex items-center justify-between px-2">
-          <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Проекты</p>
+      <div className="pt-4 border-t border-neutral-200 flex-1 min-h-0">
+        <div className="flex items-center justify-between pl-2.5 pr-1 mb-1.5">
+          <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Проекты</p>
           <button
             type="button"
             onClick={() => { setAdding((v) => !v); setName(""); }}
-            className="text-neutral-400 hover:text-neutral-800 text-sm"
+            className="w-6 h-6 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-800 hover:bg-neutral-200/70 transition-colors"
             title="Новый проект"
+            aria-label="Новый проект"
           >
-            +
+            <IconPlus size={14} />
           </button>
         </div>
 
         {adding && (
-          <div className="flex gap-1 px-2 py-1">
+          <div className="px-0.5 py-1">
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitNewProject(null)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNewProject(null);
+                if (e.key === "Escape") { setName(""); setAdding(false); }
+              }}
               placeholder="Название проекта"
-              className="flex-1 border border-neutral-300 rounded px-2 py-1 text-xs"
+              className="field field-sm"
             />
           </div>
         )}
 
-        <div className="space-y-0.5 mt-1">
+        <div className="space-y-0.5">
           {tree.map((top) => {
             const isCollapsed = collapsed.has(top.id);
             return (
               <div key={top.id}>
-                {/* Раскрывашка "▾/▸" наезжает в левый паддинг сайдбара (relative +
+                {/* Раскрывашка наезжает в левый паддинг сайдбара (relative +
                     absolute со сдвигом влево), а не занимает свою колонку в потоке —
-                    иначе точка/название проекта уезжали заметно правее, чем "Проекты"
+                    иначе название проекта уезжало заметно правее, чем "Проекты"
                     и остальные пункты навигации над ними. */}
                 <div className="relative">
                   {top.children.length > 0 && (
                     <button
                       type="button"
                       onClick={() => toggleCollapsed(top.id)}
-                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-3 h-3 flex items-center justify-center text-[10px] text-neutral-400 hover:text-neutral-700"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3.5 w-4 h-4 flex items-center justify-center text-neutral-400 hover:text-neutral-800 transition-colors z-10"
                       aria-label={isCollapsed ? "Развернуть проект" : "Свернуть проект"}
                     >
-                      {isCollapsed ? "▸" : "▾"}
+                      {isCollapsed ? <IconChevronRight size={12} /> : <IconChevronDown size={12} />}
                     </button>
                   )}
                   <ProjectRow
-                      id={top.id}
-                      name={top.name}
-                      count={counts[top.id] ?? 0}
-                      active={pathname === `/projects/${top.id}`}
-                      priority={top.priority ?? null}
-                      color={top.color ?? null}
-                      dragOver={dragOverKey === top.id}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverKey(top.id); }}
-                      onDragLeave={() => setDragOverKey((k) => (k === top.id ? null : k))}
-                      onDrop={handleDrop(top.id)}
-                      onRenamed={(n) => renameLocal(top.id, n)}
-                      onDeleted={() => deleteLocal(top.id)}
-                      onPriorityChanged={(p) => priorityLocal(top.id, p)}
-                      onColorChanged={(c) => colorLocal(top.id, c)}
-                      onAddChild={() => { setAddingSubTo(top.id); setName(""); }}
-                    />
+                    id={top.id}
+                    name={top.name}
+                    count={counts[top.id] ?? 0}
+                    active={pathname === `/projects/${top.id}`}
+                    priority={top.priority ?? null}
+                    color={top.color ?? null}
+                    dragOver={dragOverKey === top.id}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverKey(top.id); }}
+                    onDragLeave={() => setDragOverKey((k) => (k === top.id ? null : k))}
+                    onDrop={handleDrop(top.id)}
+                    onRenamed={(n) => renameLocal(top.id, n)}
+                    onDeleted={() => deleteLocal(top.id)}
+                    onPriorityChanged={(p) => priorityLocal(top.id, p)}
+                    onColorChanged={(c) => colorLocal(top.id, c)}
+                    onAddChild={() => { setAddingSubTo(top.id); setName(""); }}
+                  />
                 </div>
                 {!isCollapsed && (top.children.length > 0 || addingSubTo === top.id) && (
                   // Тонкая линия слева — вложенность видна сама, без подписи "подпроект".
-                  <div className="ml-3 pl-2 border-l border-neutral-200">
+                  <div className="ml-3 pl-2 border-l border-neutral-200 space-y-0.5 mt-0.5">
                     {top.children.map((sub) => (
                       <ProjectRow
                         key={sub.id}
@@ -514,7 +584,7 @@ export default function Sidebar({
                       />
                     ))}
                     {addingSubTo === top.id && (
-                      <div className="flex gap-1 px-2 py-1">
+                      <div className="px-0.5 py-1">
                         <input
                           autoFocus
                           value={name}
@@ -525,7 +595,7 @@ export default function Sidebar({
                           }}
                           onBlur={() => { if (!name.trim()) setAddingSubTo(null); }}
                           placeholder="Название"
-                          className="flex-1 border border-neutral-300 rounded px-2 py-1 text-xs"
+                          className="field field-sm"
                         />
                       </div>
                     )}
@@ -538,13 +608,19 @@ export default function Sidebar({
       </div>
 
       <div
+        className="pt-3 border-t border-neutral-200"
         onDragOver={(e) => { e.preventDefault(); setDragOverKey("__none__"); }}
         onDragLeave={() => setDragOverKey((k) => (k === "__none__" ? null : k))}
         onDrop={handleDrop(null)}
       >
-        <Link href="/today?view=all&project=none" className={rowClass(false, dragOverKey === "__none__")}>
-          <span>Без проекта</span>
-          <span className="text-xs opacity-60">{noProjectCount}</span>
+        <Link href="/today?view=all&project=none" className={navRow(false, dragOverKey === "__none__")}>
+          <IconInbox size={16} className={navIcon(false)} />
+          <span className="flex-1">Без проекта</span>
+          {noProjectCount > 0 && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums bg-neutral-900/5 text-neutral-500">
+              {noProjectCount}
+            </span>
+          )}
         </Link>
       </div>
     </aside>

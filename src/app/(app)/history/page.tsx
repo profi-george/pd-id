@@ -4,6 +4,7 @@ import { TaskStatus } from "@/generated/prisma/client";
 import { formatDateHuman, toDateInputValue, todayDate } from "@/lib/dates";
 import { tasksWord } from "@/lib/pluralize";
 import { requireUser } from "@/lib/auth";
+import { IconArrowRight, IconChevronLeft, IconChevronRight } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -82,28 +83,32 @@ export default async function HistoryPage({
   for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(Date.UTC(viewYear, viewMonth, d)));
 
   return (
-    <div className="space-y-6 max-w-lg">
-      <h1 className="text-xl font-display font-bold">История</h1>
+    <div className="space-y-7 max-w-lg">
+      <h1 className="text-[26px] leading-tight font-display font-bold text-neutral-900">История</h1>
 
-      <div>
-        <div className="flex items-center justify-between mb-2">
+      {/* Календарь — приподнятая поверхность, а не сетка ссылок «на весу»:
+          это отдельный инструмент навигации, и у него должны быть границы. */}
+      <div className="surface p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-3">
           <Link
             href={`/history?month=${monthParamOf(prevMonth)}`}
-            className="text-sm px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+            aria-label="Предыдущий месяц"
+            className="icon-btn"
           >
-            ←
+            <IconChevronLeft size={16} />
           </Link>
-          <p className="text-sm font-medium text-neutral-700">
-            {MONTH_NAMES[viewMonth]} {viewYear}
+          <p className="text-sm font-semibold text-neutral-900 tracking-[-0.01em]">
+            {MONTH_NAMES[viewMonth]} <span className="text-neutral-400 font-normal tabular-nums">{viewYear}</span>
           </p>
           <Link
             href={`/history?month=${monthParamOf(nextMonth)}`}
-            className="text-sm px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+            aria-label="Следующий месяц"
+            className="icon-btn"
           >
-            →
+            <IconChevronRight size={16} />
           </Link>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-xs text-neutral-400 mb-1">
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.06em] text-neutral-400 mb-1.5">
           {WEEKDAYS.map((w) => <div key={w}>{w}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-1">
@@ -118,7 +123,7 @@ export default async function HistoryPage({
             const efficiency = daysByMs.get(ms)?.efficiency ?? null;
             const dotClass =
               efficiency == null
-                ? "bg-ink-500"
+                ? "bg-ink-400"
                 : efficiency >= 7
                 ? "bg-emerald-500"
                 : efficiency >= 4
@@ -128,28 +133,41 @@ export default async function HistoryPage({
               <Link
                 key={ms}
                 href={`/today?date=${iso}`}
-                className={`aspect-square flex flex-col items-center justify-center rounded-lg text-sm relative ${
+                // Сегодня — кольцо акцента вокруг ячейки вместо чёрной заливки:
+                // заливка перекрывала точку эффективности, и как раз про сегодня
+                // сводку было видно хуже всего.
+                className={`aspect-square flex flex-col items-center justify-center rounded-lg text-[13px] tabular-nums relative transition-colors ${
                   isToday
-                    ? "bg-neutral-800 text-white"
+                    ? "bg-ink-50 text-ink-700 font-semibold ring-2 ring-ink-500"
                     : hasContent
-                    ? "bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-800"
+                    ? "bg-neutral-50 ring-1 ring-neutral-200 hover:bg-white hover:ring-neutral-300 text-neutral-800 font-medium"
                     : "text-neutral-400 hover:bg-neutral-50"
                 }`}
               >
                 {date.getUTCDate()}
-                {hasContent && !isToday && (
-                  <span className={`w-1.5 h-1.5 rounded-full mt-1 ${dotClass}`} />
-                )}
+                <span className="h-1.5 mt-1 flex items-center" aria-hidden>
+                  {hasContent && <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />}
+                </span>
               </Link>
             );
           })}
         </div>
+        {/* Легенда: без неё цвет точки — просто украшение. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 pt-3 border-t border-neutral-100 text-[10px] text-neutral-500">
+          <span className="font-semibold uppercase tracking-[0.06em] text-neutral-400">Эффективность</span>
+          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />7–10</span>
+          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />4–6</span>
+          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400" />1–3</span>
+          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-ink-400" />итог не подведён</span>
+        </div>
       </div>
 
       {sortedDates.length === 0 ? (
-        <p className="text-sm text-neutral-400">
-          Первая запись появится, как только вы подведёте итог сегодняшнего дня.
-        </p>
+        <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50/60 px-4 py-10 text-center">
+          <p className="text-sm text-neutral-500 max-w-sm mx-auto leading-relaxed">
+            Первая запись появится, как только вы подведёте итог сегодняшнего дня.
+          </p>
+        </div>
       ) : (
         <ul className="space-y-2">
           {sortedDates.map((ms) => {
@@ -160,13 +178,15 @@ export default async function HistoryPage({
             const day = daysByMs.get(ms);
             const avgScore = avgScoreByMs.get(ms);
             return (
-              <li key={ms} className="bg-white border border-neutral-200 rounded-lg px-3 py-2.5">
-                <p className="text-sm font-medium text-neutral-800">
+              <li key={ms} className="surface px-4 py-3 transition-shadow hover:shadow-sm">
+                <p className="text-sm font-semibold text-neutral-900 first-letter:uppercase">
                   {formatDateHuman(date)}
-                  {ms === todayMs && <span className="text-xs text-neutral-400 font-normal"> · сегодня</span>}
+                  {ms === todayMs && (
+                    <span className="ml-1.5 chip bg-ink-50 text-ink-700 align-middle">сегодня</span>
+                  )}
                 </p>
                 {counts && counts.total > 0 && (
-                  <p className="text-xs text-neutral-500 mt-0.5">
+                  <p className="text-xs text-neutral-500 mt-1 tabular-nums">
                     {counts.total} {tasksWord(counts.total)} · {counts.done} выполнено
                     {avgScore != null && <> · средняя оценка {avgScore.toFixed(1)}</>}
                     {day?.efficiency != null && <> · эффективность {day.efficiency}/10</>}
@@ -191,16 +211,24 @@ export default async function HistoryPage({
                     {day.conflictAbout}
                   </p>
                 )}
-                <div className="flex items-center gap-3 text-xs mt-1">
-                  <Link href={`/today?date=${iso}`} className="text-ink-600 underline hover:text-ink-500">
+                <div className="flex items-center gap-2 text-xs mt-2 pt-2 border-t border-neutral-100">
+                  <Link
+                    href={`/today?date=${iso}`}
+                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 -mx-1.5 text-ink-600 font-medium hover:bg-ink-50 transition-colors"
+                  >
                     План дня
+                    <IconArrowRight size={12} />
                   </Link>
                   {summarized ? (
-                    <Link href={`/today/summary?date=${iso}`} className="text-ink-600 underline hover:text-ink-500">
+                    <Link
+                      href={`/today/summary?date=${iso}`}
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-ink-600 font-medium hover:bg-ink-50 transition-colors"
+                    >
                       Итог дня
+                      <IconArrowRight size={12} />
                     </Link>
                   ) : (
-                    <span className="text-neutral-400">итог не подведён</span>
+                    <span className="text-neutral-400 px-1.5">итог не подведён</span>
                   )}
                 </div>
               </li>

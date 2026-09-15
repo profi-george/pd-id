@@ -11,6 +11,7 @@ import EveningSubmitButton from "@/components/EveningSubmitButton";
 import DayContextFields from "@/components/DayContextFields";
 import DayMetrics from "@/components/DayMetrics";
 import { requireUser } from "@/lib/auth";
+import { IconChevronDown, IconChevronLeft, IconChevronRight } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -62,65 +63,79 @@ export default async function EveningSummaryPage({
     : null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-display font-bold">Итог дня</h1>
-          <p className="text-sm text-neutral-500">{formatDateHuman(date)}</p>
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-[26px] leading-tight font-display font-bold text-neutral-900">Итог дня</h1>
+          <p className="text-sm text-neutral-500 mt-1 first-letter:uppercase">{formatDateHuman(date)}</p>
           {existingDay && (
-            <p className="text-xs text-ink-600 mt-0.5">Итог уже был подведён — можно поправить и сохранить заново.</p>
+            <p className="inline-flex items-center gap-1.5 text-xs text-ink-700 bg-ink-50 rounded-md px-2 py-1 mt-2">
+              Итог уже был подведён — можно поправить и сохранить заново.
+            </p>
           )}
         </div>
-        <div className="flex items-center gap-1 text-sm shrink-0">
+        {/* Та же «гребёнка», что и в навигации по дням в Плане дня — один
+            и тот же орган управления должен выглядеть одинаково на обоих
+            экранах. */}
+        <div className="inline-flex items-center rounded-lg bg-white ring-1 ring-neutral-200 shadow-2xs overflow-hidden divide-x divide-neutral-200 shrink-0">
           <Link
             href={`/today/summary?date=${toDateInputValue(prevDate)}`}
-            className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+            className="inline-flex items-center gap-1 px-2.5 h-8 text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-colors"
           >
-            ← Вчера
+            <IconChevronLeft size={13} />
+            Вчера
           </Link>
           {!isToday && (
-            <Link href="/today/summary" className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600">
+            <Link
+              href="/today/summary"
+              className="px-2.5 h-8 inline-flex items-center text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-colors"
+            >
               Сегодня
             </Link>
           )}
           <Link
             href={`/today/summary?date=${toDateInputValue(nextDate)}`}
-            className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+            className="inline-flex items-center gap-1 px-2.5 h-8 text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-colors"
           >
-            Завтра →
+            Завтра
+            <IconChevronRight size={13} />
           </Link>
         </div>
       </div>
 
-      <form action={submitEveningForm} className="space-y-6">
+      <form action={submitEveningForm} className="space-y-7">
         <input type="hidden" name="date" value={toDateInputValue(date)} />
 
         {tasks.length > 0 && (
           <div className="space-y-2">
-            <h2 className="text-sm font-medium text-neutral-600">Задачи</h2>
+            <h2 className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em] px-1">Задачи</h2>
             {tasks.map((t) => (
               <EveningTaskRow key={t.id} task={{ ...t, projectName: t.project?.name ?? null }} />
             ))}
           </div>
         )}
         {tasks.length === 0 && movedTasks.length === 0 && partialTasks.length === 0 && (
-          <p className="text-sm text-neutral-400">
-            В этот день план был пуст — подводить особо нечего, но метрики ниже заполнить всё равно можно.
-          </p>
+          <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50/60 px-4 py-8 text-center">
+            <p className="text-sm text-neutral-500 max-w-sm mx-auto leading-relaxed">
+              В этот день план был пуст — подводить особо нечего, но метрики ниже заполнить всё равно можно.
+            </p>
+          </div>
         )}
 
         {partialTasks.length > 0 && (
-          <div className="space-y-1.5">
-            <h2 className="text-sm font-medium text-neutral-600">Частично выполнено</h2>
-            <ul className="space-y-1">
+          <div className="space-y-2">
+            <h2 className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em] px-1">
+              Частично выполнено
+            </h2>
+            <ul className="space-y-1.5">
               {partialTasks.map((t) => (
-                <li key={t.id} className="text-sm bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                  <span className="text-neutral-800">{t.text}</span>
-                  <span className="text-xs text-neutral-500">
-                    {" "}— {t.movedToDate ? `продолжение → ${formatDateHuman(t.movedToDate)}` : "без даты продолжения"}
-                  </span>
+                <li key={t.id} className="text-sm bg-blue-50/70 ring-1 ring-blue-100 rounded-xl px-3.5 py-2.5">
+                  <p className="text-neutral-900">{t.text}</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {t.movedToDate ? `продолжение → ${formatDateHuman(t.movedToDate)}` : "без даты продолжения"}
+                  </p>
                   {t.whySucceeded && (
-                    <p className="text-xs text-neutral-500 mt-0.5">Сделано: {t.whySucceeded}</p>
+                    <p className="text-xs text-neutral-500 mt-1">Сделано: {t.whySucceeded}</p>
                   )}
                 </li>
               ))}
@@ -129,17 +144,19 @@ export default async function EveningSummaryPage({
         )}
 
         {movedTasks.length > 0 && (
-          <div className="space-y-1.5">
-            <h2 className="text-sm font-medium text-neutral-600">Убрано из плана в течение дня</h2>
-            <ul className="space-y-1">
+          <div className="space-y-2">
+            <h2 className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em] px-1">
+              Убрано из плана в течение дня
+            </h2>
+            <ul className="space-y-1.5">
               {movedTasks.map((t) => (
-                <li key={t.id} className="text-sm">
-                  <span className="line-through text-neutral-400">{t.text}</span>
-                  <span className="text-xs text-neutral-500">
-                    {" "}— {t.movedToDate ? `перенесена на ${formatDateHuman(t.movedToDate)}` : "убрана из плана"}
+                <li key={t.id} className="text-sm rounded-xl bg-neutral-100/70 px-3.5 py-2.5">
+                  <p className="line-through text-neutral-400">{t.text}</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {t.movedToDate ? `перенесена на ${formatDateHuman(t.movedToDate)}` : "убрана из плана"}
                     {" · "}
                     <UndoMoveButton taskId={t.id} />
-                  </span>
+                  </p>
                 </li>
               ))}
             </ul>
@@ -167,38 +184,44 @@ export default async function EveningSummaryPage({
           conflictAbout={existingDay?.conflictAbout ?? null}
         />
 
-        <details className="group bg-white border border-neutral-200 rounded-lg" open>
-          <summary className="cursor-pointer select-none list-none flex items-center justify-between px-3 py-2.5">
-            <span className="text-sm font-medium text-neutral-600">Что заберу из этого дня?</span>
-            <span className="text-neutral-400 text-xs transition-transform group-open:rotate-180">▾</span>
+        <details className="group surface overflow-hidden" open>
+          <summary className="select-none list-none flex items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50 transition-colors">
+            <span className="text-sm font-semibold text-neutral-800">Что заберу из этого дня?</span>
+            <IconChevronDown
+              size={16}
+              className="text-neutral-400 shrink-0 transition-transform group-open:rotate-180"
+            />
           </summary>
-          <div className="px-3 pb-3">
-            <p className="text-[11px] text-neutral-400 mb-1">
+          <div className="px-4 pb-4">
+            <p className="text-[11px] text-neutral-500 mb-2 leading-relaxed">
               Что было интересного, важного, полезного, за что благодарна или что хочется запомнить.
             </p>
             <textarea
               name="takeaway"
-              rows={2}
+              rows={3}
               defaultValue={existingDay?.whyWorked ?? ""}
-              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+              className="field resize-none"
             />
           </div>
         </details>
 
-        <details className="group bg-white border border-neutral-200 rounded-lg" open>
-          <summary className="cursor-pointer select-none list-none flex items-center justify-between px-3 py-2.5">
-            <span className="text-sm font-medium text-neutral-600">Вывод на завтра</span>
-            <span className="text-neutral-400 text-xs transition-transform group-open:rotate-180">▾</span>
+        <details className="group surface overflow-hidden" open>
+          <summary className="select-none list-none flex items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50 transition-colors">
+            <span className="text-sm font-semibold text-neutral-800">Вывод на завтра</span>
+            <IconChevronDown
+              size={16}
+              className="text-neutral-400 shrink-0 transition-transform group-open:rotate-180"
+            />
           </summary>
-          <div className="px-3 pb-3">
-            <p className="text-[11px] text-neutral-400 mb-1">
+          <div className="px-4 pb-4">
+            <p className="text-[11px] text-neutral-500 mb-2 leading-relaxed">
               Не план на завтра — одна короткая рекомендация себе.
             </p>
             <textarea
               name="conclusion"
-              rows={2}
+              rows={3}
               defaultValue={existingDay?.conclusion ?? ""}
-              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+              className="field resize-none"
             />
           </div>
         </details>

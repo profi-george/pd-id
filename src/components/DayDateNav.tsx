@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { addDays, toDateInputValue, parseDateInputValue } from "@/lib/dates";
+import { IconCalendar, IconChevronLeft, IconChevronRight } from "@/components/icons";
 
 // Стрелки вместо слов "Вчера"/"Завтра" — короче и сразу понятно, что можно
 // листать дальше в любую сторону. Плюс календарь — чтобы прыгнуть сразу на
@@ -24,33 +25,36 @@ export default function DayDateNav({
     router.push(`/today?date=${toDateInputValue(d)}`);
   }
 
+  // Единая «гребёнка» из белой поверхности с волоском вместо четырёх
+  // самостоятельных кнопок вразнобой: это один орган управления (перемещение
+  // по дням), и выглядеть он должен как один.
+  const step =
+    "w-8 h-8 flex items-center justify-center text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50 transition-colors";
+
   return (
-    <div className="flex items-center gap-1 text-sm">
+    <div className="inline-flex items-center rounded-lg bg-white ring-1 ring-neutral-200 shadow-2xs overflow-hidden divide-x divide-neutral-200">
       <button
         type="button"
         onClick={() => go(prevDate)}
         aria-label="Предыдущий день"
         title="Предыдущий день"
-        className="w-8 h-8 flex items-center justify-center rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+        className={step}
       >
-        ←
+        <IconChevronLeft size={15} />
       </button>
 
       {!isToday && (
         <button
           type="button"
           onClick={() => go(parseDateInputValue(todayISO))}
-          className="px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600 text-xs"
+          className="px-2.5 h-8 text-[11px] font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-colors"
         >
           Сегодня
         </button>
       )}
 
-      <label className="relative w-8 h-8 flex items-center justify-center rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600 cursor-pointer">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <rect x="1.5" y="3" width="13" height="11" rx="1.5" />
-          <path d="M1.5 6.5h13M4.5 1.5v3M11.5 1.5v3" />
-        </svg>
+      <label className={`relative ${step}`} title="Выбрать день">
+        <IconCalendar size={15} />
         <input
           type="date"
           value={toDateInputValue(date)}
@@ -68,9 +72,9 @@ export default function DayDateNav({
         onClick={() => go(nextDate)}
         aria-label="Следующий день"
         title="Следующий день"
-        className="w-8 h-8 flex items-center justify-center rounded border border-neutral-300 hover:bg-neutral-50 text-neutral-600"
+        className={step}
       >
-        →
+        <IconChevronRight size={15} />
       </button>
     </div>
   );

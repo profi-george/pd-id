@@ -28,42 +28,42 @@ export default async function NewTaskPage({
   const bulkHref = `/tasks/bulk?date=${dateOption}${params.projectId ? `&projectId=${params.projectId}` : ""}`;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-display font-bold">Новая задача (вручную)</h1>
-        <div className="flex gap-3">
-          <Link href={aiHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">
-            Пусть оценит ИИ →
+    <div className="space-y-5 max-w-2xl">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <h1 className="text-[26px] leading-tight font-display font-bold text-neutral-900">Новая задача (вручную)</h1>
+        <div className="flex gap-1.5 shrink-0">
+          <Link href={aiHref} className="btn btn-secondary btn-sm">
+            Пусть оценит ИИ
           </Link>
-          <Link href={bulkHref} className="text-xs text-neutral-500 underline hover:text-neutral-800">
-            Добавить несколько сразу →
+          <Link href={bulkHref} className="btn btn-secondary btn-sm">
+            Несколько сразу
           </Link>
         </div>
       </div>
-      <p className="text-xs text-neutral-500 -mt-2">
+      <p className="text-xs text-neutral-500 leading-relaxed -mt-2">
         Обычно проще продиктовать задачу ИИ — он сам оценит критерии ниже. Эта форма для случаев,
         когда вы точно знаете оценки сами или нет доступа к ИИ.
       </p>
 
-      <form action={createTask} className="space-y-4 bg-white border border-neutral-200 rounded-lg p-4">
+      <form action={createTask} className="surface space-y-5 p-5">
         {presetPriority && (
           <>
             <input type="hidden" name="priority" value={presetPriority} />
-            <p className="text-xs text-ink-700 bg-ink-50 border border-ink-100 rounded px-2 py-1.5">
+            <p className="text-xs text-ink-700 bg-ink-50 ring-1 ring-ink-100 rounded-lg px-3 py-2 leading-relaxed">
               Задача попадёт в группу приоритета «{PRIORITY_LABEL_TEXT[presetPriority]}» — как в квадранте матрицы, откуда вы её добавляете.
             </p>
           </>
         )}
         <div>
-          <label className="block text-sm font-medium mb-1">Формулировка задачи</label>
+          <label className="block text-sm font-semibold text-neutral-900 mb-2">Формулировка задачи</label>
           <textarea
             name="text"
             required
             rows={2}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            className="field resize-none"
             placeholder="Например: отправить черновик договора клиенту на согласование"
           />
-          <p className="mt-1 text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded px-2 py-1.5">
+          <p className="mt-2 text-xs text-neutral-600 bg-neutral-50 ring-1 ring-neutral-200 rounded-lg px-3 py-2 leading-relaxed">
             Памятка: формулируйте конкретно, через результат действия — что именно будет
             сделано/готово, а не поверхностно и не процессом. Плохо: «поработать над проектом».
             Хорошо: «отправить клиенту согласованную смету».
@@ -71,20 +71,20 @@ export default async function NewTaskPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Ожидаемый результат (необязательно)</label>
+          <label className="block text-sm font-semibold text-neutral-900 mb-2">Ожидаемый результат (необязательно)</label>
           <input
             name="resultText"
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            className="field"
             placeholder="Что станет возможным/готовым после выполнения"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Проект</label>
+          <label className="block text-sm font-semibold text-neutral-900 mb-2">Проект</label>
           <select
             name="projectId"
             defaultValue={params.projectId ?? ""}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            className="field"
           >
             <option value="">Без проекта</option>
             {projectOptions.map((p) => (
@@ -97,50 +97,50 @@ export default async function NewTaskPage({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">{CRITERIA_INFO.value.title} (1–5)</label>
-            <select name="value" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">{CRITERIA_INFO.value.title} (1–5)</label>
+            <select name="value" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">{CRITERIA_INFO.costOfDelay.title} (1–5)</label>
-            <select name="costOfDelay" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">{CRITERIA_INFO.costOfDelay.title} (1–5)</label>
+            <select name="costOfDelay" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">{CRITERIA_INFO.timeSensitivity.title} (1–5)</label>
-            <select name="timeSensitivity" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">{CRITERIA_INFO.timeSensitivity.title} (1–5)</label>
+            <select name="timeSensitivity" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Связь с текущей целью (1–5)</label>
-            <select name="goalAlignment" defaultValue="3" className="w-full border border-neutral-300 rounded px-2 py-1 text-sm">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Связь с текущей целью (1–5)</label>
+            <select name="goalAlignment" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Затраты (минуты)</label>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Затраты (минуты)</label>
             <input
               type="number"
               name="effortMinutes"
               step="5"
               min="5"
               defaultValue="30"
-              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+              className="field"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Дедлайн (необязательно)</label>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Дедлайн (необязательно)</label>
             <input
               type="date"
               name="deadline"
-              className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+              className="field"
             />
           </div>
           <div className="flex items-end">
-            <label className="flex items-center gap-2 text-sm mb-1.5">
+            <label className="flex items-center gap-2 text-[13px] text-neutral-700 rounded-lg ring-1 ring-neutral-200 px-3 py-2.5 w-full hover:bg-neutral-50 transition-colors">
               <input type="checkbox" name="financialConsequence" />
               Есть финансовые последствия
             </label>
@@ -148,11 +148,11 @@ export default async function NewTaskPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Куда добавить</label>
+          <label className="block text-sm font-semibold text-neutral-900 mb-2">Куда добавить</label>
           <select
             name="dateOption"
             defaultValue={dateOption}
-            className="w-full border border-neutral-300 rounded px-2 py-1 text-sm"
+            className="field"
           >
             <option value="backlog">Позже (без даты)</option>
             <option value="today">На сегодня</option>
@@ -162,7 +162,7 @@ export default async function NewTaskPage({
 
         <button
           type="submit"
-          className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700"
+          className="btn btn-primary btn-lg w-full"
         >
           Добавить задачу
         </button>

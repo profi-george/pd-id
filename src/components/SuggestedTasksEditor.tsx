@@ -12,6 +12,7 @@ import {
 import { CRITERIA_INFO } from "@/lib/criteriaInfo";
 import { formatDateRelative, parseDateInputValue, todayDate, tomorrowDate, toDateInputValue } from "@/lib/dates";
 import { tasksWord } from "@/lib/pluralize";
+import { IconChevronDown } from "@/components/icons";
 
 const SCALE = [1, 2, 3, 4, 5];
 const PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3", "LATER"];
@@ -49,25 +50,22 @@ function PriorityPicker({ label, onPick }: { label: PriorityLabel; onPick: (l: P
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-neutral-300 bg-white text-neutral-700 font-medium hover:border-ink-300 hover:bg-neutral-50"
+        className="flex items-center gap-1.5 px-2 py-1 rounded-md ring-1 ring-neutral-200 bg-white text-neutral-700 font-medium hover:ring-ink-300 hover:bg-neutral-50 transition-colors"
         title="Изменить приоритет"
       >
         <span className={`w-2 h-2 rounded-full ${DOT_CLASS[label]}`} />
         {PRIORITY_LABEL_TEXT[label]}
-        <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400 shrink-0">
-          <path d="M4 6l4 4 4-4" />
-        </svg>
+        <IconChevronDown size={11} className="text-neutral-400 shrink-0" />
       </button>
       {open && (
-        <div className="absolute left-0 top-7 z-20 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+        <div className="menu-panel absolute left-0 top-7 z-20 w-44">
           {PRIORITY_OPTIONS.map((l) => (
             <button
               key={l}
               type="button"
               onClick={() => { setOpen(false); onPick(l); }}
-              className={`w-full flex items-center gap-2 text-left px-3 py-1.5 hover:bg-neutral-50 ${
-                l === label ? "font-medium text-neutral-900" : "text-neutral-700"
-              }`}
+              className="menu-item"
+              data-active={l === label}
             >
               <span className={`w-2 h-2 rounded-full ${DOT_CLASS[l]}`} />
               {PRIORITY_LABEL_TEXT[l]}
@@ -101,7 +99,9 @@ function PlanPicker({
 
   const pill = (active: boolean) =>
     `px-2 py-1 rounded-md border text-xs font-medium ${
-      active ? "bg-neutral-800 text-white border-neutral-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+      active
+        ? "bg-ink-50 text-ink-700 ring-1 ring-ink-300 font-medium"
+        : "bg-white text-neutral-600 ring-1 ring-neutral-200 hover:bg-neutral-50 hover:text-neutral-900"
     }`;
 
   return (
@@ -125,17 +125,17 @@ function PlanPicker({
             autoFocus
             value={scheduledDate ?? ""}
             onChange={(e) => { if (e.target.value) { onChange({ includeInPlan: true, scheduledDate: e.target.value }); setPickingDate(false); } }}
-            className="border border-neutral-300 rounded-md px-1.5 py-1 text-xs"
+            className="field field-sm w-auto"
           />
         )}
       </div>
       {!includeInPlan && (
-        <p className="text-[11px] text-neutral-400 mt-1">
+        <p className="text-[11px] text-neutral-500 mt-1.5 leading-relaxed">
           Без даты задача уйдёт в «Все задачи» — можно сразу{" "}
           <button
             type="button"
             onClick={() => { onChange({ includeInPlan: true, scheduledDate: null }); setPickingDate(true); }}
-            className="underline hover:text-neutral-600"
+            className="underline underline-offset-2 hover:text-neutral-900 transition-colors"
           >
             выбрать день
           </button>.
@@ -165,15 +165,15 @@ function TaskCard({
   });
 
   return (
-    <li className="bg-white border border-neutral-200 rounded-lg p-3 space-y-2">
+    <li className="surface p-3.5 space-y-2.5">
       <div className="flex items-start gap-2">
         <textarea
           rows={2}
           value={task.text}
           onChange={(e) => onChange({ text: e.target.value })}
-          className="flex-1 border border-neutral-300 rounded px-2 py-1 text-sm"
+          className="field flex-1"
         />
-        <button type="button" onClick={onRemove} className="text-xs text-red-600 hover:underline shrink-0">
+        <button type="button" onClick={onRemove} className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md px-1.5 py-1 shrink-0 transition-colors">
           Убрать
         </button>
       </div>
@@ -193,7 +193,7 @@ function TaskCard({
         <select
           value={task.projectId ?? ""}
           onChange={(e) => onChange({ projectId: e.target.value || null })}
-          className="border border-neutral-300 rounded px-1 py-0.5 max-w-[140px]"
+          className="field field-sm w-auto max-w-[140px]"
         >
           <option value="">Без проекта</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
@@ -201,7 +201,7 @@ function TaskCard({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="ml-auto text-neutral-500 underline hover:text-neutral-800"
+          className="ml-auto text-neutral-500 underline underline-offset-2 hover:text-neutral-900 transition-colors"
         >
           {expanded ? "Скрыть" : "Почему? / настроить"}
         </button>
@@ -212,7 +212,7 @@ function TaskCard({
       )}
 
       {task.confidence < LOW_CONFIDENCE_THRESHOLD && (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+        <p className="text-xs text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded-lg px-3 py-2 leading-relaxed">
           AI не хватило данных: {task.confidenceReason || "не пояснил, чего именно."} Можно поправить
           значения ниже («Почему? / настроить»).
         </p>
@@ -229,7 +229,7 @@ function TaskCard({
               <select
                 value={task.value}
                 onChange={(e) => onChange({ value: Number(e.target.value) })}
-                className="border border-neutral-300 rounded px-1 py-0.5"
+                className="field field-sm w-auto"
               >
                 {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -239,7 +239,7 @@ function TaskCard({
               <select
                 value={task.costOfDelay}
                 onChange={(e) => onChange({ costOfDelay: Number(e.target.value) })}
-                className="border border-neutral-300 rounded px-1 py-0.5"
+                className="field field-sm w-auto"
               >
                 {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -249,7 +249,7 @@ function TaskCard({
               <select
                 value={task.timeSensitivity}
                 onChange={(e) => onChange({ timeSensitivity: Number(e.target.value) })}
-                className="border border-neutral-300 rounded px-1 py-0.5"
+                className="field field-sm w-auto"
               >
                 {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -259,7 +259,7 @@ function TaskCard({
               <select
                 value={task.goalAlignment}
                 onChange={(e) => onChange({ goalAlignment: Number(e.target.value) })}
-                className="border border-neutral-300 rounded px-1 py-0.5"
+                className="field field-sm w-auto"
               >
                 {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -272,7 +272,7 @@ function TaskCard({
                 step={5}
                 value={task.effortMinutes}
                 onChange={(e) => onChange({ effortMinutes: Number(e.target.value) })}
-                className="w-16 border border-neutral-300 rounded px-1 py-0.5"
+                className="field field-sm w-16"
               />
             </label>
             <label className="flex items-center justify-between gap-1">
@@ -281,7 +281,7 @@ function TaskCard({
                 type="date"
                 value={task.deadline ?? ""}
                 onChange={(e) => onChange({ deadline: e.target.value || null })}
-                className="border border-neutral-300 rounded px-1 py-0.5"
+                className="field field-sm w-auto"
               />
             </label>
             <label className="flex items-center justify-between gap-1">
@@ -290,7 +290,7 @@ function TaskCard({
                 type="date"
                 value={task.scheduledDate ?? ""}
                 onChange={(e) => onChange({ scheduledDate: e.target.value || null })}
-                className="border border-neutral-300 rounded px-1 py-0.5"
+                className="field field-sm w-auto"
               />
             </label>
             <label className="flex items-center gap-1">
@@ -335,7 +335,7 @@ export default function SuggestedTasksEditor({
 
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-medium text-neutral-600">
+      <h2 className="text-sm font-semibold text-neutral-800 tracking-[-0.01em]">
         Проверьте и поправьте перед сохранением ({tasks.length})
       </h2>
 
@@ -351,15 +351,15 @@ export default function SuggestedTasksEditor({
         ))}
       </ul>
 
-      <div className="bg-white border border-neutral-200 rounded-lg p-3 space-y-3">
-        <p className="text-xs text-neutral-500">
+      <div className="surface p-4 space-y-3 sticky bottom-4 shadow-md">
+        <p className="text-xs text-neutral-500 leading-relaxed">
           Задачи «Без даты» попадут в «Все задачи» без даты — добавите в план позже, когда решите.
         </p>
         <button
           type="button"
           onClick={onSave}
           disabled={isSaving || tasks.length === 0}
-          className="w-full text-sm px-3 py-2 rounded bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-50"
+          className="btn btn-primary btn-lg w-full"
         >
           {isSaving ? "Сохраняю..." : `Добавить ${tasks.length} ${tasksWord(tasks.length)} →`}
         </button>

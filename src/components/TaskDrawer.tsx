@@ -15,6 +15,17 @@ import { todayDate, tomorrowDate, sameDate, formatDateHuman, formatDateRelative 
 import { CRITERIA_INFO, type CriterionKey } from "@/lib/criteriaInfo";
 import CriterionInfo from "@/components/CriterionInfo";
 import { recalculatePriority, answerConfidenceQuestion } from "@/app/(app)/actions";
+import {
+  IconCalendar,
+  IconCheck,
+  IconChevronDown,
+  IconClock,
+  IconFolder,
+  IconPencil,
+  IconSparkles,
+  IconTrash,
+  IconX,
+} from "@/components/icons";
 
 export type SubtaskItem = { id: string; text: string; done: boolean; date?: Date | null };
 
@@ -72,47 +83,11 @@ const CRITERION_FIELDS: { key: CriterionKey; aiKey: keyof DrawerTask; reasonKey:
   { key: "timeSensitivity", aiKey: "aiTimeSensitivity", reasonKey: "aiReasoningTimeSensitivity" },
 ];
 
-function IconFolder({ className }: { className?: string }) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M1.5 3.5A1 1 0 0 1 2.5 2.5h3l1.2 1.5H13.5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8Z" />
-    </svg>
-  );
-}
-
-function IconClock({ className }: { className?: string }) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="8" cy="8" r="6.25" />
-      <path d="M8 4.75V8l2.25 1.5" />
-    </svg>
-  );
-}
-
-function IconCalendar({ className }: { className?: string }) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <rect x="2" y="3" width="12" height="11" rx="1.5" />
-      <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" />
-    </svg>
-  );
-}
-
-function IconTrash({ className }: { className?: string }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M3 4.5h10M6.5 4.5v-1a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1M6 7.5v4M10 7.5v4M4 4.5l.6 8a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8" />
-    </svg>
-  );
-}
-
-function IconSparkle({ className }: { className?: string }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className={className}>
-      <path d="M8 1.5c.3 2.3 1 3.7 2 4.7s2.4 1.7 4.7 2c-2.3.3-3.7 1-4.7 2s-1.7 2.4-2 4.7c-.3-2.3-1-3.7-2-4.7s-2.4-1.7-4.7-2c2.3-.3 3.7-1 4.7-2s1.7-2.4 2-4.7Z" />
-    </svg>
-  );
-}
+// Иконки переехали в общий набор (src/components/icons.tsx): раньше карточка
+// задачи рисовала свои — на сетке 16 и с обводкой 1.4, тогда как остальное
+// приложение пользовалось текстовыми глифами. Оптический вес не совпадал ни
+// с чем; теперь все иконки продукта — из одного набора и одной толщины.
+const IconSparkle = IconSparkles;
 
 // Клик по тексту — редактирование на месте, не отдельная форма. Раньше
 // поправить формулировку можно было только удалив и создав заново, теряя
@@ -136,7 +111,7 @@ function SubtaskDateControl({
         defaultValue={date ? toDateInput(date) : ""}
         onChange={(e) => { onChange(e.target.value || null); setEditing(false); }}
         onBlur={() => setEditing(false)}
-        className="text-xs border border-neutral-300 rounded px-1 py-0.5 shrink-0"
+        className="field field-sm w-auto shrink-0"
       />
     );
   }
@@ -214,7 +189,7 @@ function SubtaskRow({
             if (e.key === "Enter") commit();
             if (e.key === "Escape") { setDraft(subtask.text); setEditing(false); }
           }}
-          className="flex-1 text-sm border border-neutral-300 rounded px-1.5 py-0.5"
+          className="field field-sm flex-1"
         />
       ) : (
         <button
@@ -240,14 +215,6 @@ function SubtaskRow({
         ×
       </button>
     </li>
-  );
-}
-
-function IconChevronDown({ className }: { className?: string }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M4 6l4 4 4-4" />
-    </svg>
   );
 }
 
@@ -488,53 +455,54 @@ export default function TaskDrawer({
       // items-start везде (не sm:items-center) — центрированный flex-контейнер с overflow
       // обрезает свой верх недостижимо для скролла, если контент перерастает экран
       // (например, после раскрытия критериев или длинного списка подзадач).
-      className="fixed inset-0 bg-black/30 z-40 flex items-start justify-center p-0 sm:p-4 sm:py-8 overflow-y-auto"
+      className="fixed inset-0 bg-neutral-950/35 backdrop-blur-[3px] z-40 flex items-start justify-center p-0 sm:p-4 sm:py-8 overflow-y-auto animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-white sm:rounded-2xl shadow-xl w-full sm:max-w-2xl min-h-full sm:min-h-0 sm:my-8 p-5 sm:p-7 space-y-5"
+        className="bg-white sm:rounded-2xl sm:ring-1 sm:ring-neutral-200 shadow-xl w-full sm:max-w-2xl min-h-full sm:min-h-0 sm:my-8 p-5 sm:p-7 space-y-5 animate-rise-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-2">
-          <div className="flex-1 flex items-start gap-2 border border-neutral-300 rounded-xl px-3.5 py-3">
+          <div className="flex-1 flex items-start gap-2 rounded-xl ring-1 ring-neutral-200 bg-neutral-50/60 px-3.5 py-3 transition-colors focus-within:ring-ink-400 focus-within:bg-white">
             <textarea
               ref={titleRef}
               value={task.text}
               onChange={(e) => { onChangeText(e.target.value); flashSaved(); }}
               rows={1}
-              className="flex-1 text-lg font-semibold border-none outline-none resize-none bg-transparent"
+              className="flex-1 text-lg font-semibold tracking-[-0.015em] border-none outline-none resize-none bg-transparent text-neutral-900"
             />
             <button
               type="button"
               onClick={() => titleRef.current?.focus()}
-              className="text-neutral-300 hover:text-neutral-500 shrink-0 mt-0.5"
+              className="text-neutral-400 hover:text-neutral-700 shrink-0 mt-1 transition-colors"
               aria-label="Редактировать название"
               tabIndex={-1}
             >
-              ✎
+              <IconPencil size={14} />
             </button>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-800 text-xl leading-none shrink-0 p-1">
-            ×
+          <button onClick={onClose} className="icon-btn shrink-0" aria-label="Закрыть карточку задачи">
+            <IconX size={18} />
           </button>
         </div>
 
         <p
-          className={`text-[11px] text-emerald-600 h-4 transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}
+          className={`inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 h-4 transition-opacity ${saved ? "opacity-100" : "opacity-0"}`}
           aria-live="polite"
         >
-          ✓ Сохранено
+          <IconCheck size={12} />
+          Сохранено
         </p>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-neutral-500 mb-1.5">Проект</label>
+            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Проект</label>
             <div className="relative">
               <IconFolder className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
               <select
                 value={task.projectId ?? ""}
                 onChange={(e) => handleChangeProject(e.target.value || null)}
-                className="w-full appearance-none border border-neutral-300 rounded-xl pl-9 pr-8 py-2.5 text-sm bg-white"
+                className="field appearance-none pl-9 pr-8 py-2.5"
               >
                 <option value="">Без проекта</option>
                 {projectOptions.map((p) => (
@@ -546,17 +514,17 @@ export default function TaskDrawer({
           </div>
 
           <div>
-            <label className="block text-xs text-neutral-500 mb-1.5">Приоритет</label>
+            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Приоритет</label>
             <div className="grid grid-cols-2 gap-1.5">
               {MAIN_LABELS.map((l) => (
                 <button
                   key={l}
                   type="button"
                   onClick={() => handleManualPriority(l === aiLabel && !isManual ? null : l)}
-                  className={`flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl border ${
+                  className={`flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl ring-1 transition-colors ${
                     label === l
-                      ? "bg-neutral-800 text-white border-neutral-800"
-                      : "border-neutral-300 hover:bg-neutral-50"
+                      ? "bg-ink-50 text-ink-700 ring-ink-300 font-medium"
+                      : "bg-white text-neutral-700 ring-neutral-200 hover:bg-neutral-50"
                   }`}
                   title={PRIORITY_LABEL_HINT[l]}
                 >
@@ -568,7 +536,7 @@ export default function TaskDrawer({
             <button
               type="button"
               onClick={() => handleManualPriority(label === "LATER" ? null : "LATER")}
-              className={`mt-1.5 text-xs px-1 ${label === "LATER" ? "text-neutral-800 font-medium underline" : "text-neutral-400 hover:text-neutral-600 underline"}`}
+              className={`mt-2 text-xs px-1.5 py-1 -mx-1.5 rounded-md transition-colors ${label === "LATER" ? "text-ink-700 font-medium bg-ink-50" : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"}`}
             >
               {label === "LATER" ? "Отложено — вернуть" : "Отложить (не сейчас)"}
             </button>
@@ -583,7 +551,7 @@ export default function TaskDrawer({
           </p>
         )}
 
-        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 space-y-2">
+        <div className="bg-neutral-50 ring-1 ring-neutral-200 rounded-xl p-4 space-y-2.5">
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-xs font-medium text-neutral-600">
               <IconSparkle className="text-amber-500 shrink-0" />
@@ -592,11 +560,11 @@ export default function TaskDrawer({
             <button
               type="button"
               onClick={() => (editingCriteria ? setEditingCriteria(false) : openCriteriaEditor())}
-              className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-200 text-neutral-400 hover:text-ink-600 hover:border-ink-300 shrink-0"
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white ring-1 ring-neutral-200 text-neutral-400 hover:text-ink-600 hover:ring-ink-300 shrink-0 transition-colors"
               title="Настроить оценку вручную"
               aria-label="Настроить оценку вручную"
             >
-              ✎
+              <IconPencil size={13} />
             </button>
           </div>
 
@@ -604,20 +572,20 @@ export default function TaskDrawer({
             <button
               type="button"
               onClick={() => setShowExplanation((v) => !v)}
-              className="text-sm italic text-ink-600 border-l-2 border-ink-500/30 pl-2 text-left hover:text-ink-500"
+              className="ai-note text-sm text-left hover:text-ink-500 transition-colors"
             >
               {task.primaryReason}
             </button>
           )}
           {task.riskText && (
-            <p className="text-xs italic text-neutral-500 border-l-2 border-neutral-300 pl-2">
+            <p className="text-xs italic text-neutral-500 border-l-2 border-neutral-200 pl-2 leading-relaxed">
               Риск отложить: {task.riskText}
             </p>
           )}
 
           {showExplanation && !editingCriteria && (
             <div className="space-y-1.5 pt-1 border-t border-neutral-100">
-              <p className="text-[11px] text-neutral-400 uppercase tracking-wide">Как AI оценил задачу</p>
+              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">Как AI оценил задачу</p>
               {CRITERION_FIELDS.map(({ key, reasonKey }) => {
                 const reasoning = task[reasonKey] as string | null | undefined;
                 if (!reasoning) return null;
@@ -663,7 +631,7 @@ export default function TaskDrawer({
                       {draft[key]}/5
                     </span>
                   </div>
-                  <p className="text-[11px] text-neutral-400">{CRITERIA_INFO[key].definition}</p>
+                  <p className="text-[11px] text-neutral-500 leading-relaxed">{CRITERIA_INFO[key].definition}</p>
                   <input
                     type="range"
                     min={1}
@@ -688,7 +656,7 @@ export default function TaskDrawer({
                 <button
                   type="button"
                   onClick={() => { setEditingCriteria(false); setDraft(null); }}
-                  className="flex-1 text-xs px-2 py-1.5 rounded border border-neutral-300 hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm flex-1"
                 >
                   Отмена
                 </button>
@@ -696,7 +664,7 @@ export default function TaskDrawer({
                   type="button"
                   onClick={handleRecalculate}
                   disabled={recalcLoading}
-                  className="flex-1 text-xs px-2 py-1.5 rounded bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-50"
+                  className="btn btn-primary btn-sm flex-1"
                 >
                   {recalcLoading ? "Пересчитываю…" : "Пересчитать"}
                 </button>
@@ -735,14 +703,14 @@ export default function TaskDrawer({
                       onChange={(e) => setConfidenceAnswer(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") handleAnswerConfidence(); }}
                       placeholder="Впишите ответ…"
-                      className="w-full border border-amber-300 rounded px-2 py-1 text-xs bg-white"
+                      className="field field-sm !ring-0 border border-amber-300"
                     />
                     {confidenceError && <p className="text-red-600">{confidenceError}</p>}
                     <div className="flex gap-1.5">
                       <button
                         type="button"
                         onClick={() => { setAnsweringConfidence(false); setConfidenceAnswer(""); setConfidenceError(null); }}
-                        className="px-2 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-600"
+                        className="btn btn-secondary btn-sm"
                       >
                         Отмена
                       </button>
@@ -750,7 +718,7 @@ export default function TaskDrawer({
                         type="button"
                         onClick={handleAnswerConfidence}
                         disabled={confidenceLoading || !confidenceAnswer.trim()}
-                        className="px-2 py-1 rounded bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-50"
+                        className="btn btn-primary btn-sm"
                       >
                         {confidenceLoading ? "Анализирую…" : "Ответить"}
                       </button>
@@ -771,8 +739,8 @@ export default function TaskDrawer({
         </div>
 
         <div>
-          <span className="block text-xs text-neutral-500 mb-1.5">Время выполнения</span>
-          <div className="flex items-center gap-2 border border-neutral-300 rounded-xl px-3 py-2.5 max-w-[12rem]">
+          <span className="block text-xs font-medium text-neutral-600 mb-1.5">Время выполнения</span>
+          <div className="flex items-center gap-2 rounded-xl bg-white ring-1 ring-neutral-200 shadow-2xs px-3 py-2.5 max-w-[12rem] transition-colors focus-within:ring-ink-400">
             <IconClock className="text-neutral-400 shrink-0" />
             <input
               type="number"
@@ -791,7 +759,7 @@ export default function TaskDrawer({
 
         {(onAddSubtask || (task.subtasks && task.subtasks.length > 0)) && (
           <div>
-            <label className="flex items-center justify-between text-xs text-neutral-500 mb-1.5">
+            <label className="flex items-center justify-between text-xs font-medium text-neutral-600 mb-1.5">
               <span>Подзадачи</span>
               {task.subtasks && task.subtasks.length > 0 && (
                 <span className="tabular-nums">
@@ -829,12 +797,12 @@ export default function TaskDrawer({
                   value={newSubtask}
                   onChange={(e) => setNewSubtask(e.target.value)}
                   placeholder="+ Добавить подзадачу"
-                  className="flex-1 border border-neutral-300 rounded-lg px-2.5 py-1.5 text-sm placeholder:text-neutral-400"
+                  className="field flex-1"
                 />
                 <button
                   type="submit"
                   disabled={!newSubtask.trim()}
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
+                  className="btn btn-secondary btn-sm shrink-0"
                 >
                   Добавить
                 </button>
@@ -844,19 +812,19 @@ export default function TaskDrawer({
         )}
 
         <div>
-          <label className="block text-xs text-neutral-500 mb-1.5">Заметка — как подступиться, что учесть</label>
+          <label className="block text-xs font-medium text-neutral-600 mb-1.5">Заметка — как подступиться, что учесть</label>
           <textarea
             value={task.note ?? ""}
             onChange={(e) => handleChangeField({ note: e.target.value || null })}
             rows={2}
             placeholder="Например: начать с черновика письма, а не сразу звонить"
-            className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm resize-none"
+            className="field resize-none"
           />
         </div>
 
         <div>
-          <span className="block text-xs text-neutral-500 mb-1.5">Дедлайн</span>
-          <div className="flex items-center gap-2 border border-neutral-300 rounded-xl px-3 py-2.5 max-w-xs">
+          <span className="block text-xs font-medium text-neutral-600 mb-1.5">Дедлайн</span>
+          <div className="flex items-center gap-2 rounded-xl bg-white ring-1 ring-neutral-200 shadow-2xs px-3 py-2.5 max-w-xs transition-colors focus-within:ring-ink-400">
             <IconCalendar className="text-neutral-400 shrink-0" />
             <input
               type="date"
@@ -868,10 +836,10 @@ export default function TaskDrawer({
               <button
                 type="button"
                 onClick={() => handleChangeField({ deadline: null })}
-                className="text-neutral-400 hover:text-neutral-700 shrink-0"
+                className="text-neutral-400 hover:text-neutral-700 shrink-0 transition-colors"
                 aria-label="Убрать дедлайн"
               >
-                ×
+                <IconX size={14} />
               </button>
             )}
           </div>
@@ -879,13 +847,13 @@ export default function TaskDrawer({
 
         {(onScheduleToday || onScheduleTomorrow || onScheduleDate) && (
           <div>
-            <label className="block text-xs text-neutral-500 mb-1.5">Когда выполнить</label>
+            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Когда выполнить</label>
             <div className="flex flex-wrap gap-2">
               {onScheduleToday && (
                 <button
                   onClick={() => { onScheduleToday(); flashSaved(); }}
-                  className={`flex-1 min-w-[8rem] flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl border ${
-                    isScheduledToday ? "bg-neutral-800 text-white border-neutral-800" : "border-neutral-300 hover:bg-neutral-50"
+                  className={`flex-1 min-w-[8rem] flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl ring-1 transition-colors ${
+                    isScheduledToday ? "bg-ink-50 text-ink-700 ring-ink-300 font-medium" : "bg-white text-neutral-700 ring-neutral-200 hover:bg-neutral-50"
                   }`}
                 >
                   <IconCalendar />
@@ -895,8 +863,8 @@ export default function TaskDrawer({
               {onScheduleTomorrow && (
                 <button
                   onClick={() => { onScheduleTomorrow(); flashSaved(); }}
-                  className={`flex-1 min-w-[8rem] flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl border ${
-                    isScheduledTomorrow ? "bg-neutral-800 text-white border-neutral-800" : "border-neutral-300 hover:bg-neutral-50"
+                  className={`flex-1 min-w-[8rem] flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl ring-1 transition-colors ${
+                    isScheduledTomorrow ? "bg-ink-50 text-ink-700 ring-ink-300 font-medium" : "bg-white text-neutral-700 ring-neutral-200 hover:bg-neutral-50"
                   }`}
                 >
                   <IconCalendar />
@@ -906,8 +874,8 @@ export default function TaskDrawer({
               {onScheduleDate && (
                 <button
                   onClick={() => setShowDatePicker(true)}
-                  className={`flex-1 min-w-[8rem] flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl border ${
-                    isCustomDate ? "bg-neutral-800 text-white border-neutral-800" : "border-neutral-300 hover:bg-neutral-50"
+                  className={`flex-1 min-w-[8rem] flex items-center justify-center gap-1.5 text-sm px-2.5 py-2.5 rounded-xl ring-1 transition-colors ${
+                    isCustomDate ? "bg-ink-50 text-ink-700 ring-ink-300 font-medium" : "bg-white text-neutral-700 ring-neutral-200 hover:bg-neutral-50"
                   }`}
                 >
                   <IconCalendar />
@@ -922,7 +890,7 @@ export default function TaskDrawer({
                     type="date"
                     value={scheduleDate}
                     onChange={(e) => setScheduleDate(e.target.value)}
-                    className="flex-1 min-w-[9rem] border border-neutral-300 rounded-xl px-3 py-2 text-sm"
+                    className="field flex-1 min-w-[9rem]"
                   />
                   {googleConnected && (
                     <input
@@ -930,19 +898,19 @@ export default function TaskDrawer({
                       value={scheduleTime}
                       onChange={(e) => setScheduleTime(e.target.value)}
                       title="Необязательно — если указать, сразу создаст событие в Google Календаре на это время"
-                      className="w-24 border border-neutral-300 rounded-xl px-2 py-2 text-sm"
+                      className="field w-24"
                     />
                   )}
                   <button
                     onClick={handleConfirmCustomDate}
                     disabled={!scheduleDate || calSaving}
-                    className="text-sm px-3 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-50 disabled:opacity-40 shrink-0"
+                    className="btn btn-secondary shrink-0"
                   >
                     {calSaving ? "Сохраняю…" : "На дату"}
                   </button>
                 </div>
                 {googleConnected && (
-                  <p className="text-[11px] text-neutral-400">Время — необязательно, добавит событие в Google Календарь</p>
+                  <p className="text-[11px] text-neutral-500">Время — необязательно, добавит событие в Google Календарь</p>
                 )}
               </div>
             )}
@@ -964,7 +932,7 @@ export default function TaskDrawer({
                 Добавить в Google Календарь
               </label>
               {task.googleEventUrl ? (
-                <a href={task.googleEventUrl} target="_blank" rel="noreferrer" className="text-xs underline text-ink-600">
+                <a href={task.googleEventUrl} target="_blank" rel="noreferrer" className="text-xs font-medium underline underline-offset-2 text-ink-600 hover:text-ink-700 transition-colors">
                   Открыть событие →
                 </a>
               ) : (
@@ -974,7 +942,7 @@ export default function TaskDrawer({
                     type="time"
                     value={calTime}
                     onChange={(e) => setCalTime(e.target.value)}
-                    className="border border-neutral-300 rounded px-1.5 py-0.5 text-xs"
+                    className="field field-sm w-auto"
                   />
                   · {calendarDateLabel}
                 </span>
@@ -990,13 +958,13 @@ export default function TaskDrawer({
               <span className="text-neutral-600">Удалить задачу?</span>
               <button
                 onClick={() => setConfirmingDelete(false)}
-                className="px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
+                className="btn btn-secondary btn-sm"
               >
                 Отмена
               </button>
               <button
                 onClick={onDelete}
-                className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                className="btn btn-sm bg-red-600 text-white hover:bg-red-700"
               >
                 Удалить
               </button>
@@ -1004,7 +972,7 @@ export default function TaskDrawer({
           ) : (
             <button
               onClick={() => setConfirmingDelete(true)}
-              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:underline"
+              className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md px-2 py-1.5 -mx-2 transition-colors"
             >
               <IconTrash />
               Удалить задачу
@@ -1014,7 +982,7 @@ export default function TaskDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="text-sm px-4 py-2 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700"
+            className="btn btn-primary btn-lg"
           >
             Готово
           </button>

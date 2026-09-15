@@ -8,6 +8,7 @@ import { tasksWord } from "@/lib/pluralize";
 import PriorityMatrix from "@/components/PriorityMatrix";
 import LayoutToggle from "@/components/LayoutToggle";
 import DayDateNav from "@/components/DayDateNav";
+import { IconArrowRight, IconCheck, IconPlus } from "@/components/icons";
 import { requireUser } from "@/lib/auth";
 import { getGoogleStatus, getCycleSettings, completeTask } from "@/app/(app)/actions";
 import { getCycleInfo, getCycleNote } from "@/lib/cycle";
@@ -21,11 +22,11 @@ function ViewToggle({ mode, date }: { mode: "day" | "all"; date: Date }) {
   const dayHref = `/today?date=${toDateInputValue(date)}`;
   const allHref = "/today?view=all";
   return (
-    <div className="flex items-center border border-neutral-300 rounded-lg overflow-hidden text-xs shrink-0">
-      <Link href={dayHref} className={`px-2.5 py-1 ${mode === "day" ? "bg-neutral-800 text-white" : "text-neutral-500 hover:bg-neutral-50"}`}>
+    <div className="segmented shrink-0">
+      <Link href={dayHref} className="segment" data-active={mode === "day"}>
         План дня
       </Link>
-      <Link href={allHref} className={`px-2.5 py-1 border-l border-neutral-300 ${mode === "all" ? "bg-neutral-800 text-white" : "text-neutral-500 hover:bg-neutral-50"}`}>
+      <Link href={allHref} className="segment" data-active={mode === "all"}>
         Все задачи
       </Link>
     </div>
@@ -92,14 +93,15 @@ export default async function TodayPage({
     }
 
     return (
-      <div className="space-y-6">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h1 className="text-xl font-display font-bold">
+      <div className="space-y-7">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <h1 className="text-[26px] leading-tight font-display font-bold text-neutral-900">
               {projectFilter === "none" ? "Без проекта" : "Все задачи"}
             </h1>
-            <p className="text-sm text-neutral-500">
-              {matrixTasks.length} {tasksWord(matrixTasks.length)} · отсортированы по приоритету
+            <p className="text-sm text-neutral-500 mt-1">
+              <span className="tabular-nums font-medium text-neutral-700">{matrixTasks.length}</span>{" "}
+              {tasksWord(matrixTasks.length)} · отсортированы по приоритету
             </p>
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
@@ -109,8 +111,9 @@ export default async function TodayPage({
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href="/add" className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50">
-            + Добавить задачу
+          <Link href="/add" className="btn btn-secondary btn-sm">
+            <IconPlus size={13} />
+            Добавить задачу
           </Link>
         </div>
 
@@ -177,28 +180,30 @@ export default async function TodayPage({
     return qs ? `/today?${qs}` : "/today";
   }
 
+  const donePercent = totalForDay > 0 ? Math.round((doneCount / totalForDay) * 100) : 0;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-display font-bold">
+    <div className="space-y-7">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-[26px] leading-tight font-display font-bold text-neutral-900">
               {isToday ? "Сегодня" : "План дня"}
             </h1>
             {planned.length > 0 && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-ink-100 text-ink-700 tabular-nums shrink-0">
+              <span className="text-[11px] font-semibold px-2 py-1 rounded-md bg-ink-50 text-ink-700 tabular-nums shrink-0">
                 {planned.length} {tasksWord(planned.length)}
               </span>
             )}
           </div>
-          <p className="text-sm text-neutral-500">{formatDateHumanFull(date)}</p>
+          <p className="text-sm text-neutral-500 mt-1 first-letter:uppercase">{formatDateHumanFull(date)}</p>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <ViewToggle mode="day" date={date} />
           <LayoutToggle layout={layout} hrefFor={dayLayoutHref} />
           <DayDateNav date={date} isToday={isToday} todayISO={toDateInputValue(today)} />
           {cycleInfo && (
-            <div className="max-w-[13rem] rounded-lg bg-rose-50 border border-rose-100 px-2.5 py-2 text-right">
+            <div className="max-w-[13rem] rounded-xl bg-rose-50 ring-1 ring-rose-100 px-3 py-2 text-right">
               <Link
                 href="/settings"
                 title="Настроить в Настройках"
@@ -206,7 +211,7 @@ export default async function TodayPage({
               >
                 День цикла {cycleInfo.day} · {cycleInfo.phaseLabel}
               </Link>
-              <p className="text-[11px] text-rose-400 leading-snug mt-0.5">
+              <p className="text-[11px] text-rose-500/80 leading-snug mt-0.5">
                 {getCycleNote(cycleInfo, cycleSettings.cycleLengthDays ?? undefined)}
               </p>
             </div>
@@ -215,42 +220,77 @@ export default async function TodayPage({
       </div>
 
       {day ? (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800">
-          Итог дня подведён. Трудность {day.difficulty} · настроение {day.mood} · эффективность{" "}
-          {day.efficiency} · переживания {day.worry}
-          {day.hasPms && <span> · ПМС</span>}
-          {day.hadConflict && <span> · был конфликт</span>}
-          {day.whyWorked && <p className="mt-1 text-emerald-900">Заберу из дня: {day.whyWorked}</p>}
-          {day.conclusion ? <p className="mt-1 text-emerald-900">Вывод на завтра: {day.conclusion}</p> : null}
-          <Link href={`/today/summary?date=${toDateInputValue(date)}`} className="inline-block mt-1.5 underline hover:text-emerald-900">
-            Изменить итог →
+        <div className="rounded-xl bg-emerald-50 ring-1 ring-emerald-200 px-4 py-3 text-sm text-emerald-900">
+          <p className="flex items-center gap-2 font-medium">
+            <IconCheck size={15} className="shrink-0 text-emerald-600" />
+            Итог дня подведён
+          </p>
+          {/* Метрики — сеткой из отдельных значений, а не одной строкой через
+              «·»: так число и его подпись читаются парой, и строка не рвётся
+              по середине пары на узком экране. */}
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-2.5 pt-2.5 border-t border-emerald-200/70">
+            {([
+              ["Трудность", day.difficulty],
+              ["Настроение", day.mood],
+              ["Эффективность", day.efficiency],
+              ["Переживания", day.worry],
+            ] as const).map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-[10px] uppercase tracking-[0.06em] text-emerald-700/70">{label}</dt>
+                <dd className="text-base font-semibold tabular-nums text-emerald-900 leading-tight">
+                  {value ?? "—"}
+                  <span className="text-[11px] font-normal text-emerald-700/60">/10</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {(day.hasPms || day.hadConflict) && (
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
+              {day.hasPms && <span className="chip bg-emerald-100/70 text-emerald-800">ПМС</span>}
+              {day.hadConflict && <span className="chip bg-emerald-100/70 text-emerald-800">был конфликт</span>}
+            </div>
+          )}
+          {day.whyWorked && <p className="mt-2.5 leading-relaxed">Заберу из дня: {day.whyWorked}</p>}
+          {day.conclusion ? <p className="mt-1 leading-relaxed">Вывод на завтра: {day.conclusion}</p> : null}
+          <Link
+            href={`/today/summary?date=${toDateInputValue(date)}`}
+            className="inline-flex items-center gap-1 mt-3 font-medium underline underline-offset-2 hover:text-emerald-700 transition-colors"
+          >
+            Изменить итог
+            <IconArrowRight size={13} />
           </Link>
         </div>
       ) : (
         dayTasks.length > 0 && (
-          <div className="flex items-center justify-between gap-3 bg-white border border-neutral-200 rounded-lg px-3 py-2.5">
-            <p className="text-sm text-neutral-600">
-              <span className="font-semibold text-neutral-800 tabular-nums">{doneCount}</span>/{totalForDay} выполнено
-            </p>
-            <Link
-              href={`/today/summary?date=${toDateInputValue(date)}`}
-              className="text-sm px-3 py-1.5 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 shrink-0"
-            >
+          <div className="surface flex items-center justify-between gap-4 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-neutral-600">
+                <span className="font-semibold text-neutral-900 tabular-nums">{doneCount}</span>
+                <span className="text-neutral-400 tabular-nums">/{totalForDay}</span> выполнено
+              </p>
+              {/* Полоса прогресса вместо одной цифры: положение дня видно
+                  боковым зрением, без чтения. */}
+              <div className="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden" role="presentation">
+                <div
+                  className="h-full rounded-full bg-ink-500 transition-[width] duration-500"
+                  style={{ width: `${donePercent}%` }}
+                />
+              </div>
+            </div>
+            <Link href={`/today/summary?date=${toDateInputValue(date)}`} className="btn btn-primary shrink-0">
               Подвести итог дня
             </Link>
           </div>
         )
       )}
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-neutral-600">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm font-semibold text-neutral-800 tracking-[-0.01em]">
           {isToday ? "Что важно сделать сегодня" : "Что важно сделать"}
         </p>
-        <Link
-          href="/add"
-          className="text-xs px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"
-        >
-          + Добавить задачу
+        <Link href="/add" className="btn btn-secondary btn-sm shrink-0">
+          <IconPlus size={13} />
+          Добавить задачу
         </Link>
       </div>
 
@@ -271,11 +311,13 @@ export default async function TodayPage({
         }
       />
 
-      <p className="text-xs text-neutral-400">
-        <Link href="/history" className="underline hover:text-neutral-600">
-          Все дни →
-        </Link>
-      </p>
+      <Link
+        href="/history"
+        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
+      >
+        Все дни
+        <IconArrowRight size={12} />
+      </Link>
     </div>
   );
 }

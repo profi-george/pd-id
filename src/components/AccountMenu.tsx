@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { logoutAction } from "@/app/login/actions";
+import { IconChevronDown, IconLogout, IconSettings } from "@/components/icons";
 
 export default function AccountMenu({ cabinetName }: { cabinetName: string }) {
   const [open, setOpen] = useState(false);
@@ -22,29 +23,29 @@ export default function AccountMenu({ cabinetName }: { cabinetName: string }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
+        className="flex items-center gap-2 rounded-lg pl-1 pr-1.5 py-1 text-[13px] text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/50 transition-colors"
         title={"Горячие клавиши:\nN — Добавить AI\nP — План дня\nZ — Все задачи\nH — История\n(не работают в полях ввода)"}
       >
-        <span className="w-6 h-6 shrink-0 rounded-full bg-ink-50 text-ink-600 flex items-center justify-center text-xs font-semibold">
+        <span className="w-7 h-7 shrink-0 rounded-full bg-gradient-to-br from-ink-400 to-ink-600 text-white flex items-center justify-center text-xs font-semibold shadow-xs">
           {cabinetName.slice(0, 1).toUpperCase()}
         </span>
         <span className="hidden sm:inline max-w-[8rem] truncate">{cabinetName}</span>
+        <IconChevronDown size={13} className="hidden sm:block text-neutral-400 shrink-0" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-9 z-50 w-44 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
-          <p className="px-3 py-1.5 text-xs text-neutral-400 truncate border-b border-neutral-100" title={cabinetName}>
+        <div className="menu-panel absolute right-0 top-11 z-50 w-52">
+          <p className="px-2 py-1.5 text-[11px] text-neutral-500 truncate" title={cabinetName}>
             {cabinetName}
           </p>
-          <Link
-            href="/settings"
-            onClick={() => setOpen(false)}
-            className="block px-3 py-1.5 hover:bg-neutral-50 text-neutral-700"
-          >
+          <div className="my-1 border-t border-neutral-100" />
+          <Link href="/settings" onClick={() => setOpen(false)} className="menu-item">
+            <IconSettings size={14} className="text-neutral-400 shrink-0" />
             Настройки
           </Link>
           <form action={logoutAction}>
-            <button type="submit" className="w-full text-left px-3 py-1.5 hover:bg-neutral-50 text-red-600">
+            <button type="submit" className="menu-item menu-item-danger">
+              <IconLogout size={14} className="shrink-0" />
               Выйти
             </button>
           </form>

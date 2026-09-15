@@ -8,6 +8,7 @@ import { todayDate, nextWeekday, toDateInputValue } from "@/lib/dates";
 import type { AiTaskEvaluation, ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
+import { IconArrowRight, IconSparkles } from "@/components/icons";
 
 const noSubscription = () => () => {};
 function getIsMobile(): boolean {
@@ -215,37 +216,43 @@ export default function UnifiedTaskInput({
           <button
             type="button"
             onClick={reset}
-            className="text-xs text-neutral-400 hover:text-red-600 hover:underline"
+            className="text-xs text-neutral-500 hover:text-red-600 rounded-md px-1.5 py-1 transition-colors"
           >
             Очистить черновик и начать заново
           </button>
         </div>
       )}
       {!reviewTasks && (
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 space-y-3 shadow-sm">
-          <p className="text-base font-medium text-neutral-800">
+        // Главный «холст» экрана: единственная приподнятая поверхность,
+        // с чуть большей тенью, чем у обычных карточек — сюда нужно смотреть
+        // и сюда нужно печатать.
+        <div className="bg-white ring-1 ring-neutral-200 rounded-2xl p-5 sm:p-6 space-y-3.5 shadow-md">
+          <p className="flex items-start gap-2.5 text-[17px] font-semibold text-neutral-900 tracking-[-0.015em] leading-snug">
+            <IconSparkles size={17} className="text-ink-500 shrink-0 mt-0.5" />
             {pendingQuestion ?? "Что нужно сделать?"}
           </p>
 
           {pendingTasks && (
-            <div className="space-y-1.5 bg-neutral-50 border border-neutral-200 rounded-lg p-3">
-              <p className="text-xs font-medium text-neutral-500">Вот что получилось:</p>
-              <ul className="space-y-1">
+            <div className="space-y-2 bg-neutral-50 ring-1 ring-neutral-200 rounded-xl p-3.5 animate-rise-in">
+              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">
+                Вот что получилось
+              </p>
+              <ul className="space-y-1.5">
                 {pendingTasks.map((t, i) => (
-                  <li key={i} className="text-sm text-neutral-700">
-                    <span className="font-medium">{t.text}</span>
-                    {t.primaryReason && <span className="text-neutral-500"> — {t.primaryReason}</span>}
+                  <li key={i} className="flex gap-2 text-sm text-neutral-700 leading-snug">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-ink-400 shrink-0" aria-hidden />
+                    <span>
+                      <span className="font-medium text-neutral-900">{t.text}</span>
+                      {t.primaryReason && <span className="text-neutral-500"> — {t.primaryReason}</span>}
+                    </span>
                   </li>
                 ))}
               </ul>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                className="w-full text-sm px-3 py-1.5 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 mt-1"
-              >
-                Продолжить и настроить →
+              <button type="button" onClick={handleConfirm} className="btn btn-primary w-full mt-1">
+                Продолжить и настроить
+                <IconArrowRight size={14} />
               </button>
-              <p className="text-xs text-neutral-400">
+              <p className="text-xs text-neutral-500 leading-relaxed">
                 Что-то не так? Напишите поправку ниже — например «нет, вторая задача не срочная».
               </p>
             </div>
@@ -269,25 +276,37 @@ export default function UnifiedTaskInput({
                 ? "Ваш ответ..."
                 : "Напиши или надиктуй всё, что сейчас нужно..."
             }
-            className="w-full border-none outline-none resize-none text-sm text-neutral-700 placeholder:text-neutral-400"
+            className="w-full border-none outline-none resize-none text-[15px] leading-relaxed text-neutral-800 placeholder:text-neutral-400"
             style={{ maxHeight: MAX_TEXTAREA_HEIGHT }}
           />
-          <div className="flex items-center justify-between pt-1 border-t border-neutral-100">
+          <div className="flex items-center justify-between gap-2 pt-3 border-t border-neutral-100">
             <VoiceInputButton onText={(t) => setInput((prev) => (prev ? `${prev} ${t}` : t))} />
             <button
               type="button"
               onClick={handleSend}
               disabled={isSending || !input.trim()}
-              className="text-sm px-4 py-1.5 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 disabled:opacity-40"
+              className="btn btn-primary"
             >
-              {isSending ? thinkingPhrase : "Разобрать →"}
+              {isSending ? (
+                <>
+                  {/* Точка-пульс рядом с меняющейся фразой: даже если фраза
+                      совпала с предыдущей, видно, что процесс жив. */}
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse shrink-0" aria-hidden />
+                  {thinkingPhrase}
+                </>
+              ) : (
+                <>
+                  Разобрать
+                  <IconArrowRight size={14} />
+                </>
+              )}
             </button>
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+            <p className="text-sm text-red-700 bg-red-50 ring-1 ring-red-200 rounded-lg px-3 py-2 leading-relaxed">
               {error}{" "}
-              <Link href="/tasks/new" className="underline hover:text-red-800">
+              <Link href="/tasks/new" className="underline underline-offset-2 font-medium hover:text-red-900">
                 Добавить вручную →
               </Link>
             </p>
