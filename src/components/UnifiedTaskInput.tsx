@@ -8,7 +8,8 @@ import { todayDate, nextWeekday, toDateInputValue } from "@/lib/dates";
 import type { AiTaskEvaluation, ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
-import { IconArrowRight, IconSparkles } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconSparkles } from "@/components/icons";
+import { tasksWord } from "@/lib/pluralize";
 
 const noSubscription = () => () => {};
 function getIsMobile(): boolean {
@@ -79,6 +80,10 @@ export default function UnifiedTaskInput({
   // переходим к подробному редактору.
   const [pendingTasks, setPendingTasks] = useState<AiTaskEvaluation[] | null>(null);
   const [reviewTasks, setReviewTasks] = useState<ReviewTask[] | null>(null);
+  // После сохранения — не сразу на "Сегодня", а промежуточный экран: чаще всего
+  // в голове было больше одной мысли, и следующим шагом хочется либо продолжить
+  // выгружать, либо уже пойти смотреть план. Молчаливый редирект отрезал первое.
+  const [savedResult, setSavedResult] = useState<{ count: number; anyInPlan: boolean } | null>(null);
   const [isSending, startSending] = useTransition();
   const [isSaving, startSaving] = useTransition();
   const thinkingPhrase = useThinkingPhrase(isSending);
@@ -199,12 +204,19 @@ export default function UnifiedTaskInput({
 
   function handleSave() {
     if (!reviewTasks || reviewTasks.length === 0) return;
+    const count = reviewTasks.length;
     const anyInPlan = reviewTasks.some((t) => t.includeInPlan);
     startSaving(async () => {
       await createTasksWithDetails(reviewTasks);
       reset();
-      router.push(anyInPlan ? "/today" : "/today?view=all");
+      setSavedResult({ count, anyInPlan });
     });
+  }
+
+  function goToTasks() {
+    const target = savedResult?.anyInPlan ? "/today" : "/today?view=all";
+    setSavedResult(null);
+    router.push(target);
   }
 
   const hasDraft = history.length > 0 || Boolean(input.trim()) || Boolean(pendingTasks) || Boolean(reviewTasks);
@@ -222,7 +234,25 @@ export default function UnifiedTaskInput({
           </button>
         </div>
       )}
-      {!reviewTasks && (
+      {savedResult && (
+        <div className="bg-white ring-1 ring-neutral-200 rounded-2xl p-5 sm:p-6 space-y-4 shadow-md animate-rise-in">
+          <p className="flex items-start gap-2.5 text-[17px] font-semibold text-neutral-900 tracking-[-0.015em] leading-snug">
+            <IconCheck size={17} className="text-emerald-500 shrink-0 mt-0.5" />
+            Добавлено {savedResult.count} {tasksWord(savedResult.count)}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setSavedResult(null)} className="btn btn-primary">
+              Добавить ещё
+            </button>
+            <button type="button" onClick={goToTasks} className="btn btn-secondary">
+              К задачам
+              <IconArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!reviewTasks && !savedResult && (
         // Главный «холст» экрана: единственная приподнятая поверхность,
         // с чуть большей тенью, чем у обычных карточек — сюда нужно смотреть
         // и сюда нужно печатать.

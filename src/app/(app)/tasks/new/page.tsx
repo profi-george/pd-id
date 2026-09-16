@@ -5,6 +5,7 @@ import { flattenProjectsForSelect } from "@/lib/projectTree";
 import { CRITERIA_INFO } from "@/lib/criteriaInfo";
 import { PRIORITY_LABEL_TEXT, isPriorityLabel } from "@/lib/priorityEngine";
 import { requireUser } from "@/lib/auth";
+import CriterionInfo from "@/components/CriterionInfo";
 
 export const dynamic = "force-dynamic";
 
@@ -97,25 +98,37 @@ export default async function NewTaskPage({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">{CRITERIA_INFO.value.title} (1–5)</label>
+            <label className="flex items-center gap-0.5 text-xs font-semibold text-neutral-700 mb-1.5">
+              {CRITERIA_INFO.value.title} (1–5)
+              <CriterionInfo title={CRITERIA_INFO.value.title} definition={CRITERIA_INFO.value.definition} scale={CRITERIA_INFO.value.scale} />
+            </label>
             <select name="value" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">{CRITERIA_INFO.costOfDelay.title} (1–5)</label>
+            <label className="flex items-center gap-0.5 text-xs font-semibold text-neutral-700 mb-1.5">
+              {CRITERIA_INFO.costOfDelay.title} (1–5)
+              <CriterionInfo title={CRITERIA_INFO.costOfDelay.title} definition={CRITERIA_INFO.costOfDelay.definition} scale={CRITERIA_INFO.costOfDelay.scale} />
+            </label>
             <select name="costOfDelay" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">{CRITERIA_INFO.timeSensitivity.title} (1–5)</label>
+            <label className="flex items-center gap-0.5 text-xs font-semibold text-neutral-700 mb-1.5">
+              {CRITERIA_INFO.timeSensitivity.title} (1–5)
+              <CriterionInfo title={CRITERIA_INFO.timeSensitivity.title} definition={CRITERIA_INFO.timeSensitivity.definition} scale={CRITERIA_INFO.timeSensitivity.scale} />
+            </label>
             <select name="timeSensitivity" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Связь с текущей целью (1–5)</label>
+            <label className="flex items-center gap-0.5 text-xs font-semibold text-neutral-700 mb-1.5">
+              {CRITERIA_INFO.goalAlignment.title} (1–5)
+              <CriterionInfo title={CRITERIA_INFO.goalAlignment.title} definition={CRITERIA_INFO.goalAlignment.definition} scale={CRITERIA_INFO.goalAlignment.scale} />
+            </label>
             <select name="goalAlignment" defaultValue="3" className="field">
               {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>

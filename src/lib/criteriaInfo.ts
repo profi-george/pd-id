@@ -1,4 +1,4 @@
-export type CriterionKey = "value" | "costOfDelay" | "timeSensitivity";
+export type CriterionKey = "value" | "costOfDelay" | "timeSensitivity" | "goalAlignment";
 
 export const CRITERIA_INFO: Record<CriterionKey, { title: string; definition: string; scale: string[] }> = {
   value: {
@@ -32,6 +32,18 @@ export const CRITERIA_INFO: Record<CriterionKey, { title: string; definition: st
       "ценность постепенно снижается",
       "ценность заметно снижается с каждым днём",
       "ценность быстро снижается со временем",
+    ],
+  },
+  goalAlignment: {
+    title: "Связь с целью",
+    definition:
+      "Насколько задача продвигает вашу текущую главную цель (см. Настройки). Влияет на балл слабо — это лишь небольшая поправка, а не основной критерий.",
+    scale: [
+      "никак не связана с текущей целью",
+      "почти не связана",
+      "цель не задана, или связь не очевидна",
+      "заметно продвигает цель",
+      "напрямую ведёт к цели",
     ],
   },
 };

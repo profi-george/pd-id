@@ -77,7 +77,7 @@ const DOT_CLASS: Record<PriorityLabel, string> = {
   LATER: "bg-neutral-300",
 };
 
-const CRITERION_FIELDS: { key: CriterionKey; aiKey: keyof DrawerTask; reasonKey: keyof DrawerTask }[] = [
+const CRITERION_FIELDS: { key: Exclude<CriterionKey, "goalAlignment">; aiKey: keyof DrawerTask; reasonKey: keyof DrawerTask }[] = [
   { key: "value", aiKey: "aiValue", reasonKey: "aiReasoningValue" },
   { key: "costOfDelay", aiKey: "aiCostOfDelay", reasonKey: "aiReasoningCostOfDelay" },
   { key: "timeSensitivity", aiKey: "aiTimeSensitivity", reasonKey: "aiReasoningTimeSensitivity" },

@@ -9,10 +9,11 @@ import {
   LOW_CONFIDENCE_THRESHOLD,
   type PriorityLabel,
 } from "@/lib/priorityEngine";
-import { CRITERIA_INFO } from "@/lib/criteriaInfo";
+import { CRITERIA_INFO, type CriterionKey } from "@/lib/criteriaInfo";
 import { formatDateRelative, parseDateInputValue, todayDate, tomorrowDate, toDateInputValue } from "@/lib/dates";
 import { tasksWord } from "@/lib/pluralize";
 import { IconChevronDown } from "@/components/icons";
+import CriterionInfo from "@/components/CriterionInfo";
 
 const SCALE = [1, 2, 3, 4, 5];
 const PRIORITY_OPTIONS: PriorityLabel[] = ["P0", "P1", "P2", "P3", "LATER"];
@@ -145,6 +146,36 @@ function PlanPicker({
   );
 }
 
+// Подпись критерия + значок "?" с определением и шкалой из той же CRITERIA_INFO,
+// что и в TaskDrawer — иначе с одними голыми цифрами 1-5 непонятно, что именно
+// они означают и чем "Скорость потери ценности" отличается от "Цены промедления".
+function CriterionField({
+  criterionKey,
+  value,
+  onChange,
+}: {
+  criterionKey: CriterionKey;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const info = CRITERIA_INFO[criterionKey];
+  return (
+    <label className="flex items-center justify-between gap-1">
+      <span className="flex items-center gap-0.5">
+        {info.title}
+        <CriterionInfo title={info.title} definition={info.definition} scale={info.scale} />
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="field field-sm w-auto"
+      >
+        {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
+    </label>
+  );
+}
+
 function TaskCard({
   task,
   projects,
@@ -224,46 +255,26 @@ function TaskCard({
           {task.riskText && <p className="text-xs text-neutral-500">Риск отложить: {task.riskText}</p>}
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs pt-1">
-            <label className="flex items-center justify-between gap-1">
-              {CRITERIA_INFO.value.title}
-              <select
-                value={task.value}
-                onChange={(e) => onChange({ value: Number(e.target.value) })}
-                className="field field-sm w-auto"
-              >
-                {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-1">
-              {CRITERIA_INFO.costOfDelay.title}
-              <select
-                value={task.costOfDelay}
-                onChange={(e) => onChange({ costOfDelay: Number(e.target.value) })}
-                className="field field-sm w-auto"
-              >
-                {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-1">
-              {CRITERIA_INFO.timeSensitivity.title}
-              <select
-                value={task.timeSensitivity}
-                onChange={(e) => onChange({ timeSensitivity: Number(e.target.value) })}
-                className="field field-sm w-auto"
-              >
-                {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-1">
-              Связь с целью
-              <select
-                value={task.goalAlignment}
-                onChange={(e) => onChange({ goalAlignment: Number(e.target.value) })}
-                className="field field-sm w-auto"
-              >
-                {SCALE.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
+            <CriterionField
+              criterionKey="value"
+              value={task.value}
+              onChange={(v) => onChange({ value: v })}
+            />
+            <CriterionField
+              criterionKey="costOfDelay"
+              value={task.costOfDelay}
+              onChange={(v) => onChange({ costOfDelay: v })}
+            />
+            <CriterionField
+              criterionKey="timeSensitivity"
+              value={task.timeSensitivity}
+              onChange={(v) => onChange({ timeSensitivity: v })}
+            />
+            <CriterionField
+              criterionKey="goalAlignment"
+              value={task.goalAlignment}
+              onChange={(v) => onChange({ goalAlignment: v })}
+            />
             <label className="flex items-center justify-between gap-1">
               Затраты (мин)
               <input
