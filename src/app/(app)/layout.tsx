@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@/generated/prisma/client";
 import { requireUser } from "@/lib/auth";
-import { todayDate } from "@/lib/dates";
+import { todayDate, nextWeekday } from "@/lib/dates";
 import AppShell from "@/components/AppShell";
 
 const ACTIVE_STATUSES = [TaskStatus.BACKLOG, TaskStatus.PLANNED];
@@ -61,9 +61,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // ловим это здесь, при первом заходе в кабинет за день: любая такая задача из
   // прошлого переезжает на сегодня и будет переезжать так каждый день дальше,
   // пока её не отметят выполненной (или явно не решат её судьбу в "Итоге дня").
+  // Суббота — исключение: если сегодня суббота, перенос целится сразу в
+  // воскресенье, а не молча оседает на нерабочем дне.
   await prisma.task.updateMany({
     where: { userId: user.id, status: TaskStatus.PLANNED, date: { lt: todayDate() } },
-    data: { date: todayDate() },
+    data: { date: nextWeekday(todayDate()) },
   });
 
   await syncDnevnikOverdueTask(user.id);

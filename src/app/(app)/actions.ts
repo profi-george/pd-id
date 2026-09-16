@@ -1028,8 +1028,8 @@ export async function submitEveningForm(formData: FormData) {
   const user = await requireUser();
   const dateISO = str(formData, "date");
   const date = parseDateInputValue(dateISO);
-  // Автоматический перенос вперёд не должен молча попадать на выходные —
-  // "завтра" с пятницы едет сразу на понедельник. Это касается только
+  // Автоматический перенос вперёд не должен молча попадать на субботу —
+  // "завтра" с пятницы едет сразу на воскресенье. Это касается только
   // автоматической подстановки даты (тут и ниже), а не явного выбора
   // конкретного дня пользователем где-либо ещё в приложении.
   const tomorrow = nextWeekday(addDays(date, 1));
