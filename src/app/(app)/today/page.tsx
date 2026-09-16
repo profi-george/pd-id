@@ -106,15 +106,15 @@ export default async function TodayPage({
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
             <ViewToggle mode="all" date={today} />
-            <LayoutToggle layout={layout} hrefFor={allLayoutHref} />
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <Link href="/add" className="btn btn-secondary btn-sm">
             <IconPlus size={13} />
             Добавить задачу
           </Link>
+          <LayoutToggle layout={layout} hrefFor={allLayoutHref} />
         </div>
 
         <PriorityMatrix
@@ -200,7 +200,6 @@ export default async function TodayPage({
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <ViewToggle mode="day" date={date} />
-          <LayoutToggle layout={layout} hrefFor={dayLayoutHref} />
           <DayDateNav date={date} isToday={isToday} todayISO={toDateInputValue(today)} />
           {cycleInfo && (
             <div className="max-w-[13rem] rounded-xl bg-rose-50 ring-1 ring-rose-100 px-3 py-2 text-right">
@@ -288,10 +287,13 @@ export default async function TodayPage({
         <p className="text-sm font-semibold text-neutral-800 tracking-[-0.01em]">
           {isToday ? "Что важно сделать сегодня" : "Что важно сделать"}
         </p>
-        <Link href="/add" className="btn btn-secondary btn-sm shrink-0">
-          <IconPlus size={13} />
-          Добавить задачу
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <LayoutToggle layout={layout} hrefFor={dayLayoutHref} />
+          <Link href="/add" className="btn btn-secondary btn-sm">
+            <IconPlus size={13} />
+            Добавить задачу
+          </Link>
+        </div>
       </div>
 
       {/* Весь день целиком передаётся в PriorityMatrix — вкладки Предстоит/
