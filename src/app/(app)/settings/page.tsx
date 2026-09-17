@@ -1,4 +1,4 @@
-import { getGoogleStatus, disconnectGoogleAction, getCycleSettings, setCycleSettings, markCycleStartToday } from "@/app/(app)/actions";
+import { getGoogleStatus, disconnectGoogleAction, getCycleSettings, setCycleSettings, markCycleStartToday, markPeriodEndToday } from "@/app/(app)/actions";
 import { todayDate, toDateInputValue } from "@/lib/dates";
 import { getCycleInfo, DEFAULT_CYCLE_LENGTH, DEFAULT_PERIOD_LENGTH } from "@/lib/cycle";
 
@@ -113,11 +113,20 @@ export default async function SettingsPage({
           </button>
         </form>
 
-        <form action={markCycleStartToday}>
-          <button type="submit" className="btn btn-secondary">
-            Цикл начался сегодня
-          </button>
-        </form>
+        <div className="flex flex-wrap gap-2">
+          <form action={markCycleStartToday}>
+            <button type="submit" className="btn btn-secondary">
+              Цикл начался сегодня
+            </button>
+          </form>
+          {cycle.cycleStartDate && (
+            <form action={markPeriodEndToday}>
+              <button type="submit" className="btn btn-secondary">
+                Месячные закончились сегодня
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

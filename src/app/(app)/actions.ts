@@ -5,7 +5,7 @@ import { TaskStatus, type Task } from "@/generated/prisma/client";
 import { todayDate, tomorrowDate, addDays, nextWeekday, parseDateInputValue, toDateInputValue, sameDate } from "@/lib/dates";
 import { initialOrderKey } from "@/lib/priority";
 import { requireUser } from "@/lib/auth";
-import { getCycleInfo } from "@/lib/cycle";
+import { getCycleInfo, computeCycleDay } from "@/lib/cycle";
 import {
   chatWithAI,
   explainPriorityChange,
@@ -119,6 +119,21 @@ export async function markCycleStartToday() {
     create: { userId: user.id, cycleStartDate: todayDate() },
     update: { cycleStartDate: todayDate() },
   });
+  revalidatePath("/settings");
+  revalidatePath("/today");
+}
+
+// Быстрая отметка "месячные закончились сегодня" — раньше длину менструации
+// можно было только вписать числом в настройках заранее, а не отметить по
+// факту в моменте. Считаем прошедший день цикла на сегодня и сохраняем его
+// как длину менструации — так следующие прогнозы фазы подстраиваются под
+// реальный цикл, а не только под то, что было введено вручную когда-то раньше.
+export async function markPeriodEndToday() {
+  const user = await requireUser();
+  const settings = await prisma.appSettings.findUnique({ where: { userId: user.id } });
+  if (!settings?.cycleStartDate) return;
+  const periodLengthDays = computeCycleDay(settings.cycleStartDate, todayDate(), settings.cycleLengthDays ?? undefined);
+  await prisma.appSettings.update({ where: { userId: user.id }, data: { periodLengthDays } });
   revalidatePath("/settings");
   revalidatePath("/today");
 }
