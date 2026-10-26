@@ -14,6 +14,7 @@ import {
 import { todayDate, tomorrowDate, sameDate, formatDateHuman, formatDateRelative } from "@/lib/dates";
 import { CRITERIA_INFO, type CriterionKey } from "@/lib/criteriaInfo";
 import CriterionInfo from "@/components/CriterionInfo";
+import TagEditor, { type TagItem } from "@/components/TagEditor";
 import { recalculatePriority, answerConfidenceQuestion } from "@/app/(app)/actions";
 import {
   IconCalendar,
@@ -37,6 +38,7 @@ export type DrawerTask = TaskEvaluation & {
   googleEventId?: string | null;
   googleEventUrl?: string | null;
   subtasks?: SubtaskItem[];
+  tags?: TagItem[];
   aiValue?: number | null;
   aiCostOfDelay?: number | null;
   aiUrgency?: number | null;
@@ -238,9 +240,13 @@ export default function TaskDrawer({
   onDeleteSubtask,
   onRenameSubtask,
   onScheduleSubtask,
+  allTags = [],
+  onChangeTags,
 }: {
   task: DrawerTask | null;
   projectOptions: { id: string; label: string }[];
+  allTags?: TagItem[];
+  onChangeTags?: (names: string[]) => void;
   googleConnected?: boolean;
   onClose: () => void;
   onChangeText: (text: string) => void;
@@ -493,6 +499,13 @@ export default function TaskDrawer({
           <IconCheck size={12} />
           Сохранено
         </p>
+
+        {onChangeTags && (
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Метки</label>
+            <TagEditor tags={task.tags ?? []} allTags={allTags} onChange={onChangeTags} />
+          </div>
+        )}
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>

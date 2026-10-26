@@ -415,6 +415,40 @@ export async function createTasksWithDetails(
   revalidatePath("/today");
 }
 
+// Метки задачи приходят названиями: незнакомое название — это новая метка,
+// она заводится тут же. Возвращаем и метки задачи, и обновлённый общий список,
+// чтобы новая метка сразу появилась в подсказках у других задач.
+export async function setTaskTags(
+  taskId: string,
+  names: string[]
+): Promise<{ tags: { id: string; name: string }[]; allTags: { id: string; name: string }[] }> {
+  const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id }, select: { id: true } });
+  const clean = [...new Set(names.map((n) => n.trim().replace(/\s+/g, " ")).filter(Boolean))].slice(0, 20);
+
+  if (task) {
+    const tags = await Promise.all(
+      clean.map((name) =>
+        prisma.tag.upsert({
+          where: { userId_name: { userId: user.id, name } },
+          create: { userId: user.id, name },
+          update: {},
+          select: { id: true },
+        })
+      )
+    );
+    await prisma.task.update({ where: { id: task.id }, data: { tags: { set: tags.map((t) => ({ id: t.id })) } } });
+  }
+
+  const [taskTags, allTags] = await Promise.all([
+    prisma.tag.findMany({ where: { userId: user.id, tasks: { some: { id: taskId } } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.tag.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
+  revalidatePath("/today");
+  revalidatePath("/projects", "layout");
+  return { tags: taskTags, allTags };
+}
+
 export async function updateTaskFields(
   taskId: string,
   patch: Partial<{

@@ -39,6 +39,7 @@ export default async function TodayPage({
   searchParams: Promise<{ date?: string; view?: string; project?: string; complete?: string; layout?: string }>;
 }) {
   const user = await requireUser();
+  const allTags = await prisma.tag.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } });
   const { date: dateParam, view, project: projectFilter, complete, layout: layoutParam } = await searchParams;
   const layout: "list" | "grid" = layoutParam === "grid" ? "grid" : "list";
 
@@ -66,7 +67,7 @@ export default async function TodayPage({
       // ограничиваем.
       prisma.task.findMany({
         where: { userId: user.id },
-        include: { project: true, subtasks: { orderBy: { order: "asc" } } },
+        include: { project: true, subtasks: { orderBy: { order: "asc" } }, tags: { select: { id: true, name: true }, orderBy: { name: "asc" } } },
         orderBy: { createdAt: "asc" },
       }),
       prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
@@ -120,6 +121,7 @@ export default async function TodayPage({
         <PriorityMatrix
           tasks={matrixTasks}
           projectOptions={projectOptions}
+          allTags={allTags}
           googleConnected={googleStatus.connected}
           statusTabs
           viewMode={layout}
@@ -139,7 +141,7 @@ export default async function TodayPage({
     prisma.day.findUnique({ where: { userId_date: { userId: user.id, date } } }),
     prisma.task.findMany({
       where: { userId: user.id, date },
-      include: { project: true, subtasks: { orderBy: { order: "asc" } } },
+      include: { project: true, subtasks: { orderBy: { order: "asc" } }, tags: { select: { id: true, name: true }, orderBy: { name: "asc" } } },
       orderBy: { order: "asc" },
     }),
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
@@ -301,6 +303,7 @@ export default async function TodayPage({
       <PriorityMatrix
         tasks={matrixTasks}
         projectOptions={projectOptions}
+        allTags={allTags}
         googleConnected={googleStatus.connected}
         planView
         showTopPick={!isPast}

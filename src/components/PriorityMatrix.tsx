@@ -32,7 +32,9 @@ import {
   deleteSubtask,
   scheduleSubtask,
   splitPartialTask,
+  setTaskTags,
 } from "@/app/(app)/actions";
+import type { TagItem } from "@/components/TagEditor";
 import TaskDrawer, { type DrawerTask, type SubtaskItem } from "@/components/TaskDrawer";
 import PartialCompleteDialog from "@/components/PartialCompleteDialog";
 import {
@@ -56,6 +58,7 @@ export type MatrixTask = TaskEvaluation & {
   date?: Date | null;
   movedToDate?: Date | null;
   subtasks?: SubtaskItem[];
+  tags?: TagItem[];
   manualRank?: number | null;
   confidenceReason?: string | null;
   googleEventId?: string | null;
@@ -772,6 +775,9 @@ function TaskRow({
                   {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
                 </span>
               )}
+              {task.tags?.map((t) => (
+                <span key={t.id} className="text-indigo-600/80">#{t.name}</span>
+              ))}
               <ProjectPicker
                 projectId={task.projectId}
                 projectName={task.projectName}
@@ -933,8 +939,11 @@ export default function PriorityMatrix({
   showTopPick = false,
   statusTabs,
   viewMode = "list",
+  allTags: initialAllTags = [],
 }: {
   tasks: MatrixTask[];
+  // Все метки пользователя — подсказки в карточке задачи и фильтр над списком.
+  allTags?: TagItem[];
   projectOptions: { id: string; label: string; color?: string | null }[];
   googleConnected?: boolean;
   // true на странице "План дня": список — только задачи конкретной даты, поэтому
@@ -1011,7 +1020,15 @@ export default function PriorityMatrix({
     };
   }, []);
 
-  const visibleItems = statusTabs ? items.filter((t) => statusBucket(t.status) === statusTab) : items;
+  const [allTags, setAllTags] = useState(initialAllTags);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  // В фильтре — только метки, которые реально есть у задач этого экрана,
+  // иначе клик по метке без задач даёт пустой список без объяснения.
+  const usedTags = allTags.filter((tag) => items.some((t) => t.tags?.some((x) => x.id === tag.id)));
+
+  const visibleItems = (statusTabs ? items.filter((t) => statusBucket(t.status) === statusTab) : items).filter(
+    (t) => !tagFilter || t.tags?.some((x) => x.id === tagFilter)
+  );
 
   const groups: Record<PriorityLabel, MatrixTask[]> = { P0: [], P1: [], P2: [], P3: [], LATER: [] };
   for (const t of visibleItems) groups[computePriority(t).label].push(t);
@@ -1338,7 +1355,7 @@ export default function PriorityMatrix({
 
   return (
     <div className="space-y-7">
-      {(statusTabs || visibleItems.length > 0) && (
+      {(statusTabs || visibleItems.length > 0 || tagFilter) && (
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {statusTabs ? (
             <div className="segmented">
@@ -1361,6 +1378,24 @@ export default function PriorityMatrix({
             </div>
           ) : (
             <span />
+          )}
+          {usedTags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {usedTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => setTagFilter(tagFilter === tag.id ? null : tag.id)}
+                  className={`rounded-full text-xs px-2.5 py-1 border transition-colors ${
+                    tagFilter === tag.id
+                      ? "bg-indigo-600 border-indigo-600 text-white"
+                      : "border-neutral-200 text-neutral-600 hover:border-indigo-300 hover:text-indigo-700"
+                  }`}
+                >
+                  #{tag.name}
+                </button>
+              ))}
+            </div>
           )}
           {visibleItems.length > 0 && (
             <label className="flex items-center gap-2 text-xs text-neutral-500 hover:text-neutral-800 transition-colors">
@@ -1477,6 +1512,19 @@ export default function PriorityMatrix({
       <TaskDrawer
         task={drawerTask}
         projectOptions={projectOptions}
+        allTags={allTags}
+        onChangeTags={(names) => {
+          if (!openId) return;
+          const id = openId;
+          // Сразу показываем названия (у новых меток временный id), настоящие
+          // id подставятся из ответа сервера.
+          patch(id, { tags: names.map((name) => allTags.find((t) => t.name === name) ?? { id: `new:${name}`, name }) });
+          startTransition(async () => {
+            const res = await setTaskTags(id, names);
+            patch(id, { tags: res.tags });
+            setAllTags(res.allTags);
+          });
+        }}
         googleConnected={googleConnected}
         onClose={() => setOpenId(null)}
         onChangeText={(text) => {

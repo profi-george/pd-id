@@ -19,6 +19,7 @@ export default async function ProjectDetailPage({
   searchParams: Promise<{ layout?: string }>;
 }) {
   const user = await requireUser();
+  const allTags = await prisma.tag.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } });
   const { id } = await params;
   const { layout: layoutParam } = await searchParams;
   const layout: "list" | "grid" = layoutParam === "grid" ? "grid" : "list";
@@ -28,7 +29,7 @@ export default async function ProjectDetailPage({
     prisma.project.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.task.findMany({
       where: { userId: user.id, status: { in: [TaskStatus.BACKLOG, TaskStatus.PLANNED] } },
-      include: { project: true, subtasks: { orderBy: { order: "asc" } } },
+      include: { project: true, subtasks: { orderBy: { order: "asc" } }, tags: { select: { id: true, name: true }, orderBy: { name: "asc" } } },
     }),
     getGoogleStatus(),
   ]);
@@ -99,6 +100,7 @@ export default async function ProjectDetailPage({
       <PriorityMatrix
         tasks={scopedTasks}
         projectOptions={projectOptions}
+        allTags={allTags}
         googleConnected={googleStatus.connected}
         viewMode={layout}
         emptyMessage="В этом проекте пока нет задач."
