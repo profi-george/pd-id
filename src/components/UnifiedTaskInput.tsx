@@ -8,6 +8,8 @@ import { todayDate, nextWeekday, toDateInputValue } from "@/lib/dates";
 import type { AiTaskEvaluation, ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
+import BucketReview from "@/components/BucketReview";
+import type { Bucket } from "@/lib/buckets";
 import { IconArrowRight, IconCheck, IconSparkles } from "@/components/icons";
 import { tasksWord } from "@/lib/pluralize";
 
@@ -179,27 +181,45 @@ export default function UnifiedTaskInput({
     });
   }
 
-  function handleConfirm() {
-    if (!pendingTasks) return;
-    // Если AI не понял явный день из текста — по умолчанию ставим на сегодня,
-    // но только если сегодня будний день. На выходных без явного "в субботу"/
-    // "в воскресенье" день молча сдвигается на ближайший понедельник — автоматом
-    // на выходные ничего не ставим.
-    const defaultDateISO = toDateInputValue(nextWeekday(todayDate()));
-    setReviewTasks(
-      pendingTasks.map((t) => ({
+  function moveToBucket(index: number, bucket: Bucket) {
+    setPendingTasks((prev) => prev && prev.map((t, i) => (i === index ? { ...t, bucket, bumpedFromToday: false } : t)));
+  }
+
+  // Корзина → то, как задача сохраняется:
+  // "Сегодня" — в план на сегодня (на выходных — ближайший будний), либо на
+  // день, который пользователь назвал сам; "На неделе" — в бэклог, кроме задач
+  // с явно названным днём; "Потом" — в бэклог с приоритетом "Не сейчас".
+  function toReviewTasks(tasks: AiTaskEvaluation[]): ReviewTask[] {
+    const todayISO = toDateInputValue(nextWeekday(todayDate()));
+    return tasks.map((t) => {
+      const bucket = t.bucket ?? "week";
+      const inPlan = bucket === "today" || (bucket === "week" && Boolean(t.scheduledDate));
+      return {
         ...t,
         projectId: t.suggestedProjectId,
-        // По умолчанию — в план (на сегодня/ближайший будний, либо на дату, которую
-        // AI понял из текста): именно это и написано в подписи чекбокса на карточке.
-        // Раньше по умолчанию было false, если AI не нашёл явную дату в тексте —
-        // задача тихо уходила в бэклог, хотя пользователь ожидал увидеть её
-        // в плане дня. Снять галочку всё ещё можно вручную.
-        includeInPlan: true,
-        scheduledDate: t.scheduledDate ?? defaultDateISO,
-      }))
-    );
+        includeInPlan: inPlan,
+        scheduledDate: bucket === "today" ? t.scheduledDate ?? todayISO : t.scheduledDate,
+        manualPriority: bucket === "later" ? "LATER" : null,
+      };
+    });
+  }
+
+  function handleConfirm() {
+    if (!pendingTasks) return;
+    setReviewTasks(toReviewTasks(pendingTasks));
     setPendingTasks(null);
+  }
+
+  function handleSaveBuckets() {
+    if (!pendingTasks || pendingTasks.length === 0) return;
+    const tasks = toReviewTasks(pendingTasks);
+    const count = tasks.length;
+    const anyInPlan = tasks.some((t) => t.includeInPlan);
+    startSaving(async () => {
+      await createTasksWithDetails(tasks);
+      reset();
+      setSavedResult({ count, anyInPlan });
+    });
   }
 
   function handleSave() {
@@ -263,27 +283,23 @@ export default function UnifiedTaskInput({
           </p>
 
           {pendingTasks && (
-            <div className="space-y-2 bg-neutral-50 ring-1 ring-neutral-200 rounded-xl p-3.5 animate-rise-in">
+            <div className="space-y-3 bg-neutral-50 ring-1 ring-neutral-200 rounded-xl p-3.5 animate-rise-in">
               <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">
-                Вот что получилось
+                Предлагаю распределить так
               </p>
-              <ul className="space-y-1.5">
-                {pendingTasks.map((t, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-neutral-700 leading-snug">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-ink-400 shrink-0" aria-hidden />
-                    <span>
-                      <span className="font-medium text-neutral-900">{t.text}</span>
-                      {t.primaryReason && <span className="text-neutral-500"> — {t.primaryReason}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <button type="button" onClick={handleConfirm} className="btn btn-primary w-full mt-1">
-                Продолжить и настроить
-                <IconArrowRight size={14} />
-              </button>
+              <BucketReview tasks={pendingTasks} onMove={moveToBucket} />
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button type="button" onClick={handleSaveBuckets} disabled={isSaving} className="btn btn-primary flex-1">
+                  {isSaving ? "Сохраняю…" : "Сохранить так"}
+                  {!isSaving && <IconCheck size={14} />}
+                </button>
+                <button type="button" onClick={handleConfirm} disabled={isSaving} className="btn btn-secondary flex-1">
+                  Настроить подробнее
+                  <IconArrowRight size={14} />
+                </button>
+              </div>
               <p className="text-xs text-neutral-500 leading-relaxed">
-                Что-то не так? Напишите поправку ниже — например «нет, вторая задача не срочная».
+                Перекиньте задачу кнопками под ней или напишите поправку ниже — например «счёт важнее звонка».
               </p>
             </div>
           )}

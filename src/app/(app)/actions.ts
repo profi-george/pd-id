@@ -18,6 +18,7 @@ import {
 } from "@/lib/ai";
 import { isPriorityLabel, computePriority, PRIORITY_LABEL_TEXT } from "@/lib/priorityEngine";
 import { isProjectColor } from "@/lib/projectColors";
+import { assignBuckets } from "@/lib/buckets";
 import {
   getGoogleConnectionStatus,
   disconnectGoogle,
@@ -348,6 +349,9 @@ export async function chatStep(
       prisma.project.findMany({ where: { userId: user.id }, select: { id: true, name: true } }),
     ]);
     const result = await chatWithAI(history, message, { currentGoal, today: new Date(), projects });
+    if (result.done) {
+      return { ok: true, result: { done: true, tasks: assignBuckets(result.tasks, toDateInputValue(todayDate())) } };
+    }
     return { ok: true, result };
   } catch (e) {
     return { ok: false, error: friendlyAiError(e) };

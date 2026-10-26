@@ -2,6 +2,8 @@
 // Сам приоритет (score, ранжирование) всегда считает детерминированный код в
 // lib/priorityEngine.ts — так порядок задач воспроизводим и не «плавает» между запросами.
 
+import { dateOnly, toDateInputValue } from "@/lib/dates";
+
 export type AiTaskEvaluation = {
   text: string; // краткое название действия
   resultText: string; // ожидаемый результат
@@ -25,6 +27,10 @@ export type AiTaskEvaluation = {
   reasoningCostOfDelay: string;
   reasoningTimeSensitivity: string;
   reasoningEffort: string;
+  // Корзина при разборе списка (см. lib/buckets.ts) — только из chatWithAI.
+  bucket?: "today" | "week" | "later";
+  bucketReason?: string; // одна фраза, почему задача в этой корзине
+  bumpedFromToday?: boolean; // ИИ ставил на сегодня, но не влезло в лимит дня
 };
 
 export type ChatMessage = { role: "user" | "assistant"; text: string };
@@ -109,8 +115,9 @@ const CRITERIA_GUIDE = `Критерии, которые нужно оценит
 явно названное время ("минут 15", "часа два") → используй как effortMinutes`;
 
 function contextBlock(context?: AiContext) {
-  const today = context?.today ?? new Date();
-  const dateStr = today.toISOString().slice(0, 10);
+  // Календарный день в APP_TIMEZONE, а не в UTC — иначе после полуночи по
+  // Москве ИИ ещё 3 часа считал бы "сегодня" вчерашним днём.
+  const dateStr = toDateInputValue(dateOnly(context?.today ?? new Date()));
   const goalLine = context?.currentGoal
     ? `Текущая главная цель пользователя: "${context.currentGoal}".`
     : "Текущая цель не задана — используй goalAlignment = 3 для всех задач, если явной связи не видно.";
@@ -170,6 +177,8 @@ export function normalizeEvaluation(raw: unknown, validProjectIds: Set<string>):
     reasoningCostOfDelay: String(t.reasoningCostOfDelay ?? "").trim(),
     reasoningTimeSensitivity: String(t.reasoningTimeSensitivity ?? "").trim(),
     reasoningEffort: String(t.reasoningEffort ?? "").trim(),
+    bucket: t.bucket === "today" || t.bucket === "week" || t.bucket === "later" ? t.bucket : undefined,
+    bucketReason: typeof t.bucketReason === "string" ? t.bucketReason.trim() : undefined,
   };
 }
 
@@ -271,6 +280,12 @@ ${CRITERIA_GUIDE}
 2. Если пользователь одним сообщением описал несколько разных задач ("проверить рекламу и выставить счета") — раздели их на отдельные объекты в tasks, у каждой свои criteria.
 3. Уточняющий вопрос имеет смысл, ТОЛЬКО если ответ реально может изменить одно из: проект, срок (deadline/scheduledDate), итоговый уровень приоритета или порядок задачи относительно других. Не спрашивай ради того, чтобы просто увеличить свою уверенность (confidence) или уточнить цифры критериев — если однозначного пробела в проекте/сроке/приоритете/порядке нет, оцени как есть и заверши разговор, даже если уверенность не идеальна (используй confidence/confidenceReason, чтобы честно её показать). Если решил спросить — задай ОДИН короткий вопрос за раз, не вываливай сразу несколько.
 4. Как только по всем упомянутым задачам можно дать оценку — заверши разговор и верни финальный список.
+5. Разложи ВЕСЬ список по трём корзинам (поле bucket), сравнивая задачи МЕЖДУ СОБОЙ, а не каждую по отдельности:
+   - "today" — то, что действительно нужно сделать сегодня: горит срок, теряются деньги/возможность, или это главное по цели. НЕ БОЛЬШЕ 3 задач и не больше ~5 часов суммарно. Если кандидатов больше — оставь самые важные, остальные в "week".
+   - "week" — важно, но может подождать день-два.
+   - "later" — не горит и мало что меняет сейчас.
+   Если пользователь сам назвал день задачи (scheduledDate не сегодня) — не "today".
+   bucketReason — одна короткая человеческая фраза, почему задача именно в этой корзине, лучше в сравнении с другими задачами списка ("важнее счёта, потому что клиент ждёт с утра").
 
 Отвечай СТРОГО JSON-объектом:
 {"done": boolean, "question": string, "tasks": [оценки задач по схеме выше]}
@@ -288,7 +303,18 @@ ${transcript}
     properties: {
       done: { type: "BOOLEAN" },
       question: { type: "STRING" },
-      tasks: { type: "ARRAY", items: EVALUATION_SCHEMA_OBJ },
+      tasks: {
+        type: "ARRAY",
+        items: {
+          ...EVALUATION_SCHEMA_OBJ,
+          properties: {
+            ...EVALUATION_SCHEMA_OBJ.properties,
+            bucket: { type: "STRING", enum: ["today", "week", "later"] },
+            bucketReason: { type: "STRING" },
+          },
+          required: [...EVALUATION_SCHEMA_OBJ.required, "bucket", "bucketReason"],
+        },
+      },
     },
     required: ["done", "question", "tasks"],
   });
