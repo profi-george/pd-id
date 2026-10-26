@@ -40,6 +40,9 @@ export type AiContext = {
 };
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+// Основная модель периодически отвечает 503 "high demand" — тогда после
+// повторов переключаемся на запасную, чтобы пользователь не видел ошибку.
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.5-flash";
 
 const EVALUATION_SCHEMA_OBJ = {
   type: "OBJECT",
@@ -199,22 +202,37 @@ function requireApiKey(): string {
   return apiKey;
 }
 
+// Перегрузка (429/5xx) у Gemini обычно проходит за секунды — повторяем запрос
+// с паузой, последнюю попытку отдаём запасной модели. Остальные ошибки
+// (неверный ключ, плохой запрос) повторять бессмысленно — отдаём сразу.
+const ATTEMPTS: { model: string; delayMs: number }[] = [
+  { model: MODEL, delayMs: 0 },
+  { model: MODEL, delayMs: 1500 },
+  { model: FALLBACK_MODEL, delayMs: 1500 },
+];
+
+function isRetryableStatus(status: number) {
+  return status === 429 || status >= 500;
+}
+
 async function callGemini(prompt: string, responseSchema: object) {
   const apiKey = requireApiKey();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", responseSchema },
-    }),
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json", responseSchema },
   });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Gemini API вернул ошибку (${res.status}): ${body.slice(0, 300)}`);
+  let res: Response | null = null;
+  for (const attempt of ATTEMPTS) {
+    if (attempt.delayMs) await new Promise((r) => setTimeout(r, attempt.delayMs));
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${attempt.model}:generateContent?key=${apiKey}`;
+    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    if (res.ok || !isRetryableStatus(res.status)) break;
+  }
+
+  if (!res || !res.ok) {
+    const errBody = res ? await res.text().catch(() => "") : "";
+    throw new Error(`Gemini API вернул ошибку (${res?.status ?? "нет ответа"}): ${errBody.slice(0, 300)}`);
   }
 
   const data = await res.json();
