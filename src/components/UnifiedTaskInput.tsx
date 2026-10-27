@@ -9,7 +9,7 @@ import type { AiTaskEvaluation, ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
 import BucketReview from "@/components/BucketReview";
-import type { Bucket } from "@/lib/buckets";
+import { bucketForDate, type Bucket } from "@/lib/buckets";
 import { IconArrowRight, IconCheck, IconSparkles } from "@/components/icons";
 import { tasksWord } from "@/lib/pluralize";
 
@@ -181,25 +181,54 @@ export default function UnifiedTaskInput({
     });
   }
 
+  // Перенос в другую корзину. "Сегодня" ставит дату на сегодня; уход из
+  // корзины, которой соответствовала дата, эту дату снимает — иначе кнопка
+  // "Потом" у задачи на завтра молча ничего бы не меняла.
   function moveToBucket(index: number, bucket: Bucket) {
-    setPendingTasks((prev) => prev && prev.map((t, i) => (i === index ? { ...t, bucket, bumpedFromToday: false } : t)));
+    const todayISO = toDateInputValue(todayDate());
+    setPendingTasks((prev) =>
+      prev &&
+      prev.map((t, i) => {
+        if (i !== index) return t;
+        const scheduledDate =
+          bucket === "today"
+            ? todayISO
+            : t.scheduledDate && bucketForDate(t.scheduledDate, todayISO) !== bucket
+              ? null
+              : t.scheduledDate;
+        return { ...t, bucket, scheduledDate, bumpedFromToday: false };
+      })
+    );
+  }
+
+  // Дата, выбранная вручную, сама переносит задачу в свою корзину.
+  function setTaskDate(index: number, dateISO: string | null) {
+    const todayISO = toDateInputValue(todayDate());
+    setPendingTasks((prev) =>
+      prev &&
+      prev.map((t, i) =>
+        i === index
+          ? { ...t, scheduledDate: dateISO, bucket: dateISO ? bucketForDate(dateISO, todayISO) : t.bucket, bumpedFromToday: false }
+          : t
+      )
+    );
   }
 
   // Корзина → то, как задача сохраняется:
-  // "Сегодня" — в план на сегодня (на выходных — ближайший будний), либо на
-  // день, который пользователь назвал сам; "На неделе" — в бэклог, кроме задач
-  // с явно названным днём; "Потом" — в бэклог с приоритетом "Не сейчас".
+  // задача с конкретной датой — в план на эту дату, в какой бы корзине ни была;
+  // "Сегодня" без даты — в план на сегодня (на выходных — ближайший будний);
+  // "На неделе" без даты — в бэклог; "Потом" без даты — в бэклог с "Не сейчас".
   function toReviewTasks(tasks: AiTaskEvaluation[]): ReviewTask[] {
     const todayISO = toDateInputValue(nextWeekday(todayDate()));
     return tasks.map((t) => {
       const bucket = t.bucket ?? "week";
-      const inPlan = bucket === "today" || (bucket === "week" && Boolean(t.scheduledDate));
+      const scheduledDate = t.scheduledDate ?? (bucket === "today" ? todayISO : null);
       return {
         ...t,
         projectId: t.suggestedProjectId,
-        includeInPlan: inPlan,
-        scheduledDate: bucket === "today" ? t.scheduledDate ?? todayISO : t.scheduledDate,
-        manualPriority: bucket === "later" ? "LATER" : null,
+        includeInPlan: Boolean(scheduledDate),
+        scheduledDate,
+        manualPriority: bucket === "later" && !scheduledDate ? "LATER" : null,
       };
     });
   }
@@ -287,7 +316,7 @@ export default function UnifiedTaskInput({
               <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-[0.08em]">
                 Предлагаю распределить так
               </p>
-              <BucketReview tasks={pendingTasks} onMove={moveToBucket} />
+              <BucketReview tasks={pendingTasks} onMove={moveToBucket} onDate={setTaskDate} />
               <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <button type="button" onClick={handleSaveBuckets} disabled={isSaving} className="btn btn-primary flex-1">
                   {isSaving ? "Сохраняю…" : "Сохранить так"}

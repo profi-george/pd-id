@@ -3,6 +3,8 @@
 import type { AiTaskEvaluation } from "@/lib/ai";
 import { BUCKET_ORDER, BUCKET_TEXT, BUCKET_HINT, TODAY_MAX_TASKS, type Bucket } from "@/lib/buckets";
 import { formatEffort } from "@/lib/priorityEngine";
+import { formatDateHumanFull, parseDateInputValue } from "@/lib/dates";
+import { IconCalendar, IconX } from "@/components/icons";
 
 // Разбор списка по трём корзинам: ИИ уже разложил задачи, здесь их можно
 // перекинуть одним нажатием. Перегруз "Сегодня" не запрещаем — только честно
@@ -10,9 +12,11 @@ import { formatEffort } from "@/lib/priorityEngine";
 export default function BucketReview({
   tasks,
   onMove,
+  onDate,
 }: {
   tasks: AiTaskEvaluation[];
   onMove: (index: number, bucket: Bucket) => void;
+  onDate: (index: number, dateISO: string | null) => void;
 }) {
   const indexed = tasks.map((t, i) => ({ t, i, bucket: t.bucket ?? "week" }));
 
@@ -50,6 +54,38 @@ export default function BucketReview({
                     {t.bumpedFromToday && (
                       <p className="text-xs text-amber-700 mt-0.5">Не влезло в сегодня — день уже заполнен.</p>
                     )}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
+                      {/* Нативный выбор даты поверх плашки: и показывает распознанную
+                          дату, и даёт поставить/сменить её одним нажатием. */}
+                      <label
+                        className={`relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 cursor-pointer ${
+                          t.scheduledDate ? "bg-indigo-50 text-indigo-700" : "text-neutral-500 hover:text-indigo-700"
+                        }`}
+                      >
+                        <IconCalendar size={12} />
+                        {t.scheduledDate ? formatDateHumanFull(parseDateInputValue(t.scheduledDate)) : "Поставить дату"}
+                        <input
+                          type="date"
+                          value={t.scheduledDate ?? ""}
+                          onChange={(e) => onDate(i, e.target.value || null)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          aria-label="Дата задачи"
+                        />
+                      </label>
+                      {t.scheduledDate && (
+                        <button
+                          type="button"
+                          onClick={() => onDate(i, null)}
+                          className="text-neutral-400 hover:text-red-600"
+                          aria-label="Убрать дату"
+                        >
+                          <IconX size={12} />
+                        </button>
+                      )}
+                      {t.deadline && (
+                        <span className="text-red-600/80">срок до {formatDateHumanFull(parseDateInputValue(t.deadline))}</span>
+                      )}
+                    </div>
                     <div className="segmented mt-2" role="group" aria-label="Корзина">
                       {BUCKET_ORDER.map((b) => (
                         <button

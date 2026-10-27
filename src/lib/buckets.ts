@@ -42,35 +42,45 @@ function fallbackBucket(t: AiTaskEvaluation): Bucket {
   return "later";
 }
 
-// Задача, явно поставленная пользователем на другой день ("в пятницу"), в
-// "Сегодня" не попадает, как бы ИИ её ни оценил.
-function isScheduledLater(t: AiTaskEvaluation, todayISO: string) {
-  return Boolean(t.scheduledDate && t.scheduledDate > todayISO);
+// Корзина по явно названному дню: дата всегда главнее оценки ИИ — пользователь
+// сам сказал, когда делать. Сегодня → "Сегодня", ближайшая неделя → "На неделе",
+// дальше → "Потом" (в план на этот день задача всё равно встанет, см. toReviewTasks).
+export function bucketForDate(dateISO: string, todayISO: string): Bucket {
+  if (dateISO <= todayISO) return "today";
+  const days = (Date.parse(dateISO) - Date.parse(todayISO)) / 86_400_000;
+  return days <= 7 ? "week" : "later";
 }
 
 export function assignBuckets(tasks: AiTaskEvaluation[], todayISO: string): AiTaskEvaluation[] {
   const withBucket = tasks.map((t) => {
-    let bucket: Bucket = isBucket(t.bucket) ? t.bucket : fallbackBucket(t);
-    if (bucket === "today" && isScheduledLater(t, todayISO)) bucket = "week";
+    const bucket: Bucket = t.scheduledDate
+      ? bucketForDate(t.scheduledDate, todayISO)
+      : isBucket(t.bucket)
+        ? t.bucket
+        : fallbackBucket(t);
     return { ...t, bucket, bumpedFromToday: false };
   });
 
   // Лимит "Сегодня": оставляем самые приоритетные по расчёту, пока влезают по
   // числу и по времени. Первая задача остаётся всегда, даже если она одна
-  // больше лимита по времени, — иначе "Сегодня" оказалось бы пустым.
+  // больше лимита по времени, — иначе "Сегодня" оказалось бы пустым. Задачи,
+  // которые пользователь сам поставил на сегодня, не выталкиваются никогда.
   const today = withBucket
-    .filter((t) => t.bucket === "today")
+    .filter((t) => t.bucket === "today" && !t.scheduledDate)
     .sort((a, b) => score(b).score - score(a).score);
+  const pinned = withBucket.filter((t) => t.bucket === "today" && t.scheduledDate);
   const keep = new Set<AiTaskEvaluation>();
-  let minutes = 0;
+  let count = pinned.length;
+  let minutes = pinned.reduce((s, t) => s + t.effortMinutes, 0);
   for (const t of today) {
-    const fits = keep.size < TODAY_MAX_TASKS && (keep.size === 0 || minutes + t.effortMinutes <= TODAY_MAX_MINUTES);
+    const fits = count < TODAY_MAX_TASKS && (count === 0 || minutes + t.effortMinutes <= TODAY_MAX_MINUTES);
     if (!fits) continue;
     keep.add(t);
+    count++;
     minutes += t.effortMinutes;
   }
 
   return withBucket.map((t) =>
-    t.bucket === "today" && !keep.has(t) ? { ...t, bucket: "week", bumpedFromToday: true } : t
+    t.bucket === "today" && !t.scheduledDate && !keep.has(t) ? { ...t, bucket: "week", bumpedFromToday: true } : t
   );
 }
