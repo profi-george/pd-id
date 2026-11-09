@@ -28,7 +28,7 @@ export type AiTaskEvaluation = {
   reasoningTimeSensitivity: string;
   reasoningEffort: string;
   // Корзина при разборе списка (см. lib/buckets.ts) — только из chatWithAI.
-  bucket?: "today" | "week" | "later";
+  bucket?: "today" | "tomorrow" | "week" | "later";
   bucketReason?: string; // одна фраза, почему задача в этой корзине
   bumpedFromToday?: boolean; // ИИ ставил на сегодня, но не влезло в лимит дня
 };

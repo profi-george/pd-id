@@ -9,7 +9,7 @@ import type { AiTaskEvaluation, ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
 import BucketReview from "@/components/BucketReview";
-import { bucketForDate, type Bucket } from "@/lib/buckets";
+import { addDaysISO, bucketForDate, type Bucket } from "@/lib/buckets";
 import { IconArrowRight, IconCheck, IconSparkles } from "@/components/icons";
 import { tasksWord } from "@/lib/pluralize";
 
@@ -181,23 +181,13 @@ export default function UnifiedTaskInput({
     });
   }
 
-  // Перенос в другую корзину. "Сегодня" ставит дату на сегодня; уход из
-  // корзины, которой соответствовала дата, эту дату снимает — иначе кнопка
-  // "Потом" у задачи на завтра молча ничего бы не меняла.
+  // "Сегодня"/"Завтра" ставят соответствующую дату, "На неделе"/"Потом" — дату
+  // снимают: иначе кнопка "Потом" у задачи на 12-е молча ничего бы не меняла.
   function moveToBucket(index: number, bucket: Bucket) {
     const todayISO = toDateInputValue(todayDate());
+    const scheduledDate = bucket === "today" ? todayISO : bucket === "tomorrow" ? addDaysISO(todayISO, 1) : null;
     setPendingTasks((prev) =>
-      prev &&
-      prev.map((t, i) => {
-        if (i !== index) return t;
-        const scheduledDate =
-          bucket === "today"
-            ? todayISO
-            : t.scheduledDate && bucketForDate(t.scheduledDate, todayISO) !== bucket
-              ? null
-              : t.scheduledDate;
-        return { ...t, bucket, scheduledDate, bumpedFromToday: false };
-      })
+      prev && prev.map((t, i) => (i === index ? { ...t, bucket, scheduledDate, bumpedFromToday: false } : t))
     );
   }
 
@@ -222,7 +212,9 @@ export default function UnifiedTaskInput({
     const todayISO = toDateInputValue(nextWeekday(todayDate()));
     return tasks.map((t) => {
       const bucket = t.bucket ?? "week";
-      const scheduledDate = t.scheduledDate ?? (bucket === "today" ? todayISO : null);
+      const scheduledDate =
+        t.scheduledDate ??
+        (bucket === "today" ? todayISO : bucket === "tomorrow" ? addDaysISO(toDateInputValue(todayDate()), 1) : null);
       return {
         ...t,
         projectId: t.suggestedProjectId,
@@ -328,7 +320,7 @@ export default function UnifiedTaskInput({
                 </button>
               </div>
               <p className="text-xs text-neutral-500 leading-relaxed">
-                Перекиньте задачу кнопками под ней или напишите поправку ниже — например «счёт важнее звонка».
+                Не так? Нажмите другое «когда» или напишите поправку ниже.
               </p>
             </div>
           )}
