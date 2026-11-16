@@ -3,7 +3,8 @@
 // на весь список сразу, а лимит "Сегодня" соблюдает уже этот код — чтобы день
 // не переполнялся, даже если ИИ решил, что срочно всё.
 
-import { computePriority } from "@/lib/priorityEngine";
+import { computePriority, type PriorityLabel } from "@/lib/priorityEngine";
+import { todayDate, nextWeekday, toDateInputValue } from "@/lib/dates";
 import type { AiTaskEvaluation } from "@/lib/ai";
 
 export type Bucket = "today" | "tomorrow" | "week" | "later";
@@ -85,4 +86,33 @@ export function addDaysISO(dateISO: string, n: number): string {
   const d = new Date(`${dateISO}T00:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+// Задача после разбора, готовая к сохранению (см. lib/taskSave.ts).
+export type PlannedTask = AiTaskEvaluation & {
+  projectId: string | null;
+  includeInPlan: boolean;
+  manualPriority?: PriorityLabel | null;
+};
+
+// Корзина → то, как задача сохраняется:
+// задача с конкретной датой — в план на эту дату, в какой бы корзине ни была;
+// "Сегодня" без даты — в план на сегодня (на выходных — ближайший будний);
+// "Завтра" без даты — в план на завтра;
+// "На неделе" без даты — в бэклог; "Потом" без даты — в бэклог с "Не сейчас".
+export function toPlannedTasks(tasks: AiTaskEvaluation[]): PlannedTask[] {
+  const realToday = toDateInputValue(todayDate());
+  const todayISO = toDateInputValue(nextWeekday(todayDate()));
+  return tasks.map((t) => {
+    const bucket = t.bucket ?? "week";
+    const scheduledDate =
+      t.scheduledDate ?? (bucket === "today" ? todayISO : bucket === "tomorrow" ? addDaysISO(realToday, 1) : null);
+    return {
+      ...t,
+      projectId: t.suggestedProjectId,
+      includeInPlan: Boolean(scheduledDate),
+      scheduledDate,
+      manualPriority: bucket === "later" && !scheduledDate ? "LATER" : null,
+    };
+  });
 }

@@ -18,7 +18,8 @@ import {
 } from "@/lib/ai";
 import { isPriorityLabel, computePriority, PRIORITY_LABEL_TEXT } from "@/lib/priorityEngine";
 import { isProjectColor } from "@/lib/projectColors";
-import { assignBuckets } from "@/lib/buckets";
+import { assignBuckets, type PlannedTask } from "@/lib/buckets";
+import { saveAiTasks } from "@/lib/taskSave";
 import {
   getGoogleConnectionStatus,
   disconnectGoogle,
@@ -358,63 +359,9 @@ export async function chatStep(
   }
 }
 
-export async function createTasksWithDetails(
-  tasks: (AiTaskEvaluation & { projectId: string | null; includeInPlan: boolean; manualPriority?: string | null })[]
-) {
+export async function createTasksWithDetails(tasks: PlannedTask[]) {
   const user = await requireUser();
-  if (tasks.length === 0) return;
-
-  for (const t of tasks) {
-    if (!t.text.trim()) continue;
-    const deadline = t.deadline ? new Date(`${t.deadline}T00:00:00.000Z`) : null;
-    // Решение "в план или в бэклог" пользователь принимает по каждой задаче отдельно
-    // (галочка в проверке перед сохранением) — ничего не добавляется в план молча.
-    const date = t.includeInPlan
-      ? t.scheduledDate
-        ? new Date(`${t.scheduledDate}T00:00:00.000Z`)
-        : nextWeekday(todayDate())
-      : null;
-    const status = t.includeInPlan ? TaskStatus.PLANNED : TaskStatus.BACKLOG;
-    await prisma.task.create({
-      data: {
-        text: t.text.trim(),
-        resultText: t.resultText || null,
-        motivationText: t.motivationText || null,
-        projectId: t.projectId,
-        userId: user.id,
-        value: t.value,
-        costOfDelay: t.costOfDelay,
-        // Срочность отдельно AI больше не оценивает (дублировала cost of delay/дедлайн) —
-        // безопасное значение для NOT NULL-колонки в базе.
-        urgency: t.timeSensitivity,
-        timeSensitivity: t.timeSensitivity,
-        goalAlignment: t.goalAlignment,
-        effortMinutes: t.effortMinutes,
-        alternativeQuality: t.alternativeQuality,
-        confidence: t.confidence,
-        confidenceReason: t.confidenceReason || null,
-        deadline,
-        financialConsequence: t.financialConsequence,
-        primaryReason: t.primaryReason || null,
-        riskText: t.riskText || null,
-        // Снимок исходных оценок AI — чтобы потом показать "изменено вручную",
-        // если пользователь поправит значение в панели задачи.
-        aiValue: t.value,
-        aiCostOfDelay: t.costOfDelay,
-        aiTimeSensitivity: t.timeSensitivity,
-        aiEffortMinutes: t.effortMinutes,
-        aiReasoningValue: t.reasoningValue || null,
-        aiReasoningCostOfDelay: t.reasoningCostOfDelay || null,
-        aiReasoningTimeSensitivity: t.reasoningTimeSensitivity || null,
-        aiReasoningEffort: t.reasoningEffort || null,
-        manualPriority: t.manualPriority || null,
-        date,
-        status,
-        order: status === TaskStatus.PLANNED ? initialOrderKey({ ...t, urgency: t.timeSensitivity, deadline }) : 0,
-      },
-    });
-  }
-
+  await saveAiTasks(user.id, tasks);
   revalidatePath("/backlog");
   revalidatePath("/today");
 }

@@ -28,6 +28,15 @@ model User {
   pinSalt   String
   createdAt DateTime @default(now())
 
+  // Telegram-бот ПД-ИД (см. app/api/telegram/webhook): chatId — куда отвечать и
+  // от кого принимать задачи; linkToken — одноразовый код из ссылки
+  // "Подключить Telegram" в настройках; history — незаконченный уточняющий
+  // диалог с ИИ (JSON), lastUpdateId — защита от повторной доставки Telegram.
+  telegramChatId       String? @unique
+  telegramLinkToken    String? @unique
+  telegramHistory      String?
+  telegramLastUpdateId Int?
+
   projects Project[]
   tasks    Task[]
   days     Day[]

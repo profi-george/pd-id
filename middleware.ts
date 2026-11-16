@@ -19,5 +19,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/google/callback|_next/static|_next/image|favicon.ico).*)"],
+  // api/telegram — webhook бота: защищён своим секретом, cookie-сессии у Telegram нет.
+  matcher: ["/((?!api/google/callback|api/telegram|_next/static|_next/image|favicon.ico).*)"],
 };

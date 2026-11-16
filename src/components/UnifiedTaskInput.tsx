@@ -4,12 +4,12 @@ import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chatStep, createTasksWithDetails } from "@/app/(app)/actions";
-import { todayDate, nextWeekday, toDateInputValue } from "@/lib/dates";
+import { todayDate, toDateInputValue } from "@/lib/dates";
 import type { AiTaskEvaluation, ChatMessage } from "@/lib/ai";
 import SuggestedTasksEditor, { type ReviewTask, type ProjectOption } from "@/components/SuggestedTasksEditor";
 import VoiceInputButton from "@/components/VoiceInputButton";
 import BucketReview from "@/components/BucketReview";
-import { addDaysISO, bucketForDate, type Bucket } from "@/lib/buckets";
+import { addDaysISO, bucketForDate, toPlannedTasks, type Bucket } from "@/lib/buckets";
 import { IconArrowRight, IconCheck, IconSparkles } from "@/components/icons";
 import { tasksWord } from "@/lib/pluralize";
 
@@ -204,25 +204,9 @@ export default function UnifiedTaskInput({
     );
   }
 
-  // Корзина → то, как задача сохраняется:
-  // задача с конкретной датой — в план на эту дату, в какой бы корзине ни была;
-  // "Сегодня" без даты — в план на сегодня (на выходных — ближайший будний);
-  // "На неделе" без даты — в бэклог; "Потом" без даты — в бэклог с "Не сейчас".
+  // Корзина → то, как задача сохраняется: см. toPlannedTasks в lib/buckets.ts.
   function toReviewTasks(tasks: AiTaskEvaluation[]): ReviewTask[] {
-    const todayISO = toDateInputValue(nextWeekday(todayDate()));
-    return tasks.map((t) => {
-      const bucket = t.bucket ?? "week";
-      const scheduledDate =
-        t.scheduledDate ??
-        (bucket === "today" ? todayISO : bucket === "tomorrow" ? addDaysISO(toDateInputValue(todayDate()), 1) : null);
-      return {
-        ...t,
-        projectId: t.suggestedProjectId,
-        includeInPlan: Boolean(scheduledDate),
-        scheduledDate,
-        manualPriority: bucket === "later" && !scheduledDate ? "LATER" : null,
-      };
-    });
+    return toPlannedTasks(tasks);
   }
 
   function handleConfirm() {

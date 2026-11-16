@@ -1,6 +1,7 @@
 import { getGoogleStatus, disconnectGoogleAction, getCycleSettings, setCycleSettings, markCycleStartToday, markPeriodEndToday } from "@/app/(app)/actions";
 import { todayDate, toDateInputValue } from "@/lib/dates";
 import { getCycleInfo, DEFAULT_CYCLE_LENGTH, DEFAULT_PERIOD_LENGTH } from "@/lib/cycle";
+import { getTelegramStatus, connectTelegram, disconnectTelegram } from "./telegramActions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function SettingsPage({
   searchParams: Promise<{ connected?: string; error?: string }>;
 }) {
   const { connected, error } = await searchParams;
-  const [status, cycle] = await Promise.all([getGoogleStatus(), getCycleSettings()]);
+  const [status, cycle, telegram] = await Promise.all([getGoogleStatus(), getCycleSettings(), getTelegramStatus()]);
   const cyclePreview = cycle.cycleStartDate
     ? getCycleInfo(cycle.cycleStartDate, todayDate(), cycle.cycleLengthDays ?? undefined, cycle.periodLengthDays ?? undefined)
     : null;
@@ -56,6 +57,32 @@ export default async function SettingsPage({
           >
             Подключить Google-календарь
           </a>
+        )}
+      </div>
+
+      <div className="surface p-5 space-y-3">
+        <h2 className="text-sm font-semibold text-neutral-900">Telegram-бот</h2>
+        <p className="text-sm text-neutral-500 leading-relaxed">
+          Пишите задачи боту — он разложит их по «сегодня / завтра / на неделе / потом»
+          или на названную дату и сохранит сюда.
+        </p>
+        {telegram.connected ? (
+          <div className="space-y-2">
+            <p className="text-sm text-neutral-700">Подключён.</p>
+            <form action={disconnectTelegram}>
+              <button type="submit" className="btn btn-secondary !text-red-600 hover:!text-red-700">
+                Отключить
+              </button>
+            </form>
+          </div>
+        ) : telegram.configured ? (
+          <form action={connectTelegram}>
+            <button type="submit" className="btn btn-primary">
+              Подключить Telegram
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm text-neutral-500">Бот ещё не настроен на сервере.</p>
         )}
       </div>
 
