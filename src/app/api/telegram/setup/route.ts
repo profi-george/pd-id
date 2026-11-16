@@ -1,4 +1,4 @@
-import { tg } from "@/lib/telegramBot";
+import { tg, BOT_COMMANDS, BOT_DESCRIPTION, BOT_SHORT_DESCRIPTION } from "@/lib/telegramBot";
 
 // Подключает webhook бота к этому сайту. Вызывается вручную один раз после
 // деплоя (с сервера Vercel — из России api.telegram.org может не открываться):
@@ -15,6 +15,20 @@ export async function POST(req: Request) {
     allowed_updates: ["message"],
     drop_pending_updates: true,
   });
-  const me = await tg("getMe", {});
-  return Response.json({ url, setWebhook: result, bot: (me.result as { username?: string } | undefined)?.username });
+  const [commands, description, shortDescription, menuButton, me] = await Promise.all([
+    tg("setMyCommands", { commands: BOT_COMMANDS }),
+    tg("setMyDescription", { description: BOT_DESCRIPTION }),
+    tg("setMyShortDescription", { short_description: BOT_SHORT_DESCRIPTION }),
+    tg("setChatMenuButton", { menu_button: { type: "commands" } }),
+    tg("getMe", {}),
+  ]);
+  return Response.json({
+    url,
+    setWebhook: result,
+    commands,
+    description,
+    shortDescription,
+    menuButton,
+    bot: (me.result as { username?: string } | undefined)?.username,
+  });
 }
